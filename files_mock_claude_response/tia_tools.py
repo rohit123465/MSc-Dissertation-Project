@@ -1,0 +1,1213 @@
+"""
+tia_tools.py
+------------
+MCP-only pathology agent tool logic.
+
+Main MVP model:
+- resnet18-kather100k patch classification via Hugging Face/timm
+
+Outputs:
+- WSI metadata
+- Thumbnail
+- Tissue mask
+- Patch extraction
+- Kather patch predictions
+- Tissue-class aggregation
+- Colour variance
+- Patch entropy
+- Improved visible overlays
+"""
+
+import os
+import re
+import csv
+import json
+import math
+import random
+from collections import Counter, deque
+from typing import Optional, Dict, Any, List
+
+
+def ensure_parent_dir(path: str) -> None:
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+
+def tool_health() -> str:
+    return "health is OK!"
+
+
+def tool_echo(text: str) -> str:
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('echo requires a non-empty "text" argument.')
+    return text
+
+
+def tool_list_files(directory: str, max_items: int = 50) -> str:
+    if not isinstance(directory, str) or not directory.strip():
+        raise ValueError("list_files requires a non-empty directory path.")
+
+    os.makedirs(directory, exist_ok=True)
+
+    if not isinstance(max_items, int) or max_items <= 0:
+        max_items = 50
+
+    entries = sorted(os.listdir(directory), key=lambda x: x.lower())[:max_items]
+
+    out = []
+    for e in entries:
+        full = os.path.join(directory, e)
+        out.append(("[DIR]  " if os.path.isdir(full) else "[FILE] ") + e)
+
+    return "Items in " + directory + ":\n" + ("\n".join(out) if out else "(empty)")
+
+
+def tool_wsi_metadata(path: str) -> str:
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError('wsi_metadata requires a non-empty "path" argument.')
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {path}")
+
+    from tiatoolbox.wsicore.wsireader import WSIReader
+
+    wsi = WSIReader.open(path)
+
+    lines = [
+        f"Path: {path}",
+        f"Reader: {type(wsi).__name__}",
+        f"Dimensions (level 0): {wsi.info.slide_dimensions}",
+        f"Level count: {wsi.info.level_count}",
+    ]
+
+    try:
+        lines.append(f"Level dimensions: {wsi.info.level_dimensions}")
+    except Exception:
+        pass
+
+    try:
+        lines.append(f"MPP: {wsi.info.mpp}")
+    except Exception:
+        pass
+
+    try:
+        lines.append(f"Objective power: {wsi.info.objective_power}")
+    except Exception:
+        pass
+
+    return "\n".join(lines)
+
+
+def tool_wsi_thumbnail(
+    path: str,
+    output_path: str,
+    resolution: float = 2.0,
+    units: str = "power",
+) -> str:
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError('wsi_thumbnail requires a non-empty "path" argument.')
+
+    if not isinstance(output_path, str) or not output_path.strip():
+        raise ValueError('wsi_thumbnail requires a non-empty "output_path" argument.')
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {path}")
+
+    ensure_parent_dir(output_path)
+
+    from tiatoolbox.wsicore.wsireader import WSIReader
+    import cv2
+
+    wsi = WSIReader.open(path)
+    thumb_rgb = wsi.slide_thumbnail(resolution=float(resolution), units=str(units))
+    thumb_bgr = cv2.cvtColor(thumb_rgb, cv2.COLOR_RGB2BGR)
+
+    ok = cv2.imwrite(output_path, thumb_bgr)
+
+    if not ok:
+        raise IOError(f"Failed to write PNG to: {output_path}")
+
+    return (
+        f"Thumbnail generated successfully.\n"
+        f"Saved to: {output_path}\n"
+        f"Resolution: {resolution} {units}\n"
+        f"Thumbnail shape: {thumb_rgb.shape}"
+    )
+
+
+def tool_tissue_mask(
+    path: str,
+    output_mask_path: str,
+    output_overlay_path: Optional[str] = None,
+    mpp: float = 2.0,
+    method: str = "morphological",
+) -> str:
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError('tissue_mask requires a non-empty "path" argument.')
+
+    if not isinstance(output_mask_path, str) or not output_mask_path.strip():
+        raise ValueError('tissue_mask requires a non-empty "output_mask_path" argument.')
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {path}")
+
+    ensure_parent_dir(output_mask_path)
+
+    if output_overlay_path:
+        ensure_parent_dir(output_overlay_path)
+
+    from tiatoolbox.wsicore.wsireader import WSIReader
+    from tiatoolbox.tools.tissuemask import MorphologicalMasker, OtsuTissueMasker
+    import cv2
+    import numpy as np
+
+    wsi = WSIReader.open(path)
+    thumb_rgb = wsi.slide_thumbnail(resolution=float(mpp), units="mpp")
+
+    if method == "otsu":
+        masker = OtsuTissueMasker()
+    else:
+        masker = MorphologicalMasker(mpp=float(mpp))
+
+    masks = masker.fit_transform([thumb_rgb])
+    mask = masks[0]
+
+    mask_uint8 = (mask.astype(bool).astype("uint8")) * 255
+
+    ok = cv2.imwrite(output_mask_path, mask_uint8)
+
+    if not ok:
+        raise IOError(f"Failed to save mask to: {output_mask_path}")
+
+    overlay_message = "Overlay: not requested"
+
+    if output_overlay_path:
+        overlay = thumb_rgb.copy()
+        overlay[mask.astype(bool), 0] = 255
+        overlay = (0.65 * overlay + 0.35 * thumb_rgb).astype(np.uint8)
+        overlay_bgr = cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR)
+
+        ok2 = cv2.imwrite(output_overlay_path, overlay_bgr)
+
+        if not ok2:
+            raise IOError(f"Mask saved but failed to save overlay to: {output_overlay_path}")
+
+        overlay_message = f"Overlay saved to: {output_overlay_path}"
+
+    tissue_fraction = float(mask.astype(bool).mean())
+
+    lines = [
+        "Tissue mask generated successfully.",
+        f"Method: {method}",
+        f"Mask saved to: {output_mask_path}",
+        overlay_message,
+        f"Thumbnail size used: {thumb_rgb.shape[1]} x {thumb_rgb.shape[0]}",
+        f"Tissue fraction: {tissue_fraction:.4f}",
+    ]
+
+    return "\n".join(lines)
+
+
+def tool_extract_patches(
+    path: str,
+    output_dir: str,
+    patch_size: int = 224,
+    stride: Optional[int] = None,
+    level: int = 0,
+    max_patches: int = 2000,
+    min_tissue_fraction: float = 0.15,
+    mpp: float = 2.0,
+) -> str:
+    """
+    Extract tissue-rich WSI patches.
+
+    Changed for better overlays:
+    - default max_patches = 2000
+    - default stride = patch_size // 2 for denser sampling
+    """
+    if not isinstance(path, str) or not path.strip():
+        raise ValueError('extract_patches requires a non-empty "path" argument.')
+
+    if not isinstance(output_dir, str) or not output_dir.strip():
+        raise ValueError('extract_patches requires a non-empty "output_dir" argument.')
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"File not found: {path}")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    if stride is None:
+        stride = max(1, patch_size // 2)
+
+    from tiatoolbox.wsicore.wsireader import WSIReader
+    from tiatoolbox.tools.tissuemask import MorphologicalMasker
+    import cv2
+
+    wsi = WSIReader.open(path)
+
+    thumb_rgb = wsi.slide_thumbnail(resolution=float(mpp), units="mpp")
+    masker = MorphologicalMasker(mpp=float(mpp))
+    masks = masker.fit_transform([thumb_rgb])
+    tissue_mask_thumb = masks[0].astype(bool)
+
+    thumb_h, thumb_w = tissue_mask_thumb.shape[:2]
+
+    level_dims = wsi.info.level_dimensions
+
+    if level >= len(level_dims):
+        raise ValueError(f"Requested level {level}, but slide only has {len(level_dims)} levels.")
+
+    slide_w, slide_h = level_dims[level]
+
+    scale_x = slide_w / float(thumb_w)
+    scale_y = slide_h / float(thumb_h)
+
+    xs = list(range(0, max(slide_w - patch_size, 1), stride))
+    ys = list(range(0, max(slide_h - patch_size, 1), stride))
+    grid = [(x, y) for x in xs for y in ys]
+    random.shuffle(grid)
+
+    saved = 0
+    coords_saved = []
+
+    for x0, y0 in grid:
+        if saved >= max_patches:
+            break
+
+        cx_thumb = min(int((x0 + patch_size / 2) / scale_x), thumb_w - 1)
+        cy_thumb = min(int((y0 + patch_size / 2) / scale_y), thumb_h - 1)
+
+        if not tissue_mask_thumb[cy_thumb, cx_thumb]:
+            continue
+
+        patch_rgb = wsi.read_rect(
+            location=(x0, y0),
+            size=(patch_size, patch_size),
+            resolution=level,
+            units="level",
+        )
+
+        patch_hsv = cv2.cvtColor(patch_rgb, cv2.COLOR_RGB2HSV)
+        tissue_pix = (patch_hsv[:, :, 1] > 20) & (patch_hsv[:, :, 2] < 245)
+        frac = float(tissue_pix.mean())
+
+        if frac < min_tissue_fraction:
+            continue
+
+        patch_bgr = cv2.cvtColor(patch_rgb, cv2.COLOR_RGB2BGR)
+        out_path = os.path.join(output_dir, f"patch_l{level}_{x0}_{y0}.png")
+
+        if cv2.imwrite(out_path, patch_bgr):
+            saved += 1
+            coords_saved.append((x0, y0, frac, out_path))
+
+    if saved == 0:
+        raise RuntimeError(
+            "No tissue patches saved. Try lowering min_tissue_fraction or choosing a different level."
+        )
+
+    lines = [
+        f"Extracted {saved} tissue patches successfully.",
+        f"Saved to: {output_dir}",
+        f"Patch size: {patch_size}px",
+        f"Stride: {stride}px",
+        f"Level: {level}",
+        f"Minimum tissue fraction: {min_tissue_fraction}",
+        "",
+        "First patches:"
+    ]
+
+    for c in coords_saved[:10]:
+        lines.append(f"  (x={c[0]}, y={c[1]}), tissue={c[2]:.2f} -> {c[3]}")
+
+    return "\n".join(lines)
+
+
+def tool_analyze_patch_statistics(
+    patch_dir: str,
+    output_path: Optional[str] = None,
+) -> str:
+    if not isinstance(patch_dir, str) or not os.path.isdir(patch_dir):
+        raise ValueError("analyze_patch_statistics requires a valid patch_dir.")
+
+    import cv2
+    import numpy as np
+
+    patch_files = [
+        os.path.join(patch_dir, f)
+        for f in os.listdir(patch_dir)
+        if f.lower().endswith(".png")
+    ]
+
+    if len(patch_files) == 0:
+        raise FileNotFoundError("No PNG patches found in directory.")
+
+    means = []
+    gray_all = []
+
+    for p in patch_files:
+        img = cv2.imread(p)
+
+        if img is None:
+            continue
+
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        means.append(np.mean(img_rgb, axis=(0, 1)))
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray_all.append(gray.reshape(-1))
+
+    if len(means) == 0:
+        raise RuntimeError("Failed to read any patches.")
+
+    means_arr = np.array(means)
+    gray_concat = np.concatenate(gray_all, axis=0)
+
+    patch_colour_variance = float(np.var(means_arr))
+
+    hist, _ = np.histogram(gray_concat, bins=256, range=(0, 255), density=True)
+    hist = hist[hist > 0]
+
+    entropy = -float(np.sum(hist * np.log2(hist)))
+    heterogeneity_index = float(entropy * patch_colour_variance)
+
+    result = {
+        "patch_dir": patch_dir,
+        "patch_count": len(patch_files),
+        "patch_colour_variance": patch_colour_variance,
+        "shannon_entropy_grayscale": entropy,
+        "heterogeneity_index": heterogeneity_index,
+    }
+
+    lines = [
+        "Patch statistics computed successfully.",
+        f"Number of patches analysed: {len(patch_files)}",
+        f"Patch-level colour variance: {patch_colour_variance:.6f}",
+        f"Shannon entropy grayscale: {entropy:.6f}",
+        f"Heterogeneity index: {heterogeneity_index:.6f}",
+        "",
+        "Interpretation:",
+        "Higher variance and entropy suggest greater morphological or staining diversity across sampled tissue.",
+    ]
+
+    text = "\n".join(lines)
+
+    if output_path:
+        ensure_parent_dir(output_path)
+
+        if output_path.lower().endswith(".json"):
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2)
+        else:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(text)
+
+        text += f"\n\nSaved statistics to: {output_path}"
+
+    return text
+
+
+_PATCH_RE = re.compile(r"patch_l(?P<level>\d+)_(?P<x>\d+)_(?P<y>\d+)\.png$", re.IGNORECASE)
+
+
+KATHER_CLASSES = [
+    "ADI",
+    "BACK",
+    "DEB",
+    "LYM",
+    "MUC",
+    "MUS",
+    "NORM",
+    "STR",
+    "TUM",
+]
+
+
+KATHER_CLASS_DESCRIPTIONS = {
+    "ADI": "adipose tissue",
+    "BACK": "background",
+    "DEB": "debris",
+    "LYM": "lymphocytes",
+    "MUC": "mucus",
+    "MUS": "smooth muscle",
+    "NORM": "normal colon mucosa",
+    "STR": "cancer-associated stroma",
+    "TUM": "tumour epithelium",
+}
+
+
+def _parse_patch_filename(path: str) -> Dict[str, int]:
+    name = os.path.basename(path)
+    match = _PATCH_RE.match(name)
+
+    if not match:
+        return {"level": 0, "x": -1, "y": -1}
+
+    return {
+        "level": int(match.group("level")),
+        "x": int(match.group("x")),
+        "y": int(match.group("y")),
+    }
+
+
+def _choose_device(device: str) -> str:
+    if device == "auto":
+        try:
+            import torch
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        except Exception:
+            return "cpu"
+
+    return device
+
+
+def _load_pretrained_model(model_name: str, device: str):
+    import timm
+
+    if model_name == "resnet18-kather100k":
+        hf_model_name = "hf-hub:1aurent/resnet18.tiatoolbox-kather100k"
+
+        model = timm.create_model(
+            hf_model_name,
+            pretrained=True,
+        )
+
+        model.eval()
+        model.to(device)
+
+        return model, {"source": "huggingface", "hf_model": hf_model_name}
+
+    raise ValueError(f"Unsupported model_name: {model_name}")
+
+
+def _preprocess_patch_for_kather(img_rgb, input_size: int = 224):
+    import cv2
+    import torch
+    import numpy as np
+
+    if img_rgb.shape[0] != input_size or img_rgb.shape[1] != input_size:
+        img_rgb = cv2.resize(img_rgb, (input_size, input_size), interpolation=cv2.INTER_AREA)
+
+    arr = img_rgb.astype("float32") / 255.0
+
+    mean = np.array([0.485, 0.456, 0.406], dtype="float32")
+    std = np.array([0.229, 0.224, 0.225], dtype="float32")
+
+    arr = (arr - mean) / std
+    arr = np.transpose(arr, (2, 0, 1))
+
+    return torch.from_numpy(arr).float()
+
+
+def _prediction_entropy(probs: List[float]) -> float:
+    eps = 1e-12
+    vals = [max(float(p), eps) for p in probs]
+    total = sum(vals)
+
+    if total <= 0:
+        return 0.0
+
+    vals = [v / total for v in vals]
+    return float(-sum(v * math.log2(v) for v in vals))
+
+
+def tool_predict_kather_resnet18(
+    patch_dir: str,
+    output_json_path: str,
+    output_csv_path: Optional[str] = None,
+    model_name: str = "resnet18-kather100k",
+    batch_size: int = 16,
+    device: str = "auto",
+    input_size: int = 224,
+) -> str:
+    if not isinstance(patch_dir, str) or not os.path.isdir(patch_dir):
+        raise ValueError("predict_kather_resnet18 requires a valid patch_dir.")
+
+    if not isinstance(output_json_path, str) or not output_json_path.strip():
+        raise ValueError("predict_kather_resnet18 requires output_json_path.")
+
+    ensure_parent_dir(output_json_path)
+
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+
+    import cv2
+    import torch
+    import numpy as np
+
+    patch_files = sorted(
+        [
+            os.path.join(patch_dir, f)
+            for f in os.listdir(patch_dir)
+            if f.lower().endswith(".png")
+        ],
+        key=lambda p: p.lower()
+    )
+
+    if not patch_files:
+        raise FileNotFoundError(f"No PNG patches found in: {patch_dir}")
+
+    device_resolved = _choose_device(device)
+    model, io_config = _load_pretrained_model(model_name, device_resolved)
+
+    predictions: List[Dict[str, Any]] = []
+
+    batch_tensors = []
+    batch_paths = []
+
+    def flush_batch() -> None:
+        nonlocal batch_tensors, batch_paths, predictions
+
+        if not batch_tensors:
+            return
+
+        x = torch.stack(batch_tensors, dim=0).to(device_resolved)
+
+        with torch.no_grad():
+            logits = model(x)
+
+        soft = torch.softmax(logits, dim=1)
+        probs_np = soft.detach().cpu().numpy()
+
+        for patch_path, probs in zip(batch_paths, probs_np):
+            coord = _parse_patch_filename(patch_path)
+
+            class_index = int(np.argmax(probs))
+            confidence = float(probs[class_index])
+
+            if class_index < len(KATHER_CLASSES):
+                predicted_class = KATHER_CLASSES[class_index]
+            else:
+                predicted_class = f"class_{class_index}"
+
+            class_probs = {}
+            for i, prob in enumerate(probs.tolist()):
+                name = KATHER_CLASSES[i] if i < len(KATHER_CLASSES) else f"class_{i}"
+                class_probs[name] = float(prob)
+
+            tumour_epithelium_probability = float(class_probs.get("TUM", 0.0))
+            stroma_probability = float(class_probs.get("STR", 0.0))
+            lymphocyte_probability = float(class_probs.get("LYM", 0.0))
+
+            abnormality_score = max(tumour_epithelium_probability, stroma_probability)
+
+            predictions.append({
+                "patch_path": patch_path,
+                "filename": os.path.basename(patch_path),
+                "level": coord["level"],
+                "x": coord["x"],
+                "y": coord["y"],
+                "predicted_class": predicted_class,
+                "predicted_class_description": KATHER_CLASS_DESCRIPTIONS.get(predicted_class, predicted_class),
+                "confidence": confidence,
+                "tumour_epithelium_probability": tumour_epithelium_probability,
+                "stroma_probability": stroma_probability,
+                "lymphocyte_probability": lymphocyte_probability,
+                "abnormality_score": float(abnormality_score),
+                "class_probabilities": class_probs,
+                "model_name": model_name,
+            })
+
+        batch_tensors = []
+        batch_paths = []
+
+    for patch_path in patch_files:
+        img_bgr = cv2.imread(patch_path)
+
+        if img_bgr is None:
+            continue
+
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        tensor = _preprocess_patch_for_kather(img_rgb, input_size=input_size)
+
+        batch_tensors.append(tensor)
+        batch_paths.append(patch_path)
+
+        if len(batch_tensors) >= batch_size:
+            flush_batch()
+
+    flush_batch()
+
+    if not predictions:
+        raise RuntimeError("Model inference completed but no predictions were produced.")
+
+    class_counts = Counter(p["predicted_class"] for p in predictions)
+    total = len(predictions)
+
+    class_percentages = {
+        cls: float(100.0 * count / total)
+        for cls, count in class_counts.items()
+    }
+
+    tumour_like_count = sum(1 for p in predictions if p["predicted_class"] == "TUM")
+    stroma_count = sum(1 for p in predictions if p["predicted_class"] == "STR")
+    lymphocyte_count = sum(1 for p in predictions if p["predicted_class"] == "LYM")
+
+    result = {
+        "model_name": model_name,
+        "task": "kather100k_patch_tissue_classification",
+        "clinical_warning": (
+            "This is tissue-type classification and model-confidence analysis, not a clinical diagnosis."
+        ),
+        "patch_dir": patch_dir,
+        "patch_count": total,
+        "device": device_resolved,
+        "input_size": int(input_size),
+        "class_names": KATHER_CLASSES,
+        "class_descriptions": KATHER_CLASS_DESCRIPTIONS,
+        "class_counts": dict(class_counts),
+        "class_percentages": class_percentages,
+        "tumour_epithelium_patch_count": tumour_like_count,
+        "tumour_epithelium_percentage": float(100.0 * tumour_like_count / total),
+        "stroma_patch_count": stroma_count,
+        "stroma_percentage": float(100.0 * stroma_count / total),
+        "lymphocyte_patch_count": lymphocyte_count,
+        "lymphocyte_percentage": float(100.0 * lymphocyte_count / total),
+        "mean_tumour_epithelium_probability": float(np.mean([p["tumour_epithelium_probability"] for p in predictions])),
+        "mean_abnormality_score": float(np.mean([p["abnormality_score"] for p in predictions])),
+        "max_abnormality_score": float(np.max([p["abnormality_score"] for p in predictions])),
+        "io_config_present": io_config is not None,
+        "predictions": predictions,
+    }
+
+    with open(output_json_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
+
+    if output_csv_path:
+        with open(output_csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "filename",
+                    "patch_path",
+                    "level",
+                    "x",
+                    "y",
+                    "predicted_class",
+                    "predicted_class_description",
+                    "confidence",
+                    "tumour_epithelium_probability",
+                    "stroma_probability",
+                    "lymphocyte_probability",
+                    "abnormality_score",
+                    "model_name",
+                ],
+            )
+            writer.writeheader()
+            for row in predictions:
+                writer.writerow({
+                    "filename": row["filename"],
+                    "patch_path": row["patch_path"],
+                    "level": row["level"],
+                    "x": row["x"],
+                    "y": row["y"],
+                    "predicted_class": row["predicted_class"],
+                    "predicted_class_description": row["predicted_class_description"],
+                    "confidence": row["confidence"],
+                    "tumour_epithelium_probability": row["tumour_epithelium_probability"],
+                    "stroma_probability": row["stroma_probability"],
+                    "lymphocyte_probability": row["lymphocyte_probability"],
+                    "abnormality_score": row["abnormality_score"],
+                    "model_name": row["model_name"],
+                })
+
+    lines = [
+        "ResNet18-Kather100K patch classification completed successfully.",
+        f"Model: {model_name}",
+        f"Device: {device_resolved}",
+        f"Patches predicted: {total}",
+        "",
+        "Class summary:"
+    ]
+
+    for cls, count in class_counts.most_common():
+        desc = KATHER_CLASS_DESCRIPTIONS.get(cls, cls)
+        pct = class_percentages[cls]
+        lines.append(f"  {cls} ({desc}): {count} patches ({pct:.2f}%)")
+
+    lines += [
+        "",
+        f"TUM patches: {tumour_like_count} ({result['tumour_epithelium_percentage']:.2f}%)",
+        f"STR patches: {stroma_count} ({result['stroma_percentage']:.2f}%)",
+        f"LYM patches: {lymphocyte_count} ({result['lymphocyte_percentage']:.2f}%)",
+        f"Mean TUM probability: {result['mean_tumour_epithelium_probability']:.6f}",
+        f"Mean abnormality score: {result['mean_abnormality_score']:.6f}",
+        f"Max abnormality score: {result['max_abnormality_score']:.6f}",
+        f"JSON saved to: {output_json_path}",
+    ]
+
+    if output_csv_path:
+        lines.append(f"CSV saved to: {output_csv_path}")
+
+    lines.append("")
+    lines.append("Important: this is tissue-type classification/model confidence, not clinical diagnosis.")
+
+    return "\n".join(lines)
+
+
+def _estimate_patch_size_from_predictions(preds: List[Dict[str, Any]], fallback: int = 224) -> int:
+    xs = sorted({int(p["x"]) for p in preds if int(p.get("x", -1)) >= 0})
+    ys = sorted({int(p["y"]) for p in preds if int(p.get("y", -1)) >= 0})
+
+    diffs = []
+
+    for arr in [xs, ys]:
+        for a, b in zip(arr, arr[1:]):
+            d = b - a
+            if d > 0:
+                diffs.append(d)
+
+    if not diffs:
+        return fallback
+
+    return int(max(1, round(float(sorted(diffs)[len(diffs) // 2]))))
+
+
+def _count_clusters(preds: List[Dict[str, Any]], cluster_distance: Optional[float] = None) -> int:
+    valid = [
+        p for p in preds
+        if int(p.get("x", -1)) >= 0 and int(p.get("y", -1)) >= 0
+    ]
+
+    if not valid:
+        return 0
+
+    if cluster_distance is None:
+        estimated = _estimate_patch_size_from_predictions(valid, fallback=224)
+        cluster_distance = float(estimated * 1.5)
+
+    n = len(valid)
+    visited = [False] * n
+    coords = [(int(p["x"]), int(p["y"])) for p in valid]
+
+    clusters = 0
+
+    for i in range(n):
+        if visited[i]:
+            continue
+
+        clusters += 1
+        visited[i] = True
+        q = deque([i])
+
+        while q:
+            cur = q.popleft()
+            x1, y1 = coords[cur]
+
+            for j in range(n):
+                if visited[j]:
+                    continue
+
+                x2, y2 = coords[j]
+                dist = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+                if dist <= cluster_distance:
+                    visited[j] = True
+                    q.append(j)
+
+    return clusters
+
+
+def tool_aggregate_kather_metrics(
+    predictions_json_path: str,
+    output_metrics_path: Optional[str] = None,
+    abnormality_threshold: float = 0.5,
+    cluster_distance: Optional[float] = None,
+) -> str:
+    if not isinstance(predictions_json_path, str) or not os.path.exists(predictions_json_path):
+        raise FileNotFoundError("aggregate_kather_metrics requires a valid predictions_json_path.")
+
+    with open(predictions_json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    preds = data.get("predictions", [])
+
+    if not preds:
+        raise RuntimeError("No predictions found in predictions JSON.")
+
+    total = len(preds)
+
+    class_counts = Counter(p["predicted_class"] for p in preds)
+    class_percentages = {
+        cls: float(100.0 * count / total)
+        for cls, count in class_counts.items()
+    }
+
+    abnormal_preds = [
+        p for p in preds
+        if float(p.get("abnormality_score", 0.0)) >= float(abnormality_threshold)
+    ]
+
+    tumour_preds = [p for p in preds if p.get("predicted_class") == "TUM"]
+
+    class_distribution = [
+        class_counts.get(cls, 0) / total
+        for cls in KATHER_CLASSES
+    ]
+
+    class_entropy = _prediction_entropy(class_distribution)
+
+    cluster_count = _count_clusters(
+        preds=abnormal_preds,
+        cluster_distance=cluster_distance,
+    )
+
+    metrics = {
+        "source_predictions": predictions_json_path,
+        "model_name": data.get("model_name", "resnet18-kather100k"),
+        "total_predicted_patches": total,
+        "class_counts": dict(class_counts),
+        "class_percentages": class_percentages,
+        "tumour_epithelium_patch_count": len(tumour_preds),
+        "tumour_epithelium_percentage": float(100.0 * len(tumour_preds) / total),
+        "high_abnormality_patch_count": len(abnormal_preds),
+        "high_abnormality_percentage": float(100.0 * len(abnormal_preds) / total),
+        "abnormality_threshold": float(abnormality_threshold),
+        "mean_tumour_epithelium_probability": float(
+            sum(float(p.get("tumour_epithelium_probability", 0.0)) for p in preds) / total
+        ),
+        "mean_abnormality_score": float(
+            sum(float(p.get("abnormality_score", 0.0)) for p in preds) / total
+        ),
+        "max_abnormality_score": float(
+            max(float(p.get("abnormality_score", 0.0)) for p in preds)
+        ),
+        "class_entropy": class_entropy,
+        "cluster_count": int(cluster_count),
+        "cluster_distance": cluster_distance,
+        "clinical_warning": (
+            "These metrics summarise tissue-class model confidence, not clinical diagnosis."
+        ),
+    }
+
+    if output_metrics_path:
+        ensure_parent_dir(output_metrics_path)
+        with open(output_metrics_path, "w", encoding="utf-8") as f:
+            json.dump(metrics, f, indent=2)
+
+    lines = [
+        "Kather prediction metrics aggregated successfully.",
+        f"Model: {metrics['model_name']}",
+        f"Total predicted patches: {total}",
+        f"TUM patches: {metrics['tumour_epithelium_patch_count']}",
+        f"TUM percentage: {metrics['tumour_epithelium_percentage']:.2f}%",
+        f"High abnormality patches: {metrics['high_abnormality_patch_count']}",
+        f"High abnormality percentage: {metrics['high_abnormality_percentage']:.2f}%",
+        f"Mean TUM probability: {metrics['mean_tumour_epithelium_probability']:.6f}",
+        f"Mean abnormality score: {metrics['mean_abnormality_score']:.6f}",
+        f"Max abnormality score: {metrics['max_abnormality_score']:.6f}",
+        f"Class entropy: {class_entropy:.6f}",
+        f"Cluster count: {cluster_count}",
+        "",
+        "Class percentages:",
+    ]
+
+    for cls, pct in sorted(class_percentages.items(), key=lambda x: x[1], reverse=True):
+        desc = KATHER_CLASS_DESCRIPTIONS.get(cls, cls)
+        lines.append(f"  {cls} ({desc}): {pct:.2f}%")
+
+    if output_metrics_path:
+        lines.append(f"\nMetrics saved to: {output_metrics_path}")
+
+    lines.append("")
+    lines.append("Important: these are tissue-class/model-confidence metrics, not clinical diagnosis.")
+
+    return "\n".join(lines)
+
+
+def _add_legend_rgb(img_rgb, class_colours):
+    import cv2
+    import numpy as np
+
+    legend_items = [
+        ("ADI", "adipose"),
+        ("BACK", "background"),
+        ("DEB", "debris"),
+        ("LYM", "lymphocytes"),
+        ("MUC", "mucus"),
+        ("MUS", "muscle"),
+        ("NORM", "normal"),
+        ("STR", "stroma"),
+        ("TUM", "tumour epithelium"),
+    ]
+
+    h, w = img_rgb.shape[:2]
+    panel_w = 330
+    row_h = 28
+    panel_h = row_h * len(legend_items) + 20
+
+    x0 = max(10, w - panel_w - 10)
+    y0 = 10
+
+    overlay = img_rgb.copy()
+    cv2.rectangle(
+        overlay,
+        (x0, y0),
+        (x0 + panel_w, y0 + panel_h),
+        (255, 255, 255),
+        thickness=-1,
+    )
+    img_rgb = (0.65 * img_rgb + 0.35 * overlay).astype(np.uint8)
+
+    cv2.rectangle(
+        img_rgb,
+        (x0, y0),
+        (x0 + panel_w, y0 + panel_h),
+        (0, 0, 0),
+        thickness=2,
+    )
+
+    cv2.putText(
+        img_rgb,
+        "Kather100K classes",
+        (x0 + 10, y0 + 20),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (0, 0, 0),
+        1,
+        cv2.LINE_AA,
+    )
+
+    y = y0 + 45
+    for cls, label in legend_items:
+        colour = tuple(int(v) for v in class_colours.get(cls, np.array([255, 255, 255])))
+        cv2.rectangle(img_rgb, (x0 + 10, y - 14), (x0 + 30, y + 6), colour, thickness=-1)
+        cv2.rectangle(img_rgb, (x0 + 10, y - 14), (x0 + 30, y + 6), (0, 0, 0), thickness=1)
+        cv2.putText(
+            img_rgb,
+            f"{cls}: {label}",
+            (x0 + 40, y + 2),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.47,
+            (0, 0, 0),
+            1,
+            cv2.LINE_AA,
+        )
+        y += row_h
+
+    return img_rgb
+
+
+def tool_generate_kather_overlay(
+    wsi_path: str,
+    predictions_json_path: str,
+    thumbnail_path: str,
+    output_overlay_path: str,
+    output_heterogeneity_path: Optional[str] = None,
+    alpha: float = 0.75,
+    patch_size: int = 224,
+    min_display_size: int = 8,
+    draw_legend: bool = True,
+) -> str:
+    """
+    Improved overlay generator.
+
+    Changes:
+    - filled rectangles instead of outlines
+    - stronger alpha
+    - minimum display size for each patch
+    - visible black outline for TUM/STR/high abnormality patches
+    - legend added to overlay
+    """
+    if not isinstance(wsi_path, str) or not os.path.exists(wsi_path):
+        raise FileNotFoundError("generate_kather_overlay requires a valid wsi_path.")
+
+    if not isinstance(predictions_json_path, str) or not os.path.exists(predictions_json_path):
+        raise FileNotFoundError("generate_kather_overlay requires a valid predictions_json_path.")
+
+    if not isinstance(thumbnail_path, str) or not os.path.exists(thumbnail_path):
+        raise FileNotFoundError("generate_kather_overlay requires a valid thumbnail_path.")
+
+    if not isinstance(output_overlay_path, str) or not output_overlay_path.strip():
+        raise ValueError("generate_kather_overlay requires output_overlay_path.")
+
+    ensure_parent_dir(output_overlay_path)
+
+    if output_heterogeneity_path:
+        ensure_parent_dir(output_heterogeneity_path)
+
+    import cv2
+    import numpy as np
+    from tiatoolbox.wsicore.wsireader import WSIReader
+
+    with open(predictions_json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    preds = data.get("predictions", [])
+
+    if not preds:
+        raise RuntimeError("No predictions found in predictions JSON.")
+
+    thumb_bgr = cv2.imread(thumbnail_path)
+
+    if thumb_bgr is None:
+        raise RuntimeError(f"Could not read thumbnail: {thumbnail_path}")
+
+    thumb_rgb = cv2.cvtColor(thumb_bgr, cv2.COLOR_BGR2RGB)
+
+    class_layer = thumb_rgb.copy()
+    heterogeneity_layer = thumb_rgb.copy()
+
+    wsi = WSIReader.open(wsi_path)
+    slide_w, slide_h = wsi.info.slide_dimensions
+    thumb_h, thumb_w = thumb_rgb.shape[:2]
+
+    scale_x = thumb_w / float(slide_w)
+    scale_y = thumb_h / float(slide_h)
+
+    class_colours = {
+        "ADI": np.array([255, 255, 0], dtype=np.uint8),
+        "BACK": np.array([180, 180, 180], dtype=np.uint8),
+        "DEB": np.array([120, 80, 40], dtype=np.uint8),
+        "LYM": np.array([0, 80, 255], dtype=np.uint8),
+        "MUC": np.array([0, 255, 255], dtype=np.uint8),
+        "MUS": np.array([255, 128, 0], dtype=np.uint8),
+        "NORM": np.array([0, 255, 0], dtype=np.uint8),
+        "STR": np.array([255, 0, 255], dtype=np.uint8),
+        "TUM": np.array([255, 0, 0], dtype=np.uint8),
+    }
+
+    visible_patch_count = 0
+
+    for p in preds:
+        x = int(p.get("x", -1))
+        y = int(p.get("y", -1))
+
+        if x < 0 or y < 0:
+            continue
+
+        predicted_class = p.get("predicted_class", "UNKNOWN")
+        abnormality_score = float(p.get("abnormality_score", 0.0))
+        confidence = float(p.get("confidence", 0.0))
+
+        tx1 = int(x * scale_x)
+        ty1 = int(y * scale_y)
+
+        raw_w = int(patch_size * scale_x)
+        raw_h = int(patch_size * scale_y)
+
+        display_w = max(min_display_size, raw_w)
+        display_h = max(min_display_size, raw_h)
+
+        tx2 = tx1 + display_w
+        ty2 = ty1 + display_h
+
+        tx1 = max(0, min(tx1, thumb_w - 1))
+        ty1 = max(0, min(ty1, thumb_h - 1))
+        tx2 = max(tx1 + 1, min(tx2, thumb_w))
+        ty2 = max(ty1 + 1, min(ty2, thumb_h))
+
+        if tx2 <= tx1 or ty2 <= ty1:
+            continue
+
+        visible_patch_count += 1
+
+        colour = class_colours.get(predicted_class, np.array([255, 255, 255], dtype=np.uint8))
+
+        cv2.rectangle(
+            class_layer,
+            (tx1, ty1),
+            (tx2, ty2),
+            tuple(int(v) for v in colour),
+            thickness=-1,
+        )
+
+        if predicted_class in ["TUM", "STR"]:
+            cv2.rectangle(
+                class_layer,
+                (tx1, ty1),
+                (tx2, ty2),
+                (0, 0, 0),
+                thickness=2,
+            )
+
+        # Heterogeneity: red = high abnormality, yellow/orange = uncertainty
+        uncertainty = 1.0 - confidence
+        red = int(255 * max(0.0, min(1.0, abnormality_score)))
+        green = int(255 * max(0.0, min(1.0, uncertainty)))
+        blue = 0
+
+        heter_colour = np.array([red, green, blue], dtype=np.uint8)
+
+        cv2.rectangle(
+            heterogeneity_layer,
+            (tx1, ty1),
+            (tx2, ty2),
+            tuple(int(v) for v in heter_colour),
+            thickness=-1,
+        )
+
+        if abnormality_score >= 0.5:
+            cv2.rectangle(
+                heterogeneity_layer,
+                (tx1, ty1),
+                (tx2, ty2),
+                (0, 0, 0),
+                thickness=2,
+            )
+
+    class_overlay_rgb = cv2.addWeighted(
+        thumb_rgb,
+        1.0 - float(alpha),
+        class_layer,
+        float(alpha),
+        0,
+    )
+
+    heterogeneity_rgb = cv2.addWeighted(
+        thumb_rgb,
+        1.0 - float(alpha),
+        heterogeneity_layer,
+        float(alpha),
+        0,
+    )
+
+    if draw_legend:
+        class_overlay_rgb = _add_legend_rgb(class_overlay_rgb, class_colours)
+
+        cv2.putText(
+            heterogeneity_rgb,
+            "Heterogeneity: red = high abnormality, green/yellow = uncertainty",
+            (20, 35),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 0, 0),
+            2,
+            cv2.LINE_AA,
+        )
+
+    class_overlay_bgr = cv2.cvtColor(class_overlay_rgb, cv2.COLOR_RGB2BGR)
+    ok = cv2.imwrite(output_overlay_path, class_overlay_bgr)
+
+    if not ok:
+        raise IOError(f"Failed to save Kather overlay to: {output_overlay_path}")
+
+    heter_msg = "Heterogeneity overlay: not requested."
+
+    if output_heterogeneity_path:
+        heter_bgr = cv2.cvtColor(heterogeneity_rgb, cv2.COLOR_RGB2BGR)
+        ok2 = cv2.imwrite(output_heterogeneity_path, heter_bgr)
+
+        if not ok2:
+            raise IOError(f"Failed to save heterogeneity overlay to: {output_heterogeneity_path}")
+
+        heter_msg = f"Heterogeneity overlay saved to: {output_heterogeneity_path}"
+
+    lines = [
+        "Kather tissue-class overlay generated successfully.",
+        f"Class overlay saved to: {output_overlay_path}",
+        heter_msg,
+        f"Patches visualised: {visible_patch_count}",
+        f"Alpha: {alpha}",
+        f"Minimum display patch size: {min_display_size}px",
+        "",
+        "Overlay interpretation:",
+        "Red = TUM/tumour epithelium.",
+        "Purple = STR/cancer-associated stroma.",
+        "Blue = LYM/lymphocytes.",
+        "Heterogeneity overlay: redder patches have higher abnormality score.",
+        "This is tissue-type model confidence, not clinical diagnosis.",
+    ]
+
+    return "\n".join(lines)
