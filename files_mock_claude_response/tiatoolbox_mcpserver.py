@@ -17,6 +17,10 @@ from tia_tools import (
     tool_predict_kather_resnet18,
     tool_aggregate_kather_metrics,
     tool_generate_kather_overlay,
+    tool_summarize_kather_results,
+    tool_generate_confidence_histogram,
+    tool_generate_hotspot_overlay,
+    tool_compare_masked_vs_unmasked_runs,
 )
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -91,6 +95,11 @@ def infer_task_type(user_prompt: str) -> str:
         "kather",
         "tumour",
         "tumor",
+        "post",
+        "summary",
+        "hotspot",
+        "histogram",
+        "compare",
     ]):
         return "thumbnail_only"
 
@@ -108,6 +117,11 @@ def infer_task_type(user_prompt: str) -> str:
         "kather",
         "tumour",
         "tumor",
+        "post",
+        "summary",
+        "hotspot",
+        "histogram",
+        "compare",
     ]):
         return "tissue_mask_only"
 
@@ -123,8 +137,27 @@ def infer_task_type(user_prompt: str) -> str:
         "kather",
         "tumour",
         "tumor",
+        "post",
+        "summary",
+        "hotspot",
+        "histogram",
+        "compare",
     ]):
         return "patches_only"
+
+    if (
+        "summarize" in request
+        or "summary" in request
+        or "post-process" in request
+        or "postprocess" in request
+        or "hotspot" in request
+        or "histogram" in request
+        or "confidence" in request
+        or "compare masked" in request
+        or "compare" in request
+        or "masked vs unmasked" in request
+    ):
+        return "post_processing"
 
     if (
         "prediction" in request
@@ -223,6 +256,40 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
             ]
         }
 
+    elif task_type == "post_processing":
+        plan = {
+            "task_type": task_type,
+            "goal": "Run post-processing on existing Kather100K prediction outputs.",
+            "steps": [
+                "Use saved Kather prediction, metric, and patch-statistic files.",
+                "Generate a plain-English summary of the Kather results.",
+                "Generate a confidence histogram from patch-level prediction confidence scores.",
+                "Generate a hotspot overlay showing spatial clusters of high-abnormality patches.",
+                "Optionally compare masked and unmasked metric files if both are provided.",
+                "Save all post-processing outputs to the output directory."
+            ],
+            "suggested_tools_after_approval": [
+                "summarize_kather_results",
+                "generate_confidence_histogram",
+                "generate_hotspot_overlay",
+                "compare_masked_vs_unmasked_runs"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "kather_summary.txt"),
+                os.path.join(output_dir, "confidence_histogram.png"),
+                os.path.join(output_dir, "hotspot_overlay.png"),
+                os.path.join(output_dir, "masked_vs_unmasked_comparison.txt")
+            ],
+            "default_parameters": {
+                "abnormality_threshold": 0.5,
+                "histogram_bins": 20,
+                "patch_size": 224
+            },
+            "clinical_warning": (
+                "The post-processing outputs explain model-confidence behaviour, not clinical diagnosis."
+            )
+        }
+
     elif task_type == "kather_prediction":
         plan = {
             "task_type": task_type,
@@ -231,13 +298,14 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "Read WSI metadata.",
                 "Generate a thumbnail.",
                 "Generate a tissue mask and tissue overlay unless the user asks to skip masking.",
-                "Extract tissue-rich 224x224 patches suitable for Kather100K inference.",
-                "Run pretrained TIAToolbox ResNet18-Kather100K classification on extracted patches.",
+                "Extract dense tissue-rich 224x224 patches suitable for Kather100K inference.",
+                "Run pretrained ResNet18-Kather100K classification on extracted patches.",
                 "Aggregate predictions into tissue-class percentages.",
                 "Estimate tumour-relevant indicators using TUM, STR, and abnormality score.",
                 "Compute class entropy, high-abnormality percentage, and cluster count.",
                 "Compute colour variance and grayscale entropy from patches.",
                 "Generate tissue-class and heterogeneity overlays.",
+                "Run post-processing: summary, confidence histogram, and hotspot overlay.",
                 "Save all outputs and a run report."
             ],
             "suggested_tools_after_approval": [
@@ -249,6 +317,9 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "aggregate_kather_metrics",
                 "analyze_patch_statistics",
                 "generate_kather_overlay",
+                "summarize_kather_results",
+                "generate_confidence_histogram",
+                "generate_hotspot_overlay",
                 "save_run_report"
             ],
             "expected_outputs": [
@@ -262,15 +333,19 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 os.path.join(output_dir, "patch_statistics.json"),
                 os.path.join(output_dir, "kather_class_overlay.png"),
                 os.path.join(output_dir, "heterogeneity_overlay.png"),
+                os.path.join(output_dir, "kather_summary.txt"),
+                os.path.join(output_dir, "confidence_histogram.png"),
+                os.path.join(output_dir, "hotspot_overlay.png"),
                 os.path.join(output_dir, "run_report.json")
             ],
             "default_parameters": {
                 "model_name": "resnet18-kather100k",
                 "patch_size": 224,
-                "stride": 224,
-                "max_patches": 200,
+                "stride": 112,
+                "max_patches": 2000,
                 "min_tissue_fraction": 0.15,
-                "abnormality_threshold": 0.5
+                "abnormality_threshold": 0.5,
+                "histogram_bins": 20
             },
             "clinical_warning": (
                 "The output is tissue-type classification and model-confidence analysis, not a clinical diagnosis."
@@ -285,7 +360,7 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "Read WSI metadata.",
                 "Generate a thumbnail.",
                 "Generate a tissue mask and overlay.",
-                "Extract tissue-rich patches.",
+                "Extract dense tissue-rich patches.",
                 "Compute baseline patch-level heterogeneity metrics such as colour variance and entropy.",
                 "Save all visual outputs and metrics."
             ],
@@ -351,7 +426,7 @@ def handle_initialize(req: Dict[str, Any]) -> None:
             "serverInfo": {
                 "name": "tiatoolbox-mcp-only-agent-server",
                 "title": "MCP-only Single WSI Pathology Agent Server",
-                "version": "10.0.0-kather"
+                "version": "12.0.0-kather-postprocessing"
             }
         }
     })
@@ -466,7 +541,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
         {
             "name": "extract_patches",
             "title": "Extract Tissue Patches",
-            "description": "Extracts tissue-rich patches from a WSI.",
+            "description": "Extracts dense tissue-rich patches from a WSI.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -502,7 +577,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
         {
             "name": "predict_kather_resnet18",
             "title": "Predict Tissue Classes With ResNet18-Kather100K",
-            "description": "Runs TIAToolbox pretrained resnet18-kather100k over extracted patches.",
+            "description": "Runs pretrained resnet18-kather100k over extracted patches.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -539,7 +614,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
         {
             "name": "generate_kather_overlay",
             "title": "Generate Kather Overlay",
-            "description": "Generates tissue-class and heterogeneity overlays from Kather predictions.",
+            "description": "Generates visible tissue-class and heterogeneity overlays.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -550,7 +625,9 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "output_overlay_path": {"type": "string"},
                     "output_heterogeneity_path": {"type": "string"},
                     "alpha": {"type": "number"},
-                    "patch_size": {"type": "integer"}
+                    "patch_size": {"type": "integer"},
+                    "min_display_size": {"type": "integer"},
+                    "draw_legend": {"type": "boolean"}
                 },
                 "required": [
                     "approval_token",
@@ -558,6 +635,93 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "predictions_json_path",
                     "thumbnail_path",
                     "output_overlay_path"
+                ],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "summarize_kather_results",
+            "title": "Summarize Kather Results",
+            "description": "Reads saved Kather predictions, metrics, and patch statistics and produces a plain-English interpretation.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "predictions_json_path": {"type": "string"},
+                    "metrics_json_path": {"type": "string"},
+                    "patch_statistics_json_path": {"type": "string"},
+                    "output_summary_path": {"type": "string"}
+                },
+                "required": [
+                    "approval_token",
+                    "predictions_json_path",
+                    "metrics_json_path"
+                ],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_confidence_histogram",
+            "title": "Generate Confidence Histogram",
+            "description": "Creates a histogram showing patch-level prediction confidence distribution.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "predictions_json_path": {"type": "string"},
+                    "output_path": {"type": "string"},
+                    "bins": {"type": "integer"}
+                },
+                "required": [
+                    "approval_token",
+                    "predictions_json_path",
+                    "output_path"
+                ],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_hotspot_overlay",
+            "title": "Generate Hotspot Overlay",
+            "description": "Draws boxes around spatial clusters of high-abnormality patches.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "predictions_json_path": {"type": "string"},
+                    "thumbnail_path": {"type": "string"},
+                    "output_path": {"type": "string"},
+                    "abnormality_threshold": {"type": "number"},
+                    "patch_size": {"type": "integer"},
+                    "min_display_size": {"type": "integer"}
+                },
+                "required": [
+                    "approval_token",
+                    "wsi_path",
+                    "predictions_json_path",
+                    "thumbnail_path",
+                    "output_path"
+                ],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compare_masked_vs_unmasked_runs",
+            "title": "Compare Masked vs Unmasked Runs",
+            "description": "Compares saved Kather metric files from masked and unmasked analysis runs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "masked_metrics_path": {"type": "string"},
+                    "unmasked_metrics_path": {"type": "string"},
+                    "output_path": {"type": "string"}
+                },
+                "required": [
+                    "approval_token",
+                    "masked_metrics_path",
+                    "unmasked_metrics_path"
                 ],
                 "additionalProperties": False
             }
@@ -685,7 +849,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     patch_size=int(args.get("patch_size", 224)),
                     stride=int(stride) if stride is not None else None,
                     level=int(args.get("level", 0)),
-                    max_patches=int(args.get("max_patches", 200)),
+                    max_patches=int(args.get("max_patches", 2000)),
                     min_tissue_fraction=float(args.get("min_tissue_fraction", 0.15)),
                     mpp=float(args.get("mpp", 2.0))
                 )
@@ -748,8 +912,67 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     thumbnail_path=args.get("thumbnail_path", ""),
                     output_overlay_path=args.get("output_overlay_path", ""),
                     output_heterogeneity_path=args.get("output_heterogeneity_path"),
-                    alpha=float(args.get("alpha", 0.45)),
+                    alpha=float(args.get("alpha", 0.75)),
                     patch_size=int(args.get("patch_size", 224)),
+                    min_display_size=int(args.get("min_display_size", 8)),
+                    draw_legend=bool(args.get("draw_legend", True)),
+                )
+            )
+            return
+
+        if name == "summarize_kather_results":
+            require_plan(args)
+
+            tool_result(
+                req_id,
+                tool_summarize_kather_results(
+                    predictions_json_path=args.get("predictions_json_path", ""),
+                    metrics_json_path=args.get("metrics_json_path", ""),
+                    patch_statistics_json_path=args.get("patch_statistics_json_path"),
+                    output_summary_path=args.get("output_summary_path"),
+                )
+            )
+            return
+
+        if name == "generate_confidence_histogram":
+            require_plan(args)
+
+            tool_result(
+                req_id,
+                tool_generate_confidence_histogram(
+                    predictions_json_path=args.get("predictions_json_path", ""),
+                    output_path=args.get("output_path", ""),
+                    bins=int(args.get("bins", 20)),
+                )
+            )
+            return
+
+        if name == "generate_hotspot_overlay":
+            require_plan(args)
+
+            tool_result(
+                req_id,
+                tool_generate_hotspot_overlay(
+                    wsi_path=args.get("wsi_path", ""),
+                    predictions_json_path=args.get("predictions_json_path", ""),
+                    thumbnail_path=args.get("thumbnail_path", ""),
+                    output_path=args.get("output_path", ""),
+                    abnormality_threshold=float(args.get("abnormality_threshold", 0.5)),
+                    patch_size=int(args.get("patch_size", 224)),
+                    min_display_size=int(args.get("min_display_size", 10)),
+                )
+            )
+            return
+
+        if name == "compare_masked_vs_unmasked_runs":
+            require_plan(args)
+
+            tool_result(
+                req_id,
+                tool_compare_masked_vs_unmasked_runs(
+                    masked_metrics_path=args.get("masked_metrics_path", ""),
+                    unmasked_metrics_path=args.get("unmasked_metrics_path", ""),
+                    output_path=args.get("output_path"),
                 )
             )
             return
