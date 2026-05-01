@@ -16,6 +16,11 @@ Outputs:
 - Colour variance
 - Patch entropy
 - Improved visible overlays
+- Post-processing:
+    - summarize_kather_results
+    - generate_confidence_histogram
+    - generate_hotspot_overlay
+    - compare_masked_vs_unmasked_runs
 """
 
 import os
@@ -124,7 +129,6 @@ def tool_wsi_thumbnail(
     thumb_bgr = cv2.cvtColor(thumb_rgb, cv2.COLOR_RGB2BGR)
 
     ok = cv2.imwrite(output_path, thumb_bgr)
-
     if not ok:
         raise IOError(f"Failed to write PNG to: {output_path}")
 
@@ -153,7 +157,6 @@ def tool_tissue_mask(
         raise FileNotFoundError(f"File not found: {path}")
 
     ensure_parent_dir(output_mask_path)
-
     if output_overlay_path:
         ensure_parent_dir(output_overlay_path)
 
@@ -174,7 +177,6 @@ def tool_tissue_mask(
     mask = masks[0]
 
     mask_uint8 = (mask.astype(bool).astype("uint8")) * 255
-
     ok = cv2.imwrite(output_mask_path, mask_uint8)
 
     if not ok:
@@ -189,7 +191,6 @@ def tool_tissue_mask(
         overlay_bgr = cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR)
 
         ok2 = cv2.imwrite(output_overlay_path, overlay_bgr)
-
         if not ok2:
             raise IOError(f"Mask saved but failed to save overlay to: {output_overlay_path}")
 
@@ -219,13 +220,6 @@ def tool_extract_patches(
     min_tissue_fraction: float = 0.15,
     mpp: float = 2.0,
 ) -> str:
-    """
-    Extract tissue-rich WSI patches.
-
-    Changed for better overlays:
-    - default max_patches = 2000
-    - default stride = patch_size // 2 for denser sampling
-    """
     if not isinstance(path, str) or not path.strip():
         raise ValueError('extract_patches requires a non-empty "path" argument.')
 
@@ -254,7 +248,6 @@ def tool_extract_patches(
     thumb_h, thumb_w = tissue_mask_thumb.shape[:2]
 
     level_dims = wsi.info.level_dimensions
-
     if level >= len(level_dims):
         raise ValueError(f"Requested level {level}, but slide only has {len(level_dims)} levels.")
 
@@ -348,7 +341,6 @@ def tool_analyze_patch_statistics(
 
     for p in patch_files:
         img = cv2.imread(p)
-
         if img is None:
             continue
 
@@ -1000,16 +992,6 @@ def tool_generate_kather_overlay(
     min_display_size: int = 8,
     draw_legend: bool = True,
 ) -> str:
-    """
-    Improved overlay generator.
-
-    Changes:
-    - filled rectangles instead of outlines
-    - stronger alpha
-    - minimum display size for each patch
-    - visible black outline for TUM/STR/high abnormality patches
-    - legend added to overlay
-    """
     if not isinstance(wsi_path, str) or not os.path.exists(wsi_path):
         raise FileNotFoundError("generate_kather_overlay requires a valid wsi_path.")
 
@@ -1035,12 +1017,10 @@ def tool_generate_kather_overlay(
         data = json.load(f)
 
     preds = data.get("predictions", [])
-
     if not preds:
         raise RuntimeError("No predictions found in predictions JSON.")
 
     thumb_bgr = cv2.imread(thumbnail_path)
-
     if thumb_bgr is None:
         raise RuntimeError(f"Could not read thumbnail: {thumbnail_path}")
 
@@ -1105,6 +1085,7 @@ def tool_generate_kather_overlay(
 
         colour = class_colours.get(predicted_class, np.array([255, 255, 255], dtype=np.uint8))
 
+        import cv2
         cv2.rectangle(
             class_layer,
             (tx1, ty1),
@@ -1122,7 +1103,6 @@ def tool_generate_kather_overlay(
                 thickness=2,
             )
 
-        # Heterogeneity: red = high abnormality, yellow/orange = uncertainty
         uncertainty = 1.0 - confidence
         red = int(255 * max(0.0, min(1.0, abnormality_score)))
         green = int(255 * max(0.0, min(1.0, uncertainty)))
@@ -1211,3 +1191,514 @@ def tool_generate_kather_overlay(
     ]
 
     return "\n".join(lines)
+
+
+def tool_summarize_kather_results(
+    predictions_json_path: str,
+    metrics_json_path: str,
+    patch_statistics_json_path: Optional[str] = None,
+    output_summary_path: Optional[str] = None,
+) -> str:
+    if not os.path.exists(predictions_json_path):
+        raise FileNotFoundError(f"Predictions file not found: {predictions_json_path}")
+
+    if not os.path.exists(metrics_json_path):
+        raise FileNotFoundError(f"Metrics file not found: {metrics_json_path}")
+
+    with open(predictions_json_path, "r", encoding="utf-8") as f:
+        predictions_data = json.load(f)
+
+    with open(metrics_json_path, "r", encoding="utf-8") as f:
+        metrics = json.load(f)
+
+    patch_stats = None
+    if patch_statistics_json_path and os.path.exists(patch_statistics_json_path):
+        with open(patch_statistics_json_path, "r", encoding="utf-8") as f:
+            patch_stats = json.load(f)
+
+    class_percentages = metrics.get("class_percentages", {})
+    dominant_class = max(class_percentages.items(), key=lambda x: x[1])[0] if class_percentages else "unknown"
+    dominant_desc = KATHER_CLASS_DESCRIPTIONS.get(dominant_class, dominant_class)
+
+    high_pct = float(metrics.get("high_abnormality_percentage", 0))
+    cluster_count = int(metrics.get("cluster_count", 0))
+
+    summary_lines = [
+        "Kather100K Post-Processing Summary",
+        "==================================",
+        "",
+        f"Model: {metrics.get('model_name', predictions_data.get('model_name', 'unknown'))}",
+        f"Total predicted patches: {metrics.get('total_predicted_patches', predictions_data.get('patch_count', 'unknown'))}",
+        "",
+        "Dominant tissue class:",
+        f"- {dominant_class} ({dominant_desc})",
+        f"- Percentage: {class_percentages.get(dominant_class, 0):.2f}%",
+        "",
+        "Tumour-relevant indicators:",
+        f"- TUM / tumour epithelium patches: {metrics.get('tumour_epithelium_patch_count', 0)}",
+        f"- TUM percentage: {metrics.get('tumour_epithelium_percentage', 0):.2f}%",
+        f"- High abnormality patches: {metrics.get('high_abnormality_patch_count', 0)}",
+        f"- High abnormality percentage: {high_pct:.2f}%",
+        f"- Mean tumour epithelium probability: {metrics.get('mean_tumour_epithelium_probability', 0):.6f}",
+        f"- Mean abnormality score: {metrics.get('mean_abnormality_score', 0):.6f}",
+        f"- Max abnormality score: {metrics.get('max_abnormality_score', 0):.6f}",
+        "",
+        "Spatial interpretation:",
+        f"- Cluster count: {cluster_count}",
+        f"- Class entropy: {metrics.get('class_entropy', 0):.6f}",
+    ]
+
+    if high_pct >= 30:
+        summary_lines.append("- Interpretation: high abnormality is relatively widespread across sampled tissue.")
+    elif high_pct >= 10:
+        summary_lines.append("- Interpretation: moderate abnormality is present in a subset of sampled tissue.")
+    else:
+        summary_lines.append("- Interpretation: high abnormality is limited within the sampled patches.")
+
+    if cluster_count >= 20:
+        summary_lines.append("- Spatial pattern: abnormal patches appear distributed across many small regions.")
+    elif cluster_count > 0:
+        summary_lines.append("- Spatial pattern: abnormal patches appear concentrated into fewer hotspot regions.")
+    else:
+        summary_lines.append("- Spatial pattern: no high-abnormality clusters were detected.")
+
+    if patch_stats:
+        summary_lines += [
+            "",
+            "Patch-level heterogeneity:",
+            f"- Colour variance: {patch_stats.get('patch_colour_variance', 0):.6f}",
+            f"- Grayscale entropy: {patch_stats.get('shannon_entropy_grayscale', 0):.6f}",
+            f"- Heterogeneity index: {patch_stats.get('heterogeneity_index', 0):.6f}",
+        ]
+
+    summary_lines += [
+        "",
+        "Class distribution:",
+    ]
+
+    for cls, pct in sorted(class_percentages.items(), key=lambda x: x[1], reverse=True):
+        desc = KATHER_CLASS_DESCRIPTIONS.get(cls, cls)
+        summary_lines.append(f"- {cls} ({desc}): {pct:.2f}%")
+
+    summary_lines += [
+        "",
+        "Important limitation:",
+        "This is tissue-type classification and model-confidence analysis, not clinical diagnosis.",
+    ]
+
+    summary = "\n".join(summary_lines)
+
+    if output_summary_path:
+        ensure_parent_dir(output_summary_path)
+        with open(output_summary_path, "w", encoding="utf-8") as f:
+            f.write(summary)
+
+    return summary
+
+
+def tool_generate_confidence_histogram(
+    predictions_json_path: str,
+    output_path: str,
+    bins: int = 20,
+) -> str:
+    if not os.path.exists(predictions_json_path):
+        raise FileNotFoundError(f"Predictions file not found: {predictions_json_path}")
+
+    ensure_parent_dir(output_path)
+
+    import matplotlib.pyplot as plt
+
+    with open(predictions_json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    preds = data.get("predictions", [])
+    if not preds:
+        raise RuntimeError("No predictions found.")
+
+    confidences = [float(p.get("confidence", 0.0)) for p in preds]
+
+    plt.figure(figsize=(8, 5))
+    plt.hist(confidences, bins=int(bins))
+    plt.xlabel("Prediction confidence")
+    plt.ylabel("Patch count")
+    plt.title("Kather100K Patch Prediction Confidence Distribution")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=200)
+    plt.close()
+
+    low_conf = sum(1 for c in confidences if c < 0.5)
+    mid_conf = sum(1 for c in confidences if 0.5 <= c < 0.8)
+    high_conf = sum(1 for c in confidences if c >= 0.8)
+
+    total = len(confidences)
+
+    return (
+        "Confidence histogram generated successfully.\n"
+        f"Saved to: {output_path}\n"
+        f"Total patches: {total}\n"
+        f"Low confidence (<0.5): {low_conf} ({100 * low_conf / total:.2f}%)\n"
+        f"Medium confidence (0.5-0.8): {mid_conf} ({100 * mid_conf / total:.2f}%)\n"
+        f"High confidence (>=0.8): {high_conf} ({100 * high_conf / total:.2f}%)"
+    )
+
+
+def tool_generate_hotspot_overlay(
+    wsi_path: str,
+    predictions_json_path: str,
+    thumbnail_path: str,
+    output_path: str,
+    abnormality_threshold: float = 0.5,
+    patch_size: int = 224,
+    min_display_size: int = 12,
+    max_hotspots: int = 10,
+) -> str:
+    if not os.path.exists(wsi_path):
+        raise FileNotFoundError(f"WSI file not found: {wsi_path}")
+
+    if not os.path.exists(predictions_json_path):
+        raise FileNotFoundError(f"Predictions file not found: {predictions_json_path}")
+
+    if not os.path.exists(thumbnail_path):
+        raise FileNotFoundError(f"Thumbnail file not found: {thumbnail_path}")
+
+    ensure_parent_dir(output_path)
+
+    import cv2
+    import numpy as np
+    from tiatoolbox.wsicore.wsireader import WSIReader
+
+    with open(predictions_json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    preds = data.get("predictions", [])
+    if not preds:
+        raise RuntimeError("No predictions found.")
+
+    abnormal_preds = [
+        p for p in preds
+        if float(p.get("abnormality_score", 0.0)) >= float(abnormality_threshold)
+        and int(p.get("x", -1)) >= 0
+        and int(p.get("y", -1)) >= 0
+    ]
+
+    thumb_bgr = cv2.imread(thumbnail_path)
+    if thumb_bgr is None:
+        raise RuntimeError(f"Could not read thumbnail: {thumbnail_path}")
+
+    thumb_rgb = cv2.cvtColor(thumb_bgr, cv2.COLOR_BGR2RGB)
+    overlay_rgb = thumb_rgb.copy()
+    heat_layer = thumb_rgb.copy()
+
+    wsi = WSIReader.open(wsi_path)
+
+    # IMPORTANT:
+    # Patch coordinates were extracted at their stored prediction level.
+    # Use that level's dimensions when available instead of always level-0 dimensions.
+    pred_levels = [
+        int(p.get("level", 0))
+        for p in preds
+        if int(p.get("level", 0)) >= 0
+    ]
+    pred_level = pred_levels[0] if pred_levels else 0
+
+    try:
+        level_w, level_h = wsi.info.level_dimensions[pred_level]
+    except Exception:
+        level_w, level_h = wsi.info.slide_dimensions
+
+    thumb_h, thumb_w = thumb_rgb.shape[:2]
+
+    scale_x = thumb_w / float(level_w)
+    scale_y = thumb_h / float(level_h)
+
+    if not abnormal_preds:
+        cv2.putText(
+            overlay_rgb,
+            "No high-abnormality hotspots detected",
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (0, 0, 0),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.imwrite(output_path, cv2.cvtColor(overlay_rgb, cv2.COLOR_RGB2BGR))
+        return f"No high-abnormality hotspots detected. Output saved to: {output_path}"
+
+    # Draw individual abnormal patches first so hotspots are visible even if clustering merges badly.
+    for p in abnormal_preds:
+        x = int(p["x"])
+        y = int(p["y"])
+        score = float(p.get("abnormality_score", 0.0))
+
+        tx1 = int(x * scale_x)
+        ty1 = int(y * scale_y)
+
+        display_w = max(min_display_size, int(patch_size * scale_x))
+        display_h = max(min_display_size, int(patch_size * scale_y))
+
+        tx2 = min(thumb_w - 1, tx1 + display_w)
+        ty2 = min(thumb_h - 1, ty1 + display_h)
+
+        tx1 = max(0, min(tx1, thumb_w - 1))
+        ty1 = max(0, min(ty1, thumb_h - 1))
+
+        intensity = int(255 * max(0.0, min(1.0, score)))
+        colour = (255, max(0, 180 - intensity // 2), 0)
+
+        cv2.rectangle(
+            heat_layer,
+            (tx1, ty1),
+            (tx2, ty2),
+            colour,
+            thickness=-1,
+        )
+
+    overlay_rgb = cv2.addWeighted(overlay_rgb, 0.55, heat_layer, 0.45, 0)
+
+    # Cluster abnormal patches.
+    cluster_distance = _estimate_patch_size_from_predictions(
+        abnormal_preds,
+        fallback=patch_size,
+    ) * 1.5
+
+    coords = [(int(p["x"]), int(p["y"])) for p in abnormal_preds]
+    visited = [False] * len(abnormal_preds)
+    clusters = []
+
+    for i in range(len(abnormal_preds)):
+        if visited[i]:
+            continue
+
+        q = deque([i])
+        visited[i] = True
+        cluster = []
+
+        while q:
+            cur = q.popleft()
+            cluster.append(abnormal_preds[cur])
+            x1, y1 = coords[cur]
+
+            for j in range(len(abnormal_preds)):
+                if visited[j]:
+                    continue
+
+                x2, y2 = coords[j]
+                dist = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+
+                if dist <= cluster_distance:
+                    visited[j] = True
+                    q.append(j)
+
+        clusters.append(cluster)
+
+    clusters = sorted(
+        clusters,
+        key=lambda c: (
+            len(c),
+            sum(float(p.get("abnormality_score", 0.0)) for p in c) / max(1, len(c))
+        ),
+        reverse=True,
+    )
+
+    # Draw only top N cluster boxes to avoid covering the whole slide.
+    for idx, cluster in enumerate(clusters[:max_hotspots]):
+        xs = [int(p["x"]) for p in cluster]
+        ys = [int(p["y"]) for p in cluster]
+        scores = [float(p.get("abnormality_score", 0.0)) for p in cluster]
+
+        x1 = min(xs)
+        y1 = min(ys)
+        x2 = max(xs) + patch_size
+        y2 = max(ys) + patch_size
+
+        tx1 = int(x1 * scale_x)
+        ty1 = int(y1 * scale_y)
+        tx2 = int(x2 * scale_x)
+        ty2 = int(y2 * scale_y)
+
+        tx1 = max(0, min(tx1, thumb_w - 1))
+        ty1 = max(0, min(ty1, thumb_h - 1))
+        tx2 = max(tx1 + min_display_size, min(tx2, thumb_w - 1))
+        ty2 = max(ty1 + min_display_size, min(ty2, thumb_h - 1))
+
+        mean_score = sum(scores) / len(scores)
+
+        cv2.rectangle(
+            overlay_rgb,
+            (tx1, ty1),
+            (tx2, ty2),
+            (255, 0, 0),
+            thickness=4,
+        )
+
+        cv2.rectangle(
+            overlay_rgb,
+            (tx1, ty1),
+            (tx2, ty2),
+            (0, 0, 0),
+            thickness=1,
+        )
+
+        label = f"H{idx + 1}: n={len(cluster)}, score={mean_score:.2f}"
+        cv2.putText(
+            overlay_rgb,
+            label,
+            (tx1, max(25, ty1 - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            (0, 0, 0),
+            3,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            overlay_rgb,
+            label,
+            (tx1, max(25, ty1 - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA,
+        )
+
+    header = (
+        f"Hotspots: {len(abnormal_preds)} high-abnormality patches, "
+        f"{len(clusters)} clusters, threshold={abnormality_threshold}"
+    )
+
+    cv2.putText(
+        overlay_rgb,
+        header,
+        (20, 35),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.75,
+        (0, 0, 0),
+        3,
+        cv2.LINE_AA,
+    )
+    cv2.putText(
+        overlay_rgb,
+        header,
+        (20, 35),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.75,
+        (255, 255, 255),
+        1,
+        cv2.LINE_AA,
+    )
+
+    ok = cv2.imwrite(output_path, cv2.cvtColor(overlay_rgb, cv2.COLOR_RGB2BGR))
+    if not ok:
+        raise IOError(f"Failed to save hotspot overlay to: {output_path}")
+
+    return (
+        "Hotspot overlay generated successfully.\n"
+        f"Saved to: {output_path}\n"
+        f"Prediction level used for scaling: {pred_level}\n"
+        f"Abnormality threshold: {abnormality_threshold}\n"
+        f"High-abnormality patches: {len(abnormal_preds)}\n"
+        f"Detected hotspots/clusters: {len(clusters)}\n"
+        f"Displayed top hotspots: {min(max_hotspots, len(clusters))}"
+    )
+
+def tool_compare_masked_vs_unmasked_runs(
+    masked_metrics_path: str,
+    unmasked_metrics_path: str,
+    output_path: Optional[str] = None,
+) -> str:
+    if not os.path.exists(masked_metrics_path):
+        raise FileNotFoundError(f"Masked metrics file not found: {masked_metrics_path}")
+
+    if not os.path.exists(unmasked_metrics_path):
+        raise FileNotFoundError(f"Unmasked metrics file not found: {unmasked_metrics_path}")
+
+    with open(masked_metrics_path, "r", encoding="utf-8") as f:
+        masked = json.load(f)
+
+    with open(unmasked_metrics_path, "r", encoding="utf-8") as f:
+        unmasked = json.load(f)
+
+    def get_num(d, key):
+        try:
+            return float(d.get(key, 0.0))
+        except Exception:
+            return 0.0
+
+    comparison = {
+        "masked_metrics_path": masked_metrics_path,
+        "unmasked_metrics_path": unmasked_metrics_path,
+        "patch_count_masked": get_num(masked, "total_predicted_patches"),
+        "patch_count_unmasked": get_num(unmasked, "total_predicted_patches"),
+        "tumour_epithelium_percentage_masked": get_num(masked, "tumour_epithelium_percentage"),
+        "tumour_epithelium_percentage_unmasked": get_num(unmasked, "tumour_epithelium_percentage"),
+        "high_abnormality_percentage_masked": get_num(masked, "high_abnormality_percentage"),
+        "high_abnormality_percentage_unmasked": get_num(unmasked, "high_abnormality_percentage"),
+        "mean_abnormality_score_masked": get_num(masked, "mean_abnormality_score"),
+        "mean_abnormality_score_unmasked": get_num(unmasked, "mean_abnormality_score"),
+        "cluster_count_masked": get_num(masked, "cluster_count"),
+        "cluster_count_unmasked": get_num(unmasked, "cluster_count"),
+    }
+
+    comparison["delta_tumour_epithelium_percentage"] = (
+        comparison["tumour_epithelium_percentage_unmasked"]
+        - comparison["tumour_epithelium_percentage_masked"]
+    )
+    comparison["delta_high_abnormality_percentage"] = (
+        comparison["high_abnormality_percentage_unmasked"]
+        - comparison["high_abnormality_percentage_masked"]
+    )
+    comparison["delta_mean_abnormality_score"] = (
+        comparison["mean_abnormality_score_unmasked"]
+        - comparison["mean_abnormality_score_masked"]
+    )
+    comparison["delta_cluster_count"] = (
+        comparison["cluster_count_unmasked"]
+        - comparison["cluster_count_masked"]
+    )
+
+    lines = [
+        "Masked vs Unmasked Run Comparison",
+        "=================================",
+        "",
+        f"Masked patch count: {comparison['patch_count_masked']:.0f}",
+        f"Unmasked patch count: {comparison['patch_count_unmasked']:.0f}",
+        "",
+        f"Masked TUM percentage: {comparison['tumour_epithelium_percentage_masked']:.2f}%",
+        f"Unmasked TUM percentage: {comparison['tumour_epithelium_percentage_unmasked']:.2f}%",
+        f"Delta TUM percentage: {comparison['delta_tumour_epithelium_percentage']:.2f}%",
+        "",
+        f"Masked high-abnormality percentage: {comparison['high_abnormality_percentage_masked']:.2f}%",
+        f"Unmasked high-abnormality percentage: {comparison['high_abnormality_percentage_unmasked']:.2f}%",
+        f"Delta high-abnormality percentage: {comparison['delta_high_abnormality_percentage']:.2f}%",
+        "",
+        f"Masked mean abnormality score: {comparison['mean_abnormality_score_masked']:.6f}",
+        f"Unmasked mean abnormality score: {comparison['mean_abnormality_score_unmasked']:.6f}",
+        f"Delta mean abnormality score: {comparison['delta_mean_abnormality_score']:.6f}",
+        "",
+        f"Masked cluster count: {comparison['cluster_count_masked']:.0f}",
+        f"Unmasked cluster count: {comparison['cluster_count_unmasked']:.0f}",
+        f"Delta cluster count: {comparison['delta_cluster_count']:.0f}",
+        "",
+    ]
+
+    if comparison["high_abnormality_percentage_unmasked"] > comparison["high_abnormality_percentage_masked"]:
+        lines.append("Interpretation: the unmasked run produced a higher abnormality percentage, which may indicate that background or non-tissue patches affected prediction behaviour.")
+    else:
+        lines.append("Interpretation: the masked run produced equal or higher abnormality percentage, suggesting tissue masking did not inflate abnormality estimates.")
+
+    lines.append("")
+    lines.append("Important: this comparison reflects model-confidence behaviour, not clinical diagnosis.")
+
+    text = "\n".join(lines)
+
+    if output_path:
+        ensure_parent_dir(output_path)
+        if output_path.lower().endswith(".json"):
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(comparison, f, indent=2)
+        else:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(text)
+
+    return text
