@@ -214,11 +214,11 @@ def tool_extract_patches(
     path: str,
     output_dir: str,
     patch_size: int = 224,
-    stride: Optional[int] = None,
+    stride: int = 448,
     level: int = 0,
-    max_patches: int = 2000,
-    min_tissue_fraction: float = 0.15,
-    mpp: float = 2.0,
+    max_patches: int = 100,
+    min_tissue_fraction: float = 0.10,
+    mpp: float = 8.0,
 ) -> str:
     if not isinstance(path, str) or not path.strip():
         raise ValueError('extract_patches requires a non-empty "path" argument.')
@@ -315,7 +315,6 @@ def tool_extract_patches(
         lines.append(f"  (x={c[0]}, y={c[1]}), tissue={c[2]:.2f} -> {c[3]}")
 
     return "\n".join(lines)
-
 
 def tool_analyze_patch_statistics(
     patch_dir: str,
