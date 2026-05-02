@@ -21,6 +21,10 @@ from tia_tools import (
     tool_generate_confidence_histogram,
     tool_generate_hotspot_overlay,
     tool_compare_masked_vs_unmasked_runs,
+    tool_generate_tumour_likelihood_map,
+    tool_threshold_sensitivity_analysis,
+    tool_extract_top_abnormal_patches,
+    tool_generate_final_ai_report,
 )
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -35,16 +39,13 @@ def send(obj: Dict[str, Any]) -> None:
 
 def jsonrpc_error(req_id, code: int, message: str, data: Any = None) -> None:
     err = {"code": code, "message": message}
-
     if data is not None:
         err["data"] = data
-
     send({"jsonrpc": "2.0", "id": req_id, "error": err})
 
 
 def tool_result(req_id, payload: Any) -> None:
     text = payload if isinstance(payload, str) else json.dumps(payload, indent=2)
-
     send({
         "jsonrpc": "2.0",
         "id": req_id,
@@ -60,7 +61,6 @@ def tool_error(req_id, message: str, data: Any = None) -> None:
         {"error": message, "data": data},
         indent=2
     )
-
     send({
         "jsonrpc": "2.0",
         "id": req_id,
@@ -79,6 +79,28 @@ def ensure_output_dir(output_dir: str) -> None:
 def infer_task_type(user_prompt: str) -> str:
     request = user_prompt.lower()
 
+    if any(k in request for k in [
+        "final ai report",
+        "final report",
+        "tumour likelihood map",
+        "tumor likelihood map",
+        "threshold sensitivity",
+        "top abnormal",
+        "top-k",
+        "top k",
+        "most abnormal patches",
+        "post-process",
+        "postprocess",
+        "summary",
+        "summarize",
+        "hotspot",
+        "histogram",
+        "confidence",
+        "compare masked",
+        "masked vs unmasked",
+    ]):
+        return "post_processing"
+
     if (
         "thumbnail" in request
         or "overview image" in request
@@ -95,11 +117,6 @@ def infer_task_type(user_prompt: str) -> str:
         "kather",
         "tumour",
         "tumor",
-        "post",
-        "summary",
-        "hotspot",
-        "histogram",
-        "compare",
     ]):
         return "thumbnail_only"
 
@@ -117,11 +134,6 @@ def infer_task_type(user_prompt: str) -> str:
         "kather",
         "tumour",
         "tumor",
-        "post",
-        "summary",
-        "hotspot",
-        "histogram",
-        "compare",
     ]):
         return "tissue_mask_only"
 
@@ -137,27 +149,8 @@ def infer_task_type(user_prompt: str) -> str:
         "kather",
         "tumour",
         "tumor",
-        "post",
-        "summary",
-        "hotspot",
-        "histogram",
-        "compare",
     ]):
         return "patches_only"
-
-    if (
-        "summarize" in request
-        or "summary" in request
-        or "post-process" in request
-        or "postprocess" in request
-        or "hotspot" in request
-        or "histogram" in request
-        or "confidence" in request
-        or "compare masked" in request
-        or "compare" in request
-        or "masked vs unmasked" in request
-    ):
-        return "post_processing"
 
     if (
         "prediction" in request
@@ -259,31 +252,48 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
     elif task_type == "post_processing":
         plan = {
             "task_type": task_type,
-            "goal": "Run post-processing on existing Kather100K prediction outputs.",
+            "goal": "Run interpretability post-processing on existing Kather100K prediction outputs.",
             "steps": [
                 "Use saved Kather prediction, metric, and patch-statistic files.",
                 "Generate a plain-English summary of the Kather results.",
                 "Generate a confidence histogram from patch-level prediction confidence scores.",
                 "Generate a hotspot overlay showing spatial clusters of high-abnormality patches.",
-                "Optionally compare masked and unmasked metric files if both are provided.",
-                "Save all post-processing outputs to the output directory."
+                "Generate a continuous tumour-relevant likelihood map from abnormality scores.",
+                "Run threshold sensitivity analysis across multiple abnormality thresholds.",
+                "Extract the top-K most abnormal patches and save them separately.",
+                "Generate a final AI interpretability report.",
+                "Optionally compare masked and unmasked metric files if both are provided."
             ],
             "suggested_tools_after_approval": [
                 "summarize_kather_results",
                 "generate_confidence_histogram",
                 "generate_hotspot_overlay",
+                "generate_tumour_likelihood_map",
+                "threshold_sensitivity_analysis",
+                "extract_top_abnormal_patches",
+                "generate_final_ai_report",
                 "compare_masked_vs_unmasked_runs"
             ],
             "expected_outputs": [
                 os.path.join(output_dir, "kather_summary.txt"),
                 os.path.join(output_dir, "confidence_histogram.png"),
                 os.path.join(output_dir, "hotspot_overlay.png"),
+                os.path.join(output_dir, "tumour_likelihood_map.png"),
+                os.path.join(output_dir, "threshold_sensitivity.json"),
+                os.path.join(output_dir, "threshold_sensitivity.csv"),
+                os.path.join(output_dir, "threshold_sensitivity.png"),
+                os.path.join(output_dir, "top_abnormal_patches"),
+                os.path.join(output_dir, "top_abnormal_patches.csv"),
+                os.path.join(output_dir, "top_abnormal_patches_grid.png"),
+                os.path.join(output_dir, "final_ai_report.txt"),
                 os.path.join(output_dir, "masked_vs_unmasked_comparison.txt")
             ],
             "default_parameters": {
                 "abnormality_threshold": 0.5,
                 "histogram_bins": 20,
-                "patch_size": 224
+                "patch_size": 224,
+                "top_k": 20,
+                "thresholds": [0.3, 0.4, 0.5, 0.6, 0.7]
             },
             "clinical_warning": (
                 "The post-processing outputs explain model-confidence behaviour, not clinical diagnosis."
@@ -305,7 +315,7 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "Compute class entropy, high-abnormality percentage, and cluster count.",
                 "Compute colour variance and grayscale entropy from patches.",
                 "Generate tissue-class and heterogeneity overlays.",
-                "Run post-processing: summary, confidence histogram, and hotspot overlay.",
+                "Generate hotspot, likelihood-map, confidence, threshold-sensitivity, top-patch, and final-report outputs.",
                 "Save all outputs and a run report."
             ],
             "suggested_tools_after_approval": [
@@ -320,6 +330,10 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "summarize_kather_results",
                 "generate_confidence_histogram",
                 "generate_hotspot_overlay",
+                "generate_tumour_likelihood_map",
+                "threshold_sensitivity_analysis",
+                "extract_top_abnormal_patches",
+                "generate_final_ai_report",
                 "save_run_report"
             ],
             "expected_outputs": [
@@ -336,6 +350,14 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 os.path.join(output_dir, "kather_summary.txt"),
                 os.path.join(output_dir, "confidence_histogram.png"),
                 os.path.join(output_dir, "hotspot_overlay.png"),
+                os.path.join(output_dir, "tumour_likelihood_map.png"),
+                os.path.join(output_dir, "threshold_sensitivity.json"),
+                os.path.join(output_dir, "threshold_sensitivity.csv"),
+                os.path.join(output_dir, "threshold_sensitivity.png"),
+                os.path.join(output_dir, "top_abnormal_patches"),
+                os.path.join(output_dir, "top_abnormal_patches.csv"),
+                os.path.join(output_dir, "top_abnormal_patches_grid.png"),
+                os.path.join(output_dir, "final_ai_report.txt"),
                 os.path.join(output_dir, "run_report.json")
             ],
             "default_parameters": {
@@ -345,7 +367,9 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "max_patches": 2000,
                 "min_tissue_fraction": 0.15,
                 "abnormality_threshold": 0.5,
-                "histogram_bins": 20
+                "histogram_bins": 20,
+                "top_k": 20,
+                "thresholds": [0.3, 0.4, 0.5, 0.6, 0.7]
             },
             "clinical_warning": (
                 "The output is tissue-type classification and model-confidence analysis, not a clinical diagnosis."
@@ -389,7 +413,6 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
     )
 
     PENDING_PLANS[approval_token] = plan
-
     return plan
 
 
@@ -426,7 +449,7 @@ def handle_initialize(req: Dict[str, Any]) -> None:
             "serverInfo": {
                 "name": "tiatoolbox-mcp-only-agent-server",
                 "title": "MCP-only Single WSI Pathology Agent Server",
-                "version": "12.0.0-kather-postprocessing"
+                "version": "13.0.0-kather-advanced-mvp"
             }
         }
     })
@@ -453,11 +476,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
             "name": "health",
             "title": "Health Check",
             "description": "Returns whether the MCP-only pathology server is alive.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {},
-                "additionalProperties": False
-            }
+            "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False}
         },
         {
             "name": "echo",
@@ -465,9 +484,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
             "description": "Echoes back text.",
             "inputSchema": {
                 "type": "object",
-                "properties": {
-                    "text": {"type": "string"}
-                },
+                "properties": {"text": {"type": "string"}},
                 "required": ["text"],
                 "additionalProperties": False
             }
@@ -529,10 +546,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "output_mask_path": {"type": "string"},
                     "output_overlay_path": {"type": "string"},
                     "mpp": {"type": "number"},
-                    "method": {
-                        "type": "string",
-                        "enum": ["morphological", "otsu"]
-                    }
+                    "method": {"type": "string", "enum": ["morphological", "otsu"]}
                 },
                 "required": ["approval_token", "path", "output_mask_path"],
                 "additionalProperties": False
@@ -652,11 +666,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "patch_statistics_json_path": {"type": "string"},
                     "output_summary_path": {"type": "string"}
                 },
-                "required": [
-                    "approval_token",
-                    "predictions_json_path",
-                    "metrics_json_path"
-                ],
+                "required": ["approval_token", "predictions_json_path", "metrics_json_path"],
                 "additionalProperties": False
             }
         },
@@ -672,11 +682,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "output_path": {"type": "string"},
                     "bins": {"type": "integer"}
                 },
-                "required": [
-                    "approval_token",
-                    "predictions_json_path",
-                    "output_path"
-                ],
+                "required": ["approval_token", "predictions_json_path", "output_path"],
                 "additionalProperties": False
             }
         },
@@ -694,7 +700,8 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "output_path": {"type": "string"},
                     "abnormality_threshold": {"type": "number"},
                     "patch_size": {"type": "integer"},
-                    "min_display_size": {"type": "integer"}
+                    "min_display_size": {"type": "integer"},
+                    "max_hotspots": {"type": "integer"}
                 },
                 "required": [
                     "approval_token",
@@ -718,11 +725,90 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "unmasked_metrics_path": {"type": "string"},
                     "output_path": {"type": "string"}
                 },
+                "required": ["approval_token", "masked_metrics_path", "unmasked_metrics_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_tumour_likelihood_map",
+            "title": "Generate Tumour Likelihood Map",
+            "description": "Creates a continuous tumour-relevant likelihood heatmap from abnormality scores.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "predictions_json_path": {"type": "string"},
+                    "thumbnail_path": {"type": "string"},
+                    "output_path": {"type": "string"},
+                    "patch_size": {"type": "integer"},
+                    "alpha": {"type": "number"},
+                    "blur_kernel": {"type": "integer"}
+                },
                 "required": [
                     "approval_token",
-                    "masked_metrics_path",
-                    "unmasked_metrics_path"
+                    "wsi_path",
+                    "predictions_json_path",
+                    "thumbnail_path",
+                    "output_path"
                 ],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "threshold_sensitivity_analysis",
+            "title": "Threshold Sensitivity Analysis",
+            "description": "Evaluates abnormality percentage and cluster count across multiple abnormality thresholds.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "predictions_json_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "output_plot_path": {"type": "string"},
+                    "thresholds": {
+                        "type": "array",
+                        "items": {"type": "number"}
+                    }
+                },
+                "required": ["approval_token", "predictions_json_path", "output_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "extract_top_abnormal_patches",
+            "title": "Extract Top Abnormal Patches",
+            "description": "Copies the top-K highest abnormality-score patches and optionally creates CSV/grid outputs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "predictions_json_path": {"type": "string"},
+                    "output_dir": {"type": "string"},
+                    "top_k": {"type": "integer"},
+                    "output_csv_path": {"type": "string"},
+                    "output_grid_path": {"type": "string"}
+                },
+                "required": ["approval_token", "predictions_json_path", "output_dir"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_final_ai_report",
+            "title": "Generate Final AI Report",
+            "description": "Generates a final structured AI interpretability report from saved outputs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "predictions_json_path": {"type": "string"},
+                    "metrics_json_path": {"type": "string"},
+                    "patch_statistics_json_path": {"type": "string"},
+                    "threshold_sensitivity_json_path": {"type": "string"},
+                    "output_report_path": {"type": "string"}
+                },
+                "required": ["approval_token", "predictions_json_path", "metrics_json_path"],
                 "additionalProperties": False
             }
         },
@@ -746,9 +832,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
     send({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": {
-            "tools": tools
-        }
+        "result": {"tools": tools}
     })
 
 
@@ -858,7 +942,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
         if name == "analyze_patch_statistics":
             require_plan(args)
-
             tool_result(
                 req_id,
                 tool_analyze_patch_statistics(
@@ -870,7 +953,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
         if name == "predict_kather_resnet18":
             require_plan(args)
-
             tool_result(
                 req_id,
                 tool_predict_kather_resnet18(
@@ -887,7 +969,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
         if name == "aggregate_kather_metrics":
             require_plan(args)
-
             cluster_distance = args.get("cluster_distance")
 
             tool_result(
@@ -903,7 +984,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
         if name == "generate_kather_overlay":
             require_plan(args)
-
             tool_result(
                 req_id,
                 tool_generate_kather_overlay(
@@ -922,7 +1002,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
         if name == "summarize_kather_results":
             require_plan(args)
-
             tool_result(
                 req_id,
                 tool_summarize_kather_results(
@@ -936,7 +1015,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
         if name == "generate_confidence_histogram":
             require_plan(args)
-
             tool_result(
                 req_id,
                 tool_generate_confidence_histogram(
@@ -949,7 +1027,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
         if name == "generate_hotspot_overlay":
             require_plan(args)
-
             tool_result(
                 req_id,
                 tool_generate_hotspot_overlay(
@@ -959,20 +1036,78 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     output_path=args.get("output_path", ""),
                     abnormality_threshold=float(args.get("abnormality_threshold", 0.5)),
                     patch_size=int(args.get("patch_size", 224)),
-                    min_display_size=int(args.get("min_display_size", 10)),
+                    min_display_size=int(args.get("min_display_size", 12)),
+                    max_hotspots=int(args.get("max_hotspots", 10)),
                 )
             )
             return
 
         if name == "compare_masked_vs_unmasked_runs":
             require_plan(args)
-
             tool_result(
                 req_id,
                 tool_compare_masked_vs_unmasked_runs(
                     masked_metrics_path=args.get("masked_metrics_path", ""),
                     unmasked_metrics_path=args.get("unmasked_metrics_path", ""),
                     output_path=args.get("output_path"),
+                )
+            )
+            return
+
+        if name == "generate_tumour_likelihood_map":
+            require_plan(args)
+            tool_result(
+                req_id,
+                tool_generate_tumour_likelihood_map(
+                    wsi_path=args.get("wsi_path", ""),
+                    predictions_json_path=args.get("predictions_json_path", ""),
+                    thumbnail_path=args.get("thumbnail_path", ""),
+                    output_path=args.get("output_path", ""),
+                    patch_size=int(args.get("patch_size", 224)),
+                    alpha=float(args.get("alpha", 0.55)),
+                    blur_kernel=int(args.get("blur_kernel", 31)),
+                )
+            )
+            return
+
+        if name == "threshold_sensitivity_analysis":
+            require_plan(args)
+            tool_result(
+                req_id,
+                tool_threshold_sensitivity_analysis(
+                    predictions_json_path=args.get("predictions_json_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_csv_path=args.get("output_csv_path"),
+                    output_plot_path=args.get("output_plot_path"),
+                    thresholds=args.get("thresholds"),
+                )
+            )
+            return
+
+        if name == "extract_top_abnormal_patches":
+            require_plan(args)
+            tool_result(
+                req_id,
+                tool_extract_top_abnormal_patches(
+                    predictions_json_path=args.get("predictions_json_path", ""),
+                    output_dir=args.get("output_dir", ""),
+                    top_k=int(args.get("top_k", 20)),
+                    output_csv_path=args.get("output_csv_path"),
+                    output_grid_path=args.get("output_grid_path"),
+                )
+            )
+            return
+
+        if name == "generate_final_ai_report":
+            require_plan(args)
+            tool_result(
+                req_id,
+                tool_generate_final_ai_report(
+                    predictions_json_path=args.get("predictions_json_path", ""),
+                    metrics_json_path=args.get("metrics_json_path", ""),
+                    patch_statistics_json_path=args.get("patch_statistics_json_path"),
+                    threshold_sensitivity_json_path=args.get("threshold_sensitivity_json_path"),
+                    output_report_path=args.get("output_report_path"),
                 )
             )
             return
@@ -988,7 +1123,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                 return
 
             parent = os.path.dirname(output_path)
-
             if parent:
                 os.makedirs(parent, exist_ok=True)
 
@@ -1037,7 +1171,6 @@ def main() -> None:
 
             try:
                 maybe_req = json.loads(line)
-
                 if "id" in maybe_req:
                     jsonrpc_error(
                         maybe_req["id"],
@@ -1045,7 +1178,6 @@ def main() -> None:
                         "Internal error",
                         {"detail": str(e)}
                     )
-
             except Exception:
                 pass
 
