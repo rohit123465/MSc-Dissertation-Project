@@ -3,6 +3,8 @@ import json
 import traceback
 import os
 import uuid
+import subprocess
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from tia_tools import (
@@ -16,12 +18,9 @@ from tia_tools import (
     tool_analyze_patch_statistics,
     tool_predict_kather_resnet18,
     tool_aggregate_kather_metrics,
-    tool_generate_kather_overlay,
     tool_summarize_kather_results,
     tool_generate_confidence_histogram,
-    tool_generate_hotspot_overlay,
     tool_compare_masked_vs_unmasked_runs,
-    tool_generate_tumour_likelihood_map,
     tool_threshold_sensitivity_analysis,
     tool_extract_top_abnormal_patches,
     tool_generate_final_ai_report,
@@ -30,6 +29,242 @@ from tia_tools import (
 PROTOCOL_VERSION = "2025-06-18"
 
 PENDING_PLANS: Dict[str, Dict[str, Any]] = {}
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def atomic_write_json(path: str, payload: Dict[str, Any]) -> None:
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
+    tmp_path = f"{path}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    os.replace(tmp_path, path)
+
+
+def optional_str(value: Any) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def bool_arg(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    return bool(value)
+
+
+def process_exists(pid: int) -> bool:
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            process_query_limited_information = 0x1000
+            handle = ctypes.windll.kernel32.OpenProcess(
+                process_query_limited_information,
+                False,
+                int(pid),
+            )
+            if handle:
+                ctypes.windll.kernel32.CloseHandle(handle)
+                return True
+            return False
+        except Exception:
+            return True
+
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def prediction_jobs_dir(args: Dict[str, Any]) -> str:
+    save_dir = args.get("save_dir")
+    output_json_path = args.get("output_json_path")
+
+    if isinstance(save_dir, str) and save_dir.strip():
+        base_dir = os.path.dirname(save_dir.rstrip("\\/")) or save_dir
+    elif isinstance(output_json_path, str) and output_json_path.strip():
+        base_dir = os.path.dirname(output_json_path) or os.getcwd()
+    else:
+        base_dir = os.getcwd()
+
+    return os.path.join(base_dir, "prediction_jobs")
+
+
+def start_prediction_job(args: Dict[str, Any]) -> Dict[str, Any]:
+    job_id = str(uuid.uuid4())
+    jobs_dir = prediction_jobs_dir(args)
+    os.makedirs(jobs_dir, exist_ok=True)
+
+    job_args_path = os.path.join(jobs_dir, f"{job_id}.args.json")
+    status_path = os.path.join(jobs_dir, f"{job_id}.status.json")
+    stdout_path = os.path.join(jobs_dir, f"{job_id}.stdout.log")
+    stderr_path = os.path.join(jobs_dir, f"{job_id}.stderr.log")
+
+    job_args = {
+        "patch_dir": args.get("patch_dir"),
+        "output_json_path": args.get("output_json_path"),
+        "output_csv_path": args.get("output_csv_path"),
+        "model_name": str(args.get("model_name", "resnet18-kather100k")),
+        "batch_size": int(args.get("batch_size", 64)),
+        "device": str(args.get("device", "auto")),
+        "input_size": int(args.get("input_size", 224)),
+        "wsi_path": args.get("wsi_path"),
+        "save_dir": args.get("save_dir"),
+        "ioconfig": args.get("ioconfig"),
+        "output_type": str(args.get("output_type", "annotationstore")),
+        "patch_mode": bool_arg(args.get("patch_mode"), False),
+    }
+
+    atomic_write_json(job_args_path, job_args)
+    atomic_write_json(status_path, {
+        "job_id": job_id,
+        "status": "queued",
+        "created_at": utc_now_iso(),
+        "updated_at": utc_now_iso(),
+        "pid": None,
+        "args_path": job_args_path,
+        "status_path": status_path,
+        "stdout_path": stdout_path,
+        "stderr_path": stderr_path,
+        "output_json_path": job_args.get("output_json_path"),
+        "save_dir": job_args.get("save_dir"),
+    })
+
+    with open(stdout_path, "ab") as stdout_f, open(stderr_path, "ab") as stderr_f:
+        proc = subprocess.Popen(
+            [
+                sys.executable,
+                os.path.abspath(__file__),
+                "--run-predict-job",
+                job_id,
+                job_args_path,
+                status_path,
+            ],
+            cwd=os.getcwd(),
+            stdout=stdout_f,
+            stderr=stderr_f,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+        )
+
+    status = load_prediction_job_status(status_path=status_path)
+    status.update({
+        "status": "running",
+        "pid": proc.pid,
+        "started_at": utc_now_iso(),
+        "updated_at": utc_now_iso(),
+    })
+    atomic_write_json(status_path, status)
+
+    return {
+        "status": "started",
+        "job_id": job_id,
+        "pid": proc.pid,
+        "status_path": status_path,
+        "args_path": job_args_path,
+        "stdout_path": stdout_path,
+        "stderr_path": stderr_path,
+        "message": (
+            "Prediction is running in a background process so the MCP request can "
+            "return before Claude's timeout. Use check_prediction_job with this "
+            "job_id or status_path to monitor completion."
+        ),
+    }
+
+
+def load_prediction_job_status(
+    job_id: str = "",
+    status_path: str = "",
+    search_dir: str = "",
+) -> Dict[str, Any]:
+    if not status_path:
+        if not isinstance(job_id, str) or not job_id.strip():
+            raise ValueError("check_prediction_job requires job_id or status_path.")
+
+        roots = []
+        if isinstance(search_dir, str) and search_dir.strip():
+            roots.append(search_dir)
+            roots.append(os.path.join(search_dir, "prediction_jobs"))
+        roots.append(os.path.join(os.getcwd(), "prediction_jobs"))
+
+        for root in roots:
+            candidate = os.path.join(root, f"{job_id}.status.json")
+            if os.path.exists(candidate):
+                status_path = candidate
+                break
+
+        if not status_path:
+            raise FileNotFoundError(
+                f"Could not find status for job_id={job_id!r}. Pass status_path directly."
+            )
+
+    with open(status_path, "r", encoding="utf-8") as f:
+        status = json.load(f)
+
+    pid = status.get("pid")
+    if status.get("status") == "running" and isinstance(pid, int):
+        if not process_exists(pid):
+            status["status_note"] = (
+                "Process is no longer visible. If result or error is not populated, "
+                "check stderr_path."
+            )
+
+    return status
+
+
+def run_predict_job(job_id: str, args_path: str, status_path: str) -> int:
+    try:
+        with open(args_path, "r", encoding="utf-8") as f:
+            job_args = json.load(f)
+
+        status = load_prediction_job_status(status_path=status_path)
+        status.update({
+            "job_id": job_id,
+            "status": "running",
+            "pid": os.getpid(),
+            "started_at": status.get("started_at") or utc_now_iso(),
+            "updated_at": utc_now_iso(),
+        })
+        atomic_write_json(status_path, status)
+
+        result = tool_predict_kather_resnet18(**job_args)
+
+        status.update({
+            "status": "completed",
+            "completed_at": utc_now_iso(),
+            "updated_at": utc_now_iso(),
+            "result": result,
+        })
+        atomic_write_json(status_path, status)
+        return 0
+    except Exception as exc:
+        status = {
+            "job_id": job_id,
+            "status": "failed",
+            "updated_at": utc_now_iso(),
+            "error": str(exc),
+            "trace": traceback.format_exc(),
+            "args_path": args_path,
+            "status_path": status_path,
+        }
+        try:
+            existing = load_prediction_job_status(status_path=status_path)
+            existing.update(status)
+            status = existing
+        except Exception:
+            pass
+        atomic_write_json(status_path, status)
+        print(traceback.format_exc(), file=sys.stderr)
+        return 1
 
 
 def send(obj: Dict[str, Any]) -> None:
@@ -215,12 +450,9 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
             ],
             "suggested_tools_after_approval": [
                 "wsi_metadata",
-                "wsi_thumbnail",
                 "tissue_mask"
             ],
             "expected_outputs": [
-                os.path.join(output_dir, "thumbnail.png"),
-                os.path.join(output_dir, "tissue_mask.png"),
                 os.path.join(output_dir, "tissue_overlay.png")
             ]
         }
@@ -237,14 +469,9 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
             ],
             "suggested_tools_after_approval": [
                 "wsi_metadata",
-                "wsi_thumbnail",
-                "tissue_mask",
                 "extract_patches"
             ],
             "expected_outputs": [
-                os.path.join(output_dir, "thumbnail.png"),
-                os.path.join(output_dir, "tissue_mask.png"),
-                os.path.join(output_dir, "tissue_overlay.png"),
                 os.path.join(output_dir, "patches")
             ]
         }
@@ -265,27 +492,9 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "Optionally compare masked and unmasked metric files if both are provided."
             ],
             "suggested_tools_after_approval": [
-                "summarize_kather_results",
-                "generate_confidence_histogram",
-                "generate_hotspot_overlay",
-                "generate_tumour_likelihood_map",
-                "threshold_sensitivity_analysis",
-                "extract_top_abnormal_patches",
-                "generate_final_ai_report",
                 "compare_masked_vs_unmasked_runs"
             ],
             "expected_outputs": [
-                os.path.join(output_dir, "kather_summary.txt"),
-                os.path.join(output_dir, "confidence_histogram.png"),
-                os.path.join(output_dir, "hotspot_overlay.png"),
-                os.path.join(output_dir, "tumour_likelihood_map.png"),
-                os.path.join(output_dir, "threshold_sensitivity.json"),
-                os.path.join(output_dir, "threshold_sensitivity.csv"),
-                os.path.join(output_dir, "threshold_sensitivity.png"),
-                os.path.join(output_dir, "top_abnormal_patches"),
-                os.path.join(output_dir, "top_abnormal_patches.csv"),
-                os.path.join(output_dir, "top_abnormal_patches_grid.png"),
-                os.path.join(output_dir, "final_ai_report.txt"),
                 os.path.join(output_dir, "masked_vs_unmasked_comparison.txt")
             ],
             "default_parameters": {
@@ -303,73 +512,30 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
     elif task_type == "kather_prediction":
         plan = {
             "task_type": task_type,
-            "goal": "Run ResNet18-Kather100K patch-level tissue classification and generate interpretable outputs.",
+            "goal": "Run ResNet18-Kather100K WSI tissue classification and generate a TIAViz-compatible AnnotationStore.",
             "steps": [
                 "Read WSI metadata.",
-                "Generate a thumbnail.",
-                "Generate a tissue mask and tissue overlay unless the user asks to skip masking.",
-                "Extract dense tissue-rich 224x224 patches suitable for Kather100K inference.",
-                "Run pretrained ResNet18-Kather100K classification on extracted patches.",
-                "Aggregate predictions into tissue-class percentages.",
-                "Estimate tumour-relevant indicators using TUM, STR, and abnormality score.",
-                "Compute class entropy, high-abnormality percentage, and cluster count.",
-                "Compute colour variance and grayscale entropy from patches.",
-                "Generate tissue-class and heterogeneity overlays.",
-                "Generate hotspot, likelihood-map, confidence, threshold-sensitivity, top-patch, and final-report outputs.",
-                "Save all outputs and a run report."
+                "Run pretrained ResNet18-Kather100K classification directly on the WSI.",
+                "Save prediction output as a TIAViz-compatible AnnotationStore (.db).",
+                "Save a JSON run summary containing the TIAViz launch command.",
+                "Open the slide and overlay in TIAViz using the generated command."
             ],
             "suggested_tools_after_approval": [
                 "wsi_metadata",
-                "wsi_thumbnail",
-                "tissue_mask",
-                "extract_patches",
                 "predict_kather_resnet18",
-                "aggregate_kather_metrics",
-                "analyze_patch_statistics",
-                "generate_kather_overlay",
-                "summarize_kather_results",
-                "generate_confidence_histogram",
-                "generate_hotspot_overlay",
-                "generate_tumour_likelihood_map",
-                "threshold_sensitivity_analysis",
-                "extract_top_abnormal_patches",
-                "generate_final_ai_report",
+                "check_prediction_job",
                 "save_run_report"
             ],
             "expected_outputs": [
-                os.path.join(output_dir, "thumbnail.png"),
-                os.path.join(output_dir, "tissue_mask.png"),
-                os.path.join(output_dir, "tissue_overlay.png"),
-                os.path.join(output_dir, "patches"),
                 os.path.join(output_dir, "kather_predictions.json"),
-                os.path.join(output_dir, "kather_prediction_table.csv"),
-                os.path.join(output_dir, "kather_metrics.json"),
-                os.path.join(output_dir, "patch_statistics.json"),
-                os.path.join(output_dir, "kather_class_overlay.png"),
-                os.path.join(output_dir, "heterogeneity_overlay.png"),
-                os.path.join(output_dir, "kather_summary.txt"),
-                os.path.join(output_dir, "confidence_histogram.png"),
-                os.path.join(output_dir, "hotspot_overlay.png"),
-                os.path.join(output_dir, "tumour_likelihood_map.png"),
-                os.path.join(output_dir, "threshold_sensitivity.json"),
-                os.path.join(output_dir, "threshold_sensitivity.csv"),
-                os.path.join(output_dir, "threshold_sensitivity.png"),
-                os.path.join(output_dir, "top_abnormal_patches"),
-                os.path.join(output_dir, "top_abnormal_patches.csv"),
-                os.path.join(output_dir, "top_abnormal_patches_grid.png"),
-                os.path.join(output_dir, "final_ai_report.txt"),
+                os.path.join(output_dir, "wsi_predictions_annotationstore"),
                 os.path.join(output_dir, "run_report.json")
             ],
             "default_parameters": {
                 "model_name": "resnet18-kather100k",
-                "patch_size": 224,
-                "stride": 112,
-                "max_patches": 2000,
-                "min_tissue_fraction": 0.15,
-                "abnormality_threshold": 0.5,
-                "histogram_bins": 20,
-                "top_k": 20,
-                "thresholds": [0.3, 0.4, 0.5, 0.6, 0.7]
+                "batch_size": 64,
+                "output_type": "annotationstore",
+                "run_async": True
             },
             "clinical_warning": (
                 "The output is tissue-type classification and model-confidence analysis, not a clinical diagnosis."
@@ -390,16 +556,9 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
             ],
             "suggested_tools_after_approval": [
                 "wsi_metadata",
-                "wsi_thumbnail",
-                "tissue_mask",
-                "extract_patches",
                 "analyze_patch_statistics"
             ],
             "expected_outputs": [
-                os.path.join(output_dir, "thumbnail.png"),
-                os.path.join(output_dir, "tissue_mask.png"),
-                os.path.join(output_dir, "tissue_overlay.png"),
-                os.path.join(output_dir, "patches"),
                 os.path.join(output_dir, "patch_statistics.json")
             ]
         }
@@ -590,21 +749,44 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
         },
         {
             "name": "predict_kather_resnet18",
-            "title": "Predict Tissue Classes With ResNet18-Kather100K",
-            "description": "Runs pretrained resnet18-kather100k over extracted patches.",
+            "title": "Predict WSI Tissue Classes With ResNet18-Kather100K",
+            "description": "Runs pretrained resnet18-kather100k directly on a WSI and saves a TIAViz-compatible annotationstore. Patch-folder mode is retained as fallback.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "approval_token": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "save_dir": {"type": "string"},
+                    "ioconfig": {"type": "object"},
+                    "output_type": {"type": "string"},
+                    "patch_mode": {"type": "boolean"},
                     "patch_dir": {"type": "string"},
                     "output_json_path": {"type": "string"},
                     "output_csv_path": {"type": "string"},
                     "model_name": {"type": "string"},
                     "batch_size": {"type": "integer"},
                     "device": {"type": "string"},
-                    "input_size": {"type": "integer"}
+                    "input_size": {"type": "integer"},
+                    "run_async": {"type": "boolean"},
+                    "wait": {"type": "boolean"}
                 },
-                "required": ["approval_token", "patch_dir", "output_json_path"],
+                "required": ["approval_token"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "check_prediction_job",
+            "title": "Check Background Prediction Job",
+            "description": "Checks a background ResNet18-Kather100K prediction job started by predict_kather_resnet18.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "job_id": {"type": "string"},
+                    "status_path": {"type": "string"},
+                    "search_dir": {"type": "string"}
+                },
+                "required": ["approval_token"],
                 "additionalProperties": False
             }
         },
@@ -622,34 +804,6 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "cluster_distance": {"type": "number"}
                 },
                 "required": ["approval_token", "predictions_json_path"],
-                "additionalProperties": False
-            }
-        },
-        {
-            "name": "generate_kather_overlay",
-            "title": "Generate Kather Overlay",
-            "description": "Generates visible tissue-class and heterogeneity overlays.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "approval_token": {"type": "string"},
-                    "wsi_path": {"type": "string"},
-                    "predictions_json_path": {"type": "string"},
-                    "thumbnail_path": {"type": "string"},
-                    "output_overlay_path": {"type": "string"},
-                    "output_heterogeneity_path": {"type": "string"},
-                    "alpha": {"type": "number"},
-                    "patch_size": {"type": "integer"},
-                    "min_display_size": {"type": "integer"},
-                    "draw_legend": {"type": "boolean"}
-                },
-                "required": [
-                    "approval_token",
-                    "wsi_path",
-                    "predictions_json_path",
-                    "thumbnail_path",
-                    "output_overlay_path"
-                ],
                 "additionalProperties": False
             }
         },
@@ -687,33 +841,6 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
             }
         },
         {
-            "name": "generate_hotspot_overlay",
-            "title": "Generate Hotspot Overlay",
-            "description": "Draws boxes around spatial clusters of high-abnormality patches.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "approval_token": {"type": "string"},
-                    "wsi_path": {"type": "string"},
-                    "predictions_json_path": {"type": "string"},
-                    "thumbnail_path": {"type": "string"},
-                    "output_path": {"type": "string"},
-                    "abnormality_threshold": {"type": "number"},
-                    "patch_size": {"type": "integer"},
-                    "min_display_size": {"type": "integer"},
-                    "max_hotspots": {"type": "integer"}
-                },
-                "required": [
-                    "approval_token",
-                    "wsi_path",
-                    "predictions_json_path",
-                    "thumbnail_path",
-                    "output_path"
-                ],
-                "additionalProperties": False
-            }
-        },
-        {
             "name": "compare_masked_vs_unmasked_runs",
             "title": "Compare Masked vs Unmasked Runs",
             "description": "Compares saved Kather metric files from masked and unmasked analysis runs.",
@@ -726,32 +853,6 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "output_path": {"type": "string"}
                 },
                 "required": ["approval_token", "masked_metrics_path", "unmasked_metrics_path"],
-                "additionalProperties": False
-            }
-        },
-        {
-            "name": "generate_tumour_likelihood_map",
-            "title": "Generate Tumour Likelihood Map",
-            "description": "Creates a continuous tumour-relevant likelihood heatmap from abnormality scores.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "approval_token": {"type": "string"},
-                    "wsi_path": {"type": "string"},
-                    "predictions_json_path": {"type": "string"},
-                    "thumbnail_path": {"type": "string"},
-                    "output_path": {"type": "string"},
-                    "patch_size": {"type": "integer"},
-                    "alpha": {"type": "number"},
-                    "blur_kernel": {"type": "integer"}
-                },
-                "required": [
-                    "approval_token",
-                    "wsi_path",
-                    "predictions_json_path",
-                    "thumbnail_path",
-                    "output_path"
-                ],
                 "additionalProperties": False
             }
         },
@@ -812,6 +913,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                 "additionalProperties": False
             }
         },
+        
         {
             "name": "save_run_report",
             "title": "Save Run Report",
@@ -953,16 +1055,40 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
         if name == "predict_kather_resnet18":
             require_plan(args)
+
+            run_async = bool_arg(args.get("run_async"), True)
+            wait = bool_arg(args.get("wait"), False)
+
+            if run_async and not wait:
+                tool_result(req_id, start_prediction_job(args))
+            else:
+                tool_result(
+                    req_id,
+                    tool_predict_kather_resnet18(
+                        patch_dir=args.get("patch_dir"),
+                        output_json_path=args.get("output_json_path"),
+                        output_csv_path=args.get("output_csv_path"),
+                        model_name=str(args.get("model_name", "resnet18-kather100k")),
+                        batch_size=int(args.get("batch_size", 64)),
+                        device=str(args.get("device", "auto")),
+                        input_size=int(args.get("input_size", 224)),
+                        wsi_path=args.get("wsi_path"),
+                        save_dir=args.get("save_dir"),
+                        ioconfig=args.get("ioconfig"),
+                        output_type=str(args.get("output_type", "annotationstore")),
+                        patch_mode=bool_arg(args.get("patch_mode"), False),
+                    )
+                )
+            return
+
+        if name == "check_prediction_job":
+            require_plan(args)
             tool_result(
                 req_id,
-                tool_predict_kather_resnet18(
-                    patch_dir=args.get("patch_dir", ""),
-                    output_json_path=args.get("output_json_path", ""),
-                    output_csv_path=args.get("output_csv_path"),
-                    model_name=str(args.get("model_name", "resnet18-kather100k")),
-                    batch_size=int(args.get("batch_size", 16)),
-                    device=str(args.get("device", "auto")),
-                    input_size=int(args.get("input_size", 224)),
+                load_prediction_job_status(
+                    job_id=optional_str(args.get("job_id")),
+                    status_path=optional_str(args.get("status_path")),
+                    search_dir=optional_str(args.get("search_dir")),
                 )
             )
             return
@@ -982,23 +1108,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             )
             return
 
-        if name == "generate_kather_overlay":
-            require_plan(args)
-            tool_result(
-                req_id,
-                tool_generate_kather_overlay(
-                    wsi_path=args.get("wsi_path", ""),
-                    predictions_json_path=args.get("predictions_json_path", ""),
-                    thumbnail_path=args.get("thumbnail_path", ""),
-                    output_overlay_path=args.get("output_overlay_path", ""),
-                    output_heterogeneity_path=args.get("output_heterogeneity_path"),
-                    alpha=float(args.get("alpha", 0.75)),
-                    patch_size=int(args.get("patch_size", 224)),
-                    min_display_size=int(args.get("min_display_size", 8)),
-                    draw_legend=bool(args.get("draw_legend", True)),
-                )
-            )
-            return
 
         if name == "summarize_kather_results":
             require_plan(args)
@@ -1025,22 +1134,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             )
             return
 
-        if name == "generate_hotspot_overlay":
-            require_plan(args)
-            tool_result(
-                req_id,
-                tool_generate_hotspot_overlay(
-                    wsi_path=args.get("wsi_path", ""),
-                    predictions_json_path=args.get("predictions_json_path", ""),
-                    thumbnail_path=args.get("thumbnail_path", ""),
-                    output_path=args.get("output_path", ""),
-                    abnormality_threshold=float(args.get("abnormality_threshold", 0.5)),
-                    patch_size=int(args.get("patch_size", 224)),
-                    min_display_size=int(args.get("min_display_size", 12)),
-                    max_hotspots=int(args.get("max_hotspots", 10)),
-                )
-            )
-            return
 
         if name == "compare_masked_vs_unmasked_runs":
             require_plan(args)
@@ -1054,21 +1147,6 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             )
             return
 
-        if name == "generate_tumour_likelihood_map":
-            require_plan(args)
-            tool_result(
-                req_id,
-                tool_generate_tumour_likelihood_map(
-                    wsi_path=args.get("wsi_path", ""),
-                    predictions_json_path=args.get("predictions_json_path", ""),
-                    thumbnail_path=args.get("thumbnail_path", ""),
-                    output_path=args.get("output_path", ""),
-                    patch_size=int(args.get("patch_size", 224)),
-                    alpha=float(args.get("alpha", 0.55)),
-                    blur_kernel=int(args.get("blur_kernel", 31)),
-                )
-            )
-            return
 
         if name == "threshold_sensitivity_analysis":
             require_plan(args)
@@ -1111,6 +1189,8 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                 )
             )
             return
+
+        
 
         if name == "save_run_report":
             require_plan(args)
@@ -1183,4 +1263,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 5 and sys.argv[1] == "--run-predict-job":
+        raise SystemExit(run_predict_job(sys.argv[2], sys.argv[3], sys.argv[4]))
+
     main()
