@@ -36,8 +36,22 @@ import json
 import math
 import random
 import shutil
+import uuid
 from collections import Counter, deque
 from typing import Optional, Dict, Any, List
+
+
+WSI_EXTENSIONS = {
+    ".svs",
+    ".ndpi",
+    ".tif",
+    ".tiff",
+    ".scn",
+    ".mrxs",
+    ".vms",
+    ".vmu",
+    ".bif",
+}
 
 
 def ensure_parent_dir(path: str) -> None:
@@ -221,11 +235,11 @@ def tool_extract_patches(
     path: str,
     output_dir: str,
     patch_size: int = 224,
-    stride: int = 448,
+    stride: Optional[int] = None,
     level: int = 0,
-    max_patches: int = 100,
-    min_tissue_fraction: float = 0.10,
-    mpp: float = 8.0,
+    max_patches: int = 2000,
+    min_tissue_fraction: float = 0.15,
+    mpp: float = 2.0,
 ) -> str:
     if not isinstance(path, str) or not path.strip():
         raise ValueError('extract_patches requires a non-empty "path" argument.')
@@ -463,21 +477,43 @@ def _choose_device(device: str) -> str:
 
 def _load_pretrained_model(model_name: str, device: str):
     import timm
+    from tiatoolbox.models.engine.patch_predictor import PatchPredictor
 
     if model_name == "resnet18-kather100k":
-        hf_model_name = "hf-hub:1aurent/resnet18.tiatoolbox-kather100k"
+        # hf_model_name = "hf-hub:1aurent/resnet18.tiatoolbox-kather100k"
 
-        model = timm.create_model(
-            hf_model_name,
-            pretrained=True,
-        )
+        # model = timm.create_model(
+        #     hf_model_name,
+        #     pretrained=True,
+        # )
 
-        model.eval()
-        model.to(device)
+        # model.eval()
+        # model.to(device)
+        predictor = _create_patch_predictor(PatchPredictor, model_name, batch_size=32)
 
-        return model, {"source": "huggingface", "hf_model": hf_model_name}
+        return predictor
 
     raise ValueError(f"Unsupported model_name: {model_name}")
+
+
+def _create_patch_predictor(predictor_cls, model_name: str, batch_size: int):
+    import inspect
+
+    try:
+        params = inspect.signature(predictor_cls).parameters
+    except Exception:
+        params = {}
+
+    if "pretrained_model" in params:
+        return predictor_cls(
+            pretrained_model=model_name,
+            batch_size=int(batch_size),
+        )
+
+    return predictor_cls(
+        model=model_name,
+        batch_size=int(batch_size),
+    )
 
 
 def _preprocess_patch_for_kather(img_rgb, input_size: int = 224):
@@ -511,234 +547,473 @@ def _prediction_entropy(probs: List[float]) -> float:
     return float(-sum(v * math.log2(v) for v in vals))
 
 
-def tool_predict_kather_resnet18(
-    patch_dir: str,
-    output_json_path: str,
-    output_csv_path: Optional[str] = None,
-    model_name: str = "resnet18-kather100k",
-    batch_size: int = 16,
-    device: str = "auto",
+def _call_patch_predictor_wsi_compatible(
+    predictor,
+    wsi_path: str,
+    ioconfig: Optional[Dict[str, Any]],
+    save_dir: str,
+    selected_device: str,
+    class_dict: Dict[int, str],
     input_size: int = 224,
-) -> str:
-    if not isinstance(patch_dir, str) or not os.path.isdir(patch_dir):
-        raise ValueError("predict_kather_resnet18 requires a valid patch_dir.")
+    resolution: float = 0.5,
+    units: str = "mpp",
+):
+    """Call PatchPredictor using the API supported by the installed TIAToolbox.
 
-    if not isinstance(output_json_path, str) or not output_json_path.strip():
-        raise ValueError("predict_kather_resnet18 requires output_json_path.")
+    TIAToolbox releases differ on both the inference method name
+    (run vs predict) and the WSI input keyword (images vs imgs/wsis). This
+    wrapper keeps the MCP server compatible without requiring manual edits.
+    """
+    import inspect
+    from pathlib import Path
 
-    ensure_parent_dir(output_json_path)
-    if output_csv_path:
-        ensure_parent_dir(output_csv_path)
+    method_names = []
+    if hasattr(predictor, "predict"):
+        method_names.append("predict")
+    if hasattr(predictor, "run"):
+        method_names.append("run")
 
-    import cv2
-    import torch
-    import numpy as np
+    if not method_names:
+        raise AttributeError("PatchPredictor has neither predict() nor run().")
 
-    patch_files = sorted(
-        [
-            os.path.join(patch_dir, f)
-            for f in os.listdir(patch_dir)
-            if f.lower().endswith(".png")
-        ],
-        key=lambda p: p.lower()
+    ext = Path(wsi_path).suffix.lower()
+    is_wsi = ext in WSI_EXTENSIONS
+
+    input_keywords = ["imgs", "wsis", "images"] if is_wsi else ["imgs", "images", "wsis"]
+    base_kwargs = {
+        "masks": None,
+        "ioconfig": ioconfig,
+        "return_probabilities": True,
+        "save_dir": save_dir,
+        "device": selected_device,
+        "class_dict": class_dict,
+        "output_type": "annotationstore",
+    }
+    if is_wsi:
+        # TIAToolbox PatchPredictor.predict defaults to mode="patch". Passing
+        # a .svs path without mode="wsi" routes into _predict_patch and fails
+        # with "Cannot load image data from .svs files".
+        base_kwargs.update({
+            "mode": "wsi",
+            "save_output": True,
+            "patch_input_shape": (int(input_size), int(input_size)),
+            "stride_shape": (int(input_size), int(input_size)),
+            "resolution": float(resolution),
+            "units": str(units),
+        })
+    else:
+        base_kwargs["patch_mode"] = False
+
+    errors = []
+
+    for method_name in method_names:
+        method = getattr(predictor, method_name)
+        try:
+            sig = inspect.signature(method)
+            params = sig.parameters
+            accepts_var_kwargs = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+        except Exception:
+            params = {}
+            accepts_var_kwargs = True
+
+        for input_key in input_keywords:
+            if params and input_key not in params and not accepts_var_kwargs:
+                continue
+
+            input_path = Path(wsi_path) if is_wsi else wsi_path
+            kwargs = {input_key: [input_path]}
+            for key, value in base_kwargs.items():
+                if accepts_var_kwargs or not params or key in params:
+                    kwargs[key] = value
+
+            try:
+                return method(**kwargs), method_name, input_key
+            except (TypeError, ValueError) as exc:
+                errors.append(f"{method_name}({input_key}=..., mode={base_kwargs.get('mode')!r}): {exc}")
+                continue
+
+    raise TypeError(
+        "Could not call PatchPredictor with this TIAToolbox version. Tried:\n- "
+        + "\n- ".join(errors)
     )
 
-    if not patch_files:
-        raise FileNotFoundError(f"No PNG patches found in: {patch_dir}")
+def _json_safe(obj):
+    try:
+        json.dumps(obj)
+        return obj
+    except Exception:
+        return str(obj)
 
-    device_resolved = _choose_device(device)
-    model, io_config = _load_pretrained_model(model_name, device_resolved)
 
-    predictions: List[Dict[str, Any]] = []
+def _detect_wsi_prediction_output_type(output: Any) -> str:
+    if isinstance(output, dict):
+        for value in output.values():
+            if isinstance(value, dict) and "raw" in value:
+                return "raw_json"
+    return "annotationstore"
 
-    batch_tensors = []
-    batch_paths = []
 
-    def flush_batch() -> None:
-        nonlocal batch_tensors, batch_paths, predictions
+def _extract_raw_prediction_paths(output: Any) -> List[str]:
+    paths = []
+    if isinstance(output, dict):
+        for value in output.values():
+            if isinstance(value, dict) and isinstance(value.get("raw"), str):
+                paths.append(value["raw"])
+    return paths
 
-        if not batch_tensors:
-            return
 
-        x = torch.stack(batch_tensors, dim=0).to(device_resolved)
+def _default_annotationstore_path(
+    output_json_path: Optional[str],
+    save_dir: str,
+    wsi_path: Optional[str] = None,
+) -> str:
+    if output_json_path:
+        base_dir = os.path.dirname(output_json_path) or "."
+        stem = (
+            os.path.splitext(os.path.basename(wsi_path))[0]
+            if wsi_path
+            else os.path.splitext(os.path.basename(output_json_path))[0]
+        )
+        return os.path.join(base_dir, f"{stem}_annotationstore.db")
+    return os.path.join(os.path.dirname(save_dir) or ".", "kather_predictions_annotationstore.db")
 
-        with torch.no_grad():
-            logits = model(x)
 
-        soft = torch.softmax(logits, dim=1)
-        probs_np = soft.detach().cpu().numpy()
+def convert_kather_raw_json_to_annotationstore(
+    raw_json_path: str,
+    output_db_path: str,
+    class_dict: Dict[int, str],
+    wsi_path: Optional[str] = None,
+    merge_regions: bool = False,
+    smooth_radius: float = 0.0,
+) -> Dict[str, Any]:
+    from shapely.geometry import MultiPolygon, Polygon, box
+    from shapely.ops import unary_union
+    from tiatoolbox.annotation.storage import Annotation, SQLiteStore
 
-        for patch_path, probs in zip(batch_paths, probs_np):
-            coord = _parse_patch_filename(patch_path)
+    if not os.path.exists(raw_json_path):
+        raise FileNotFoundError(f"Raw prediction JSON not found: {raw_json_path}")
 
-            class_index = int(np.argmax(probs))
-            confidence = float(probs[class_index])
+    ensure_parent_dir(output_db_path)
+    if os.path.exists(output_db_path):
+        os.remove(output_db_path)
 
-            predicted_class = KATHER_CLASSES[class_index] if class_index < len(KATHER_CLASSES) else f"class_{class_index}"
+    with open(raw_json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-            class_probs = {}
-            for i, prob in enumerate(probs.tolist()):
-                name = KATHER_CLASSES[i] if i < len(KATHER_CLASSES) else f"class_{i}"
-                class_probs[name] = float(prob)
+    coordinates = data.get("coordinates", [])
+    predictions = data.get("predictions", [])
+    probabilities = data.get("probabilities", [])
+    model_resolution = float(data.get("resolution", 1.0))
+    model_units = str(data.get("units", "baseline")).lower()
+    scale_x = 1.0
+    scale_y = 1.0
 
-            tumour_epithelium_probability = float(class_probs.get("TUM", 0.0))
-            stroma_probability = float(class_probs.get("STR", 0.0))
-            lymphocyte_probability = float(class_probs.get("LYM", 0.0))
-            abnormality_score = max(tumour_epithelium_probability, stroma_probability)
+    if wsi_path and model_units == "mpp":
+        from tiatoolbox.wsicore.wsireader import WSIReader
 
-            predictions.append({
-                "patch_path": patch_path,
-                "filename": os.path.basename(patch_path),
-                "level": coord["level"],
-                "x": coord["x"],
-                "y": coord["y"],
-                "predicted_class": predicted_class,
-                "predicted_class_description": KATHER_CLASS_DESCRIPTIONS.get(predicted_class, predicted_class),
-                "confidence": confidence,
-                "tumour_epithelium_probability": tumour_epithelium_probability,
-                "stroma_probability": stroma_probability,
-                "lymphocyte_probability": lymphocyte_probability,
-                "abnormality_score": float(abnormality_score),
-                "class_probabilities": class_probs,
-                "model_name": model_name,
-            })
+        wsi = WSIReader.open(wsi_path)
+        mpp = getattr(wsi.info, "mpp", None)
+        if mpp is not None:
+            scale_x = model_resolution / float(mpp[0])
+            scale_y = model_resolution / float(mpp[1])
 
-        batch_tensors = []
-        batch_paths = []
+    if not (
+        len(coordinates) == len(predictions) == len(probabilities)
+    ):
+        raise ValueError(
+            "Raw prediction JSON has mismatched coordinates, predictions, "
+            "and probabilities lengths."
+        )
 
-    for patch_path in patch_files:
-        img_bgr = cv2.imread(patch_path)
+    annotations = []
+    keys = []
+    grouped_patches: Dict[str, List[Any]] = {}
+    grouped_properties: Dict[str, Dict[str, Any]] = {}
+    grouped_confidence: Dict[str, List[float]] = {}
 
-        if img_bgr is None:
+    for idx, (coord, pred, prob_vec) in enumerate(
+        zip(coordinates, predictions, probabilities)
+    ):
+        if len(coord) != 4:
             continue
 
-        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        tensor = _preprocess_patch_for_kather(img_rgb, input_size=input_size)
+        x0, y0, x1, y1 = [float(v) for v in coord]
+        x0 *= scale_x
+        x1 *= scale_x
+        y0 *= scale_y
+        y1 *= scale_y
+        pred = int(pred)
+        label = class_dict.get(pred, str(pred))
+        confidence = float(prob_vec[pred]) if pred < len(prob_vec) else 0.0
 
-        batch_tensors.append(tensor)
-        batch_paths.append(patch_path)
+        properties = {
+            "type": label,
+            "label": label,
+            "class_index": pred,
+            "confidence": confidence,
+            "probability": confidence,
+            "source": str(data.get("pretrained_model", "resnet18-kather100k")),
+            "resolution": model_resolution,
+            "units": str(data.get("units", "mpp")),
+            "coordinate_space": "baseline",
+            "scale_x": scale_x,
+            "scale_y": scale_y,
+        }
 
-        if len(batch_tensors) >= batch_size:
-            flush_batch()
+        for class_index, class_name in class_dict.items():
+            if class_index < len(prob_vec):
+                properties[f"prob_{class_name}"] = float(prob_vec[class_index])
 
-    flush_batch()
+        patch_geom = box(x0, y0, x1, y1)
+        if merge_regions:
+            grouped_patches.setdefault(label, []).append(patch_geom)
+            grouped_properties.setdefault(label, properties)
+            grouped_confidence.setdefault(label, []).append(confidence)
+        else:
+            annotations.append(Annotation(patch_geom, properties=properties))
+            keys.append(f"patch_{idx:06d}")
 
-    if not predictions:
-        raise RuntimeError("Model inference completed but no predictions were produced.")
+    if merge_regions:
+        for label, patch_geoms in grouped_patches.items():
+            merged = unary_union(patch_geoms)
+            if smooth_radius > 0:
+                merged = merged.buffer(smooth_radius).buffer(-smooth_radius)
 
-    class_counts = Counter(p["predicted_class"] for p in predictions)
-    total = len(predictions)
+            if isinstance(merged, Polygon):
+                polygons = [merged]
+            elif isinstance(merged, MultiPolygon):
+                polygons = list(merged.geoms)
+            else:
+                polygons = [
+                    geom for geom in getattr(merged, "geoms", [])
+                    if isinstance(geom, Polygon)
+                ]
 
-    class_percentages = {
-        cls: float(100.0 * count / total)
-        for cls, count in class_counts.items()
+            properties = dict(grouped_properties[label])
+            confidences = grouped_confidence[label]
+            properties["confidence"] = float(sum(confidences) / len(confidences))
+            properties["probability"] = properties["confidence"]
+            properties["region_merged"] = True
+            properties["patch_count"] = len(patch_geoms)
+
+            for region_idx, polygon in enumerate(polygons):
+                if polygon.is_empty:
+                    continue
+                annotations.append(Annotation(polygon, properties=properties))
+                keys.append(f"region_{label}_{region_idx:05d}")
+
+    store = SQLiteStore(output_db_path)
+    try:
+        store.append_many(annotations, keys=keys)
+        store.commit()
+        annotation_count = len(store)
+    finally:
+        store.close()
+
+    return {
+        "annotationstore_path": output_db_path,
+        "raw_json_path": raw_json_path,
+        "annotation_count": annotation_count,
+        "scale_x": scale_x,
+        "scale_y": scale_y,
+        "merge_regions": merge_regions,
+        "smooth_radius": smooth_radius,
     }
 
-    tumour_like_count = sum(1 for p in predictions if p["predicted_class"] == "TUM")
-    stroma_count = sum(1 for p in predictions if p["predicted_class"] == "STR")
-    lymphocyte_count = sum(1 for p in predictions if p["predicted_class"] == "LYM")
+
+def tool_predict_kather_resnet18(
+    patch_dir: Optional[str] = None,
+    output_json_path: Optional[str] = None,
+    output_csv_path: Optional[str] = None,
+    model_name: str = "resnet18-kather100k",
+    batch_size: int = 64,
+    device: str = "auto",
+    input_size: int = 224,
+    wsi_path: Optional[str] = None,
+    save_dir: Optional[str] = None,
+    ioconfig: Optional[Dict[str, Any]] = None,
+    output_type: str = "annotationstore",
+    patch_mode: bool = False,
+) -> str:
+    """Run WSI-level ResNet18-Kather100K prediction for TIAViz.
+
+    This follows the TIAToolbox WSI prediction workflow:
+    1) instantiate PatchPredictor
+    2) call the installed compatible PatchPredictor API with
+       patch_mode=False and output_type="annotationstore".
+
+    The output is a TIAViz-compatible AnnotationStore (.db) directory.
+    """
+    from pathlib import Path
+    from tiatoolbox.models.engine.patch_predictor import PatchPredictor
+
+    if model_name != "resnet18-kather100k":
+        raise ValueError(
+            "Only model_name='resnet18-kather100k' is supported by this MVP tool."
+        )
+
+    # Backwards-compatible alias: older MCP calls passed the WSI file path as patch_dir.
+    if not wsi_path and patch_dir:
+        wsi_path = patch_dir
+
+    if not isinstance(wsi_path, str) or not wsi_path.strip():
+        raise ValueError(
+            "predict_kather_resnet18 now requires a WSI file path via wsi_path "
+            "or patch_dir as a backwards-compatible alias."
+        )
+
+    if not os.path.exists(wsi_path):
+        raise FileNotFoundError(f"WSI file not found: {wsi_path}")
+
+    if patch_mode is not False:
+        raise ValueError("For TIAViz WSI prediction, patch_mode must be False.")
+
+    if output_type != "annotationstore":
+        raise ValueError("For TIAViz compatibility, output_type must be 'annotationstore'.")
+
+    selected_device = _choose_device(device)
+
+    if not save_dir:
+        if output_json_path:
+            save_dir = os.path.join(
+                os.path.dirname(output_json_path) or ".",
+                "wsi_predictions_annotationstore",
+            )
+        else:
+            save_dir = os.path.join(os.getcwd(), "wsi_predictions_annotationstore")
+
+    wsi_ext = Path(wsi_path).suffix.lower()
+    is_wsi_input = wsi_ext in WSI_EXTENSIONS
+
+    if is_wsi_input:
+        parent_dir = os.path.dirname(save_dir)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+
+        if os.path.isdir(save_dir):
+            try:
+                os.rmdir(save_dir)
+            except OSError:
+                save_dir = f"{save_dir}_{uuid.uuid4().hex[:8]}"
+    else:
+        os.makedirs(save_dir, exist_ok=True)
+
+    # Exact class-index mapping from the TIAToolbox patch-prediction notebook.
+    # This keeps TIAViz labels aligned with ResNet18-Kather100K output indices.
+    label_dict = {
+        "BACK": 0,
+        "NORM": 1,
+        "DEB": 2,
+        "TUM": 3,
+        "ADI": 4,
+        "MUC": 5,
+        "MUS": 6,
+        "STR": 7,
+        "LYM": 8,
+    }
+    class_dict = {v: k for k, v in label_dict.items()}
+
+    predictor = _create_patch_predictor(
+        PatchPredictor,
+        model_name=model_name,
+        batch_size=int(batch_size),
+    )
+
+    # Supports TIAToolbox variants:
+    # - predictor.run(images=...)
+    # - predictor.predict(images=...)
+    # - predictor.predict(imgs=...)
+    # - predictor.predict(wsis=...)
+    output, predictor_method, input_keyword = _call_patch_predictor_wsi_compatible(
+        predictor=predictor,
+        wsi_path=wsi_path,
+        ioconfig=ioconfig,
+        save_dir=save_dir,
+        selected_device=selected_device,
+        class_dict=class_dict,
+        input_size=int(input_size),
+    )
+    actual_output_type = _detect_wsi_prediction_output_type(output)
+    raw_prediction_paths = _extract_raw_prediction_paths(output)
+    annotationstore_result = None
+
+    if raw_prediction_paths:
+        annotationstore_path = _default_annotationstore_path(
+            output_json_path,
+            save_dir,
+            wsi_path=wsi_path,
+        )
+        annotationstore_result = convert_kather_raw_json_to_annotationstore(
+            raw_json_path=raw_prediction_paths[0],
+            output_db_path=annotationstore_path,
+            class_dict=class_dict,
+            wsi_path=wsi_path,
+        )
+        actual_output_type = "annotationstore"
+
+    slides_dir = os.path.dirname(wsi_path) or "."
+    overlay_path = (
+        annotationstore_result["annotationstore_path"]
+        if annotationstore_result
+        else save_dir
+    )
+    tiaviz_command = f"tiatoolbox visualize --slides {slides_dir} --overlays {overlay_path}"
 
     result = {
+        "mode": f"wsi_{actual_output_type}",
         "model_name": model_name,
-        "task": "kather100k_patch_tissue_classification",
-        "clinical_warning": (
-            "This is tissue-type classification and model-confidence analysis, not a clinical diagnosis."
+        "wsi_path": wsi_path,
+        "save_dir": save_dir,
+        "annotationstore_path": (
+            annotationstore_result["annotationstore_path"]
+            if annotationstore_result
+            else None
         ),
-        "patch_dir": patch_dir,
-        "patch_count": total,
-        "device": device_resolved,
-        "input_size": int(input_size),
-        "class_names": KATHER_CLASSES,
-        "class_descriptions": KATHER_CLASS_DESCRIPTIONS,
-        "class_counts": dict(class_counts),
-        "class_percentages": class_percentages,
-        "tumour_epithelium_patch_count": tumour_like_count,
-        "tumour_epithelium_percentage": float(100.0 * tumour_like_count / total),
-        "stroma_patch_count": stroma_count,
-        "stroma_percentage": float(100.0 * stroma_count / total),
-        "lymphocyte_patch_count": lymphocyte_count,
-        "lymphocyte_percentage": float(100.0 * lymphocyte_count / total),
-        "mean_tumour_epithelium_probability": float(np.mean([p["tumour_epithelium_probability"] for p in predictions])),
-        "mean_abnormality_score": float(np.mean([p["abnormality_score"] for p in predictions])),
-        "max_abnormality_score": float(np.max([p["abnormality_score"] for p in predictions])),
-        "io_config_present": io_config is not None,
-        "predictions": predictions,
+        "raw_prediction_paths": raw_prediction_paths,
+        "output_type": actual_output_type,
+        "device": selected_device,
+        "predictor_method": predictor_method,
+        "input_keyword": input_keyword,
+        "class_dict": class_dict,
+        "annotationstore_conversion": annotationstore_result,
+        "tiaviz_command": tiaviz_command,
+        "tiatoolbox_output": _json_safe(output),
+        "clinical_warning": (
+            "This is tissue-type classification/model-confidence output, "
+            "not a clinical diagnosis."
+        ),
     }
 
-    with open(output_json_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2)
-
-    if output_csv_path:
-        with open(output_csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(
-                f,
-                fieldnames=[
-                    "filename",
-                    "patch_path",
-                    "level",
-                    "x",
-                    "y",
-                    "predicted_class",
-                    "predicted_class_description",
-                    "confidence",
-                    "tumour_epithelium_probability",
-                    "stroma_probability",
-                    "lymphocyte_probability",
-                    "abnormality_score",
-                    "model_name",
-                ],
-            )
-            writer.writeheader()
-            for row in predictions:
-                writer.writerow({
-                    "filename": row["filename"],
-                    "patch_path": row["patch_path"],
-                    "level": row["level"],
-                    "x": row["x"],
-                    "y": row["y"],
-                    "predicted_class": row["predicted_class"],
-                    "predicted_class_description": row["predicted_class_description"],
-                    "confidence": row["confidence"],
-                    "tumour_epithelium_probability": row["tumour_epithelium_probability"],
-                    "stroma_probability": row["stroma_probability"],
-                    "lymphocyte_probability": row["lymphocyte_probability"],
-                    "abnormality_score": row["abnormality_score"],
-                    "model_name": row["model_name"],
-                })
+    if output_json_path:
+        ensure_parent_dir(output_json_path)
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
 
     lines = [
-        "ResNet18-Kather100K patch classification completed successfully.",
+        "WSI patch prediction completed successfully.",
         f"Model: {model_name}",
-        f"Device: {device_resolved}",
-        f"Patches predicted: {total}",
+        f"WSI: {wsi_path}",
+        f"Prediction output saved to: {save_dir}",
+        f"Output type: {actual_output_type}",
+        (
+            f"AnnotationStore saved to: {annotationstore_result['annotationstore_path']}"
+            if annotationstore_result
+            else "AnnotationStore conversion: not available"
+        ),
+        f"Device: {selected_device}",
+        f"PatchPredictor API used: {predictor_method}({input_keyword}=...)",
         "",
-        "Class summary:"
+        "Open in TIAViz with:",
+        tiaviz_command,
     ]
 
-    for cls, count in class_counts.most_common():
-        desc = KATHER_CLASS_DESCRIPTIONS.get(cls, cls)
-        pct = class_percentages[cls]
-        lines.append(f"  {cls} ({desc}): {count} patches ({pct:.2f}%)")
+    if output_json_path:
+        lines.append(f"\nRun summary saved to: {output_json_path}")
 
-    lines += [
-        "",
-        f"TUM patches: {tumour_like_count} ({result['tumour_epithelium_percentage']:.2f}%)",
-        f"STR patches: {stroma_count} ({result['stroma_percentage']:.2f}%)",
-        f"LYM patches: {lymphocyte_count} ({result['lymphocyte_percentage']:.2f}%)",
-        f"Mean TUM probability: {result['mean_tumour_epithelium_probability']:.6f}",
-        f"Mean abnormality score: {result['mean_abnormality_score']:.6f}",
-        f"Max abnormality score: {result['max_abnormality_score']:.6f}",
-        f"JSON saved to: {output_json_path}",
-    ]
-
-    if output_csv_path:
-        lines.append(f"CSV saved to: {output_csv_path}")
-
-    lines.append("")
-    lines.append("Important: this is tissue-type classification/model confidence, not clinical diagnosis.")
-
+    lines.append("\nImportant: this output is not a clinical diagnosis.")
     return "\n".join(lines)
-
 
 def _estimate_patch_size_from_predictions(preds: List[Dict[str, Any]], fallback: int = 224) -> int:
     xs = sorted({int(p["x"]) for p in preds if int(p.get("x", -1)) >= 0})
