@@ -449,6 +449,34 @@ KATHER_CLASS_DESCRIPTIONS = {
     "TUM": "tumour epithelium",
 }
 
+KATHER_INDEX_TO_CLASS = {
+    0: "BACK",
+    1: "NORM",
+    2: "DEB",
+    3: "TUM",
+    4: "ADI",
+    5: "MUC",
+    6: "MUS",
+    7: "STR",
+    8: "LYM",
+}
+
+KATHER_CLASS_TO_INDEX = {label: idx for idx, label in KATHER_INDEX_TO_CLASS.items()}
+
+KATHER_ANALYSIS_CLASSES = list(KATHER_INDEX_TO_CLASS.values())
+
+KATHER_CLASS_RGB = {
+    "ADI": (0, 237, 189),
+    "BACK": (255, 0, 179),
+    "DEB": (255, 158, 0),
+    "LYM": (255, 0, 0),
+    "MUC": (0, 255, 0),
+    "MUS": (153, 255, 0),
+    "NORM": (0, 166, 230),
+    "STR": (158, 0, 255),
+    "TUM": (0, 0, 255),
+}
+
 
 def _parse_patch_filename(path: str) -> Dict[str, int]:
     name = os.path.basename(path)
@@ -461,6 +489,143 @@ def _parse_patch_filename(path: str) -> Dict[str, int]:
         "level": int(match.group("level")),
         "x": int(match.group("x")),
         "y": int(match.group("y")),
+    }
+
+
+def _normalise_class_dict(class_dict: Optional[Dict[Any, Any]] = None) -> Dict[int, str]:
+    if not class_dict:
+        return dict(KATHER_INDEX_TO_CLASS)
+
+    normalised: Dict[int, str] = {}
+    for key, value in class_dict.items():
+        try:
+            normalised[int(key)] = str(value)
+        except (TypeError, ValueError):
+            continue
+    return normalised or dict(KATHER_INDEX_TO_CLASS)
+
+
+def _probability_for_class(prob_vec: List[float], class_label: str, class_dict: Dict[int, str]) -> float:
+    for idx, label in class_dict.items():
+        if label == class_label and idx < len(prob_vec):
+            return float(prob_vec[idx])
+    return 0.0
+
+
+def _prediction_abnormality_score(prob_vec: List[float], class_dict: Dict[int, str]) -> float:
+    tumour = _probability_for_class(prob_vec, "TUM", class_dict)
+    stroma = _probability_for_class(prob_vec, "STR", class_dict)
+    lymphocyte = _probability_for_class(prob_vec, "LYM", class_dict)
+    debris = _probability_for_class(prob_vec, "DEB", class_dict)
+    return float(min(1.0, tumour + stroma + lymphocyte + 0.5 * debris))
+
+
+def _load_kather_predictions(
+    predictions_json_path: str,
+    class_dict: Optional[Dict[Any, Any]] = None,
+) -> Dict[str, Any]:
+    if not os.path.exists(predictions_json_path):
+        raise FileNotFoundError(f"Predictions file not found: {predictions_json_path}")
+
+    with open(predictions_json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    resolved_class_dict = _normalise_class_dict(
+        class_dict or data.get("class_dict") or data.get("label_dict")
+    )
+
+    preds = data.get("predictions", [])
+    probabilities = data.get("probabilities")
+    coordinates = data.get("coordinates")
+
+    # New TIAToolbox WSI raw format: predictions/probabilities/coordinates
+    # are parallel arrays. Convert them to the older patch-row shape used by
+    # downstream post-processing tools.
+    if (
+        isinstance(preds, list)
+        and preds
+        and not isinstance(preds[0], dict)
+        and isinstance(probabilities, list)
+        and isinstance(coordinates, list)
+    ):
+        rows = []
+        for idx, (pred, prob_vec, coord) in enumerate(zip(preds, probabilities, coordinates)):
+            if not isinstance(prob_vec, list) or len(coord) < 2:
+                continue
+
+            pred_idx = int(pred)
+            label = resolved_class_dict.get(pred_idx, str(pred_idx))
+            confidence = float(prob_vec[pred_idx]) if pred_idx < len(prob_vec) else 0.0
+            x0 = int(float(coord[0]))
+            y0 = int(float(coord[1]))
+            x1 = int(float(coord[2])) if len(coord) > 2 else x0
+            y1 = int(float(coord[3])) if len(coord) > 3 else y0
+
+            tumour_prob = _probability_for_class(prob_vec, "TUM", resolved_class_dict)
+            stroma_prob = _probability_for_class(prob_vec, "STR", resolved_class_dict)
+            lymphocyte_prob = _probability_for_class(prob_vec, "LYM", resolved_class_dict)
+            abnormality_score = _prediction_abnormality_score(prob_vec, resolved_class_dict)
+
+            row = {
+                "filename": f"patch_{idx:06d}",
+                "patch_path": "",
+                "level": 0,
+                "x": x0,
+                "y": y0,
+                "x1": x1,
+                "y1": y1,
+                "predicted_class": label,
+                "predicted_class_description": KATHER_CLASS_DESCRIPTIONS.get(label, label),
+                "class_index": pred_idx,
+                "confidence": confidence,
+                "tumour_epithelium_probability": tumour_prob,
+                "stroma_probability": stroma_prob,
+                "lymphocyte_probability": lymphocyte_prob,
+                "abnormality_score": abnormality_score,
+                "tumour_likelihood_score": tumour_prob,
+            }
+            for class_idx, class_label in resolved_class_dict.items():
+                if class_idx < len(prob_vec):
+                    row[f"prob_{class_label}"] = float(prob_vec[class_idx])
+            rows.append(row)
+
+        return {
+            "model_name": data.get("pretrained_model", data.get("model_name", "resnet18-kather100k")),
+            "predictions": rows,
+            "class_dict": resolved_class_dict,
+            "source_format": "tiatoolbox_raw_wsi",
+            "raw": data,
+        }
+
+    # Older already-normalised format.
+    rows = preds if isinstance(preds, list) else []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        prob_vec = [
+            float(row.get(f"prob_{resolved_class_dict[i]}", 0.0))
+            for i in sorted(resolved_class_dict)
+        ]
+        label = str(row.get("predicted_class", row.get("type", "")))
+        if "predicted_class_description" not in row:
+            row["predicted_class_description"] = KATHER_CLASS_DESCRIPTIONS.get(label, label)
+        if "tumour_epithelium_probability" not in row:
+            row["tumour_epithelium_probability"] = _probability_for_class(prob_vec, "TUM", resolved_class_dict)
+        if "stroma_probability" not in row:
+            row["stroma_probability"] = _probability_for_class(prob_vec, "STR", resolved_class_dict)
+        if "lymphocyte_probability" not in row:
+            row["lymphocyte_probability"] = _probability_for_class(prob_vec, "LYM", resolved_class_dict)
+        if "abnormality_score" not in row:
+            row["abnormality_score"] = _prediction_abnormality_score(prob_vec, resolved_class_dict)
+        if "tumour_likelihood_score" not in row:
+            row["tumour_likelihood_score"] = float(row.get("tumour_epithelium_probability", 0.0))
+
+    return {
+        "model_name": data.get("model_name", data.get("pretrained_model", "resnet18-kather100k")),
+        "predictions": rows,
+        "class_dict": resolved_class_dict,
+        "source_format": "normalised_patch_rows",
+        "raw": data,
     }
 
 
@@ -953,13 +1118,31 @@ def tool_predict_kather_resnet18(
         )
         actual_output_type = "annotationstore"
 
+    postprocessing_result = None
+    if raw_prediction_paths:
+        try:
+            postprocessing_result = run_kather_postprocessing_pipeline(
+                predictions_json_path=raw_prediction_paths[0],
+                output_dir=save_dir,
+                class_dict=class_dict,
+                abnormality_threshold=0.5,
+            )
+        except Exception as exc:
+            postprocessing_result = {
+                "error": str(exc),
+                "message": (
+                    "Prediction and AnnotationStore outputs were created, "
+                    "but automatic post-processing failed."
+                ),
+            }
+
     slides_dir = os.path.dirname(wsi_path) or "."
     overlay_path = (
-        annotationstore_result["annotationstore_path"]
+        os.path.dirname(annotationstore_result["annotationstore_path"])
         if annotationstore_result
         else save_dir
     )
-    tiaviz_command = f"tiatoolbox visualize --slides {slides_dir} --overlays {overlay_path}"
+    tiaviz_command = f'tiatoolbox visualize --slides "{slides_dir}" --overlays "{overlay_path}"'
 
     result = {
         "mode": f"wsi_{actual_output_type}",
@@ -978,6 +1161,7 @@ def tool_predict_kather_resnet18(
         "input_keyword": input_keyword,
         "class_dict": class_dict,
         "annotationstore_conversion": annotationstore_result,
+        "postprocessing": postprocessing_result,
         "tiaviz_command": tiaviz_command,
         "tiatoolbox_output": _json_safe(output),
         "clinical_warning": (
@@ -1001,6 +1185,13 @@ def tool_predict_kather_resnet18(
             f"AnnotationStore saved to: {annotationstore_result['annotationstore_path']}"
             if annotationstore_result
             else "AnnotationStore conversion: not available"
+        ),
+        (
+            f"Post-processing metrics saved to: {postprocessing_result.get('metrics_json')}"
+            if isinstance(postprocessing_result, dict) and postprocessing_result.get("metrics_json")
+            else f"Post-processing: {postprocessing_result.get('message', 'not available')}"
+            if isinstance(postprocessing_result, dict)
+            else "Post-processing: not available"
         ),
         f"Device: {selected_device}",
         f"PatchPredictor API used: {predictor_method}({input_keyword}=...)",
@@ -1087,15 +1278,14 @@ def tool_aggregate_kather_metrics(
     if not isinstance(predictions_json_path, str) or not os.path.exists(predictions_json_path):
         raise FileNotFoundError("aggregate_kather_metrics requires a valid predictions_json_path.")
 
-    with open(predictions_json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    preds = data.get("predictions", [])
-
+    loaded = _load_kather_predictions(predictions_json_path)
+    preds = loaded["predictions"]
     if not preds:
         raise RuntimeError("No predictions found in predictions JSON.")
 
     total = len(preds)
+    tissue_preds = [p for p in preds if p.get("predicted_class") != "BACK"]
+    tissue_total = len(tissue_preds)
 
     class_counts = Counter(p["predicted_class"] for p in preds)
     class_percentages = {
@@ -1109,13 +1299,42 @@ def tool_aggregate_kather_metrics(
     ]
 
     tumour_preds = [p for p in preds if p.get("predicted_class") == "TUM"]
+    high_tumour_likelihood_preds = [
+        p for p in preds
+        if float(p.get("tumour_likelihood_score", p.get("tumour_epithelium_probability", 0.0))) >= float(abnormality_threshold)
+    ]
 
     class_distribution = [
         class_counts.get(cls, 0) / total
-        for cls in KATHER_CLASSES
+        for cls in KATHER_ANALYSIS_CLASSES
     ]
 
     class_entropy = _prediction_entropy(class_distribution)
+    max_entropy = math.log2(max(2, len(KATHER_ANALYSIS_CLASSES)))
+    normalised_class_entropy = float(class_entropy / max_entropy)
+
+    colour_vectors = [
+        KATHER_CLASS_RGB.get(str(p.get("predicted_class")), (0, 0, 0))
+        for p in preds
+    ]
+    channel_variances = []
+    for channel in range(3):
+        values = [rgb[channel] / 255.0 for rgb in colour_vectors]
+        mean = sum(values) / total
+        channel_variances.append(sum((v - mean) ** 2 for v in values) / total)
+    colour_variance = float(sum(channel_variances) / 3.0)
+
+    abnormality_scores = [float(p.get("abnormality_score", 0.0)) for p in preds]
+    mean_abnormality = float(sum(abnormality_scores) / total)
+    abnormality_variance = float(
+        sum((score - mean_abnormality) ** 2 for score in abnormality_scores) / total
+    )
+    abnormality_std = math.sqrt(abnormality_variance)
+    heterogeneity_index = float(
+        (0.45 * normalised_class_entropy)
+        + (0.35 * min(1.0, colour_variance * 4.0))
+        + (0.20 * min(1.0, abnormality_std * 2.0))
+    )
 
     cluster_count = _count_clusters(
         preds=abnormal_preds,
@@ -1124,25 +1343,40 @@ def tool_aggregate_kather_metrics(
 
     metrics = {
         "source_predictions": predictions_json_path,
-        "model_name": data.get("model_name", "resnet18-kather100k"),
+        "source_format": loaded["source_format"],
+        "model_name": loaded.get("model_name", "resnet18-kather100k"),
         "total_predicted_patches": total,
+        "tissue_patch_count_excluding_background": tissue_total,
         "class_counts": dict(class_counts),
         "class_percentages": class_percentages,
         "tumour_epithelium_patch_count": len(tumour_preds),
         "tumour_epithelium_percentage": float(100.0 * len(tumour_preds) / total),
+        "tumour_epithelium_percentage_excluding_background": (
+            float(100.0 * len([p for p in tissue_preds if p.get("predicted_class") == "TUM"]) / tissue_total)
+            if tissue_total else 0.0
+        ),
+        "high_tumour_likelihood_patch_count": len(high_tumour_likelihood_preds),
+        "high_tumour_likelihood_percentage": float(100.0 * len(high_tumour_likelihood_preds) / total),
         "high_abnormality_patch_count": len(abnormal_preds),
         "high_abnormality_percentage": float(100.0 * len(abnormal_preds) / total),
+        "high_abnormality_percentage_excluding_background": (
+            float(100.0 * len([p for p in abnormal_preds if p.get("predicted_class") != "BACK"]) / tissue_total)
+            if tissue_total else 0.0
+        ),
         "abnormality_threshold": float(abnormality_threshold),
         "mean_tumour_epithelium_probability": float(
             sum(float(p.get("tumour_epithelium_probability", 0.0)) for p in preds) / total
         ),
-        "mean_abnormality_score": float(
-            sum(float(p.get("abnormality_score", 0.0)) for p in preds) / total
-        ),
+        "mean_abnormality_score": mean_abnormality,
         "max_abnormality_score": float(
-            max(float(p.get("abnormality_score", 0.0)) for p in preds)
+            max(abnormality_scores)
         ),
+        "colour_variance": colour_variance,
         "class_entropy": class_entropy,
+        "shannon_entropy": class_entropy,
+        "normalised_shannon_entropy": normalised_class_entropy,
+        "abnormality_score_std": abnormality_std,
+        "heterogeneity_index": heterogeneity_index,
         "cluster_count": int(cluster_count),
         "cluster_distance": cluster_distance,
         "clinical_warning": (
@@ -1159,14 +1393,19 @@ def tool_aggregate_kather_metrics(
         "Kather prediction metrics aggregated successfully.",
         f"Model: {metrics['model_name']}",
         f"Total predicted patches: {total}",
+        f"Tissue patches excluding BACK: {tissue_total}",
         f"TUM patches: {metrics['tumour_epithelium_patch_count']}",
         f"TUM percentage: {metrics['tumour_epithelium_percentage']:.2f}%",
+        f"High tumour-likelihood patches: {metrics['high_tumour_likelihood_patch_count']}",
+        f"High tumour-likelihood percentage: {metrics['high_tumour_likelihood_percentage']:.2f}%",
         f"High abnormality patches: {metrics['high_abnormality_patch_count']}",
         f"High abnormality percentage: {metrics['high_abnormality_percentage']:.2f}%",
         f"Mean TUM probability: {metrics['mean_tumour_epithelium_probability']:.6f}",
         f"Mean abnormality score: {metrics['mean_abnormality_score']:.6f}",
         f"Max abnormality score: {metrics['max_abnormality_score']:.6f}",
         f"Class entropy: {class_entropy:.6f}",
+        f"Colour variance: {colour_variance:.6f}",
+        f"Heterogeneity index: {heterogeneity_index:.6f}",
         f"Cluster count: {cluster_count}",
         "",
         "Class percentages:",
@@ -1183,6 +1422,172 @@ def tool_aggregate_kather_metrics(
     lines.append("Important: these are tissue-class/model-confidence metrics, not clinical diagnosis.")
 
     return "\n".join(lines)
+
+
+def write_kather_patch_table_csv(
+    predictions_json_path: str,
+    output_csv_path: str,
+    class_dict: Optional[Dict[Any, Any]] = None,
+) -> Dict[str, Any]:
+    loaded = _load_kather_predictions(predictions_json_path, class_dict=class_dict)
+    preds = loaded["predictions"]
+    ensure_parent_dir(output_csv_path)
+
+    preferred_fields = [
+        "filename",
+        "patch_path",
+        "level",
+        "x",
+        "y",
+        "x1",
+        "y1",
+        "predicted_class",
+        "predicted_class_description",
+        "class_index",
+        "confidence",
+        "tumour_epithelium_probability",
+        "stroma_probability",
+        "lymphocyte_probability",
+        "tumour_likelihood_score",
+        "abnormality_score",
+    ]
+    extra_fields = sorted({
+        key
+        for row in preds
+        for key in row.keys()
+        if key not in preferred_fields
+    })
+    fieldnames = preferred_fields + extra_fields
+
+    with open(output_csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for row in preds:
+            writer.writerow(row)
+
+    return {
+        "path": output_csv_path,
+        "patch_count": len(preds),
+        "source_format": loaded["source_format"],
+    }
+
+
+def _write_high_abnormality_csv(
+    predictions_json_path: str,
+    output_csv_path: str,
+    abnormality_threshold: float = 0.5,
+    top_k: int = 100,
+    class_dict: Optional[Dict[Any, Any]] = None,
+) -> Dict[str, Any]:
+    loaded = _load_kather_predictions(predictions_json_path, class_dict=class_dict)
+    preds = loaded["predictions"]
+    high = [
+        p for p in preds
+        if float(p.get("abnormality_score", 0.0)) >= float(abnormality_threshold)
+    ]
+    ranked = sorted(high, key=lambda p: float(p.get("abnormality_score", 0.0)), reverse=True)
+    if top_k and top_k > 0:
+        ranked = ranked[:int(top_k)]
+
+    ensure_parent_dir(output_csv_path)
+    fieldnames = [
+        "rank",
+        "filename",
+        "patch_path",
+        "x",
+        "y",
+        "x1",
+        "y1",
+        "predicted_class",
+        "predicted_class_description",
+        "confidence",
+        "abnormality_score",
+        "tumour_likelihood_score",
+        "tumour_epithelium_probability",
+        "stroma_probability",
+        "lymphocyte_probability",
+    ]
+    with open(output_csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for rank, row in enumerate(ranked, start=1):
+            out = dict(row)
+            out["rank"] = rank
+            writer.writerow(out)
+
+    return {
+        "path": output_csv_path,
+        "threshold": float(abnormality_threshold),
+        "high_abnormality_patch_count": len(high),
+        "written_rows": len(ranked),
+        "high_abnormality_percentage": float(100.0 * len(high) / len(preds)) if preds else 0.0,
+    }
+
+
+def run_kather_postprocessing_pipeline(
+    predictions_json_path: str,
+    output_dir: str,
+    class_dict: Optional[Dict[Any, Any]] = None,
+    abnormality_threshold: float = 0.5,
+) -> Dict[str, Any]:
+    os.makedirs(output_dir, exist_ok=True)
+
+    patch_table_path = os.path.join(output_dir, "kather_patch_table.csv")
+    metrics_path = os.path.join(output_dir, "kather_postprocessing_metrics.json")
+    summary_path = os.path.join(output_dir, "kather_postprocessing_summary.txt")
+    high_abnormality_path = os.path.join(output_dir, "kather_high_abnormality_patches.csv")
+    histogram_path = os.path.join(output_dir, "kather_confidence_histogram.png")
+
+    patch_table = write_kather_patch_table_csv(
+        predictions_json_path,
+        patch_table_path,
+        class_dict=class_dict,
+    )
+
+    tool_aggregate_kather_metrics(
+        predictions_json_path,
+        output_metrics_path=metrics_path,
+        abnormality_threshold=abnormality_threshold,
+    )
+
+    high_abnormality = _write_high_abnormality_csv(
+        predictions_json_path,
+        high_abnormality_path,
+        abnormality_threshold=abnormality_threshold,
+        top_k=100,
+        class_dict=class_dict,
+    )
+
+    histogram_status = None
+    try:
+        histogram_status = tool_generate_confidence_histogram(
+            predictions_json_path,
+            histogram_path,
+            bins=20,
+        )
+    except Exception as exc:
+        histogram_status = f"Histogram generation skipped: {exc}"
+        histogram_path = None
+
+    summary = tool_summarize_kather_results(
+        predictions_json_path=predictions_json_path,
+        metrics_json_path=metrics_path,
+        output_summary_path=summary_path,
+    )
+
+    return {
+        "patch_table_csv": patch_table_path,
+        "patch_count": patch_table["patch_count"],
+        "metrics_json": metrics_path,
+        "summary_txt": summary_path,
+        "high_abnormality_csv": high_abnormality_path,
+        "confidence_histogram_png": histogram_path,
+        "abnormality_threshold": float(abnormality_threshold),
+        "high_abnormality_patch_count": high_abnormality["high_abnormality_patch_count"],
+        "high_abnormality_percentage": high_abnormality["high_abnormality_percentage"],
+        "histogram_status": histogram_status,
+        "summary_preview": "\n".join(summary.splitlines()[:12]),
+    }
 
 def _get_prediction_level_dimensions(wsi, preds: List[Dict[str, Any]]):
     pred_levels = [
@@ -1541,6 +1946,9 @@ def tool_summarize_kather_results(
         "Spatial interpretation:",
         f"- Cluster count: {cluster_count}",
         f"- Class entropy: {metrics.get('class_entropy', 0):.6f}",
+        f"- Normalised Shannon entropy: {metrics.get('normalised_shannon_entropy', 0):.6f}",
+        f"- Colour variance: {metrics.get('colour_variance', 0):.6f}",
+        f"- Heterogeneity index: {metrics.get('heterogeneity_index', 0):.6f}",
     ]
 
     if high_pct >= 30:
@@ -1603,10 +2011,8 @@ def tool_generate_confidence_histogram(
 
     import matplotlib.pyplot as plt
 
-    with open(predictions_json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    preds = data.get("predictions", [])
+    loaded = _load_kather_predictions(predictions_json_path)
+    preds = loaded["predictions"]
     if not preds:
         raise RuntimeError("No predictions found.")
 
@@ -1662,10 +2068,8 @@ def tool_generate_hotspot_overlay(
     import numpy as np
     from tiatoolbox.wsicore.wsireader import WSIReader
 
-    with open(predictions_json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    preds = data.get("predictions", [])
+    loaded = _load_kather_predictions(predictions_json_path)
+    preds = loaded["predictions"]
     if not preds:
         raise RuntimeError("No predictions found.")
 
@@ -2272,14 +2676,14 @@ def tool_extract_top_abnormal_patches(
         cls = p.get("predicted_class", "UNK")
         confidence = float(p.get("confidence", 0.0))
 
-        if not os.path.exists(src):
-            continue
-
         safe_name = f"top_{idx:03d}_{cls}_score_{score:.3f}_conf_{confidence:.3f}.png"
         dst = os.path.join(output_dir, safe_name)
 
-        shutil.copy2(src, dst)
-        copied_paths.append(dst)
+        if src and os.path.exists(src):
+            shutil.copy2(src, dst)
+            copied_paths.append(dst)
+        else:
+            dst = ""
 
         rows.append({
             "rank": idx,
