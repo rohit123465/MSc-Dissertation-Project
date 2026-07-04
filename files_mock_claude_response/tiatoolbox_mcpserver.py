@@ -17,6 +17,11 @@ from tia_tools import (
     tool_extract_patches,
     tool_analyze_patch_statistics,
     tool_predict_kather_resnet18,
+    tool_predict_kongnet_nucleus_detection,
+    tool_export_kongnet_nuclei_to_csv,
+    tool_find_cells_within_radius,
+    tool_compute_cell_type_cooccurrence,
+    tool_compute_nearest_neighbour_features,
     tool_aggregate_kather_metrics,
     tool_summarize_kather_results,
     tool_generate_confidence_histogram,
@@ -24,6 +29,7 @@ from tia_tools import (
     tool_threshold_sensitivity_analysis,
     tool_extract_top_abnormal_patches,
     tool_generate_final_ai_report,
+    tool_generate_kongnet_ai_report,
 )
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -109,11 +115,18 @@ def start_prediction_job(args: Dict[str, Any]) -> Dict[str, Any]:
     stdout_path = os.path.join(jobs_dir, f"{job_id}.stdout.log")
     stderr_path = os.path.join(jobs_dir, f"{job_id}.stderr.log")
 
+    job_tool = str(args.get("job_tool", args.get("tool_name", "predict_kather_resnet18")))
+    default_model_name = (
+        "KongNet_PanNuke_1"
+        if job_tool == "predict_kongnet_nucleus_detection"
+        else "resnet18-kather100k"
+    )
+
     job_args = {
         "patch_dir": args.get("patch_dir"),
         "output_json_path": args.get("output_json_path"),
         "output_csv_path": args.get("output_csv_path"),
-        "model_name": str(args.get("model_name", "resnet18-kather100k")),
+        "model_name": str(args.get("model_name", default_model_name)),
         "batch_size": int(args.get("batch_size", 64)),
         "device": str(args.get("device", "auto")),
         "input_size": int(args.get("input_size", 224)),
@@ -122,6 +135,10 @@ def start_prediction_job(args: Dict[str, Any]) -> Dict[str, Any]:
         "ioconfig": args.get("ioconfig"),
         "output_type": str(args.get("output_type", "annotationstore")),
         "patch_mode": bool_arg(args.get("patch_mode"), False),
+        "job_tool": job_tool,
+        "auto_get_mask": bool_arg(args.get("auto_get_mask"), False),
+        "num_workers": args.get("num_workers"),
+        "overwrite": bool_arg(args.get("overwrite"), True),
     }
 
     atomic_write_json(job_args_path, job_args)
@@ -236,7 +253,42 @@ def run_predict_job(job_id: str, args_path: str, status_path: str) -> int:
         })
         atomic_write_json(status_path, status)
 
-        result = tool_predict_kather_resnet18(**job_args)
+        job_tool = str(job_args.pop("job_tool", "predict_kather_resnet18"))
+        if job_tool == "predict_kongnet_nucleus_detection":
+            allowed = {
+                "wsi_path",
+                "output_json_path",
+                "model_name",
+                "batch_size",
+                "device",
+                "save_dir",
+                "output_type",
+                "patch_mode",
+                "auto_get_mask",
+                "num_workers",
+                "overwrite",
+            }
+            result = tool_predict_kongnet_nucleus_detection(
+                **{key: value for key, value in job_args.items() if key in allowed}
+            )
+        else:
+            allowed = {
+                "patch_dir",
+                "output_json_path",
+                "output_csv_path",
+                "model_name",
+                "batch_size",
+                "device",
+                "input_size",
+                "wsi_path",
+                "save_dir",
+                "ioconfig",
+                "output_type",
+                "patch_mode",
+            }
+            result = tool_predict_kather_resnet18(
+                **{key: value for key, value in job_args.items() if key in allowed}
+            )
 
         status.update({
             "status": "completed",
@@ -313,6 +365,35 @@ def ensure_output_dir(output_dir: str) -> None:
 
 def infer_task_type(user_prompt: str) -> str:
     request = user_prompt.lower()
+
+    if any(k in request for k in [
+        "co-occurrence",
+        "cooccurrence",
+        "nearest neighbour",
+        "nearest neighbor",
+        "within radius",
+        "cell radius",
+        "spatial biology",
+        "immune-to-epithelial",
+        "immune to epithelial",
+        "immune-to-neoplastic",
+        "immune to neoplastic",
+        "export nuclei",
+        "nuclei csv",
+        "nucleus csv",
+    ]):
+        return "nucleus_spatial_analysis"
+
+    if any(k in request for k in [
+        "kongnet",
+        "nucleus",
+        "nuclei",
+        "nuclear",
+        "instance segmentation",
+        "nucleus detection",
+        "tiaviz",
+    ]):
+        return "kongnet_nucleus_detection"
 
     if any(k in request for k in [
         "final ai report",
@@ -506,6 +587,83 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
             },
             "clinical_warning": (
                 "The post-processing outputs explain model-confidence behaviour, not clinical diagnosis."
+            )
+        }
+
+    elif task_type == "nucleus_spatial_analysis":
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute spatial cell features from an existing KongNet AnnotationStore without rerunning inference.",
+            "steps": [
+                "Read existing KongNet nucleus points and class labels from the AnnotationStore.",
+                "Export nucleus coordinates, classes, and probabilities to CSV.",
+                "Count selected target cells within a configurable physical radius.",
+                "Compute the cell-type co-occurrence matrix and inflammatory cell ratios.",
+                "Compute nearest-neighbour distances by source and target cell type."
+            ],
+            "suggested_tools_after_approval": [
+                "export_kongnet_nuclei_to_csv",
+                "find_cells_within_radius",
+                "compute_cell_type_cooccurrence",
+                "compute_nearest_neighbour_features",
+                "generate_kongnet_ai_report"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_nuclei.csv"),
+                os.path.join(output_dir, "radius_neighbourhoods.csv"),
+                os.path.join(output_dir, "cell_type_cooccurrence.json"),
+                os.path.join(output_dir, "nearest_neighbours.csv"),
+                os.path.join(output_dir, "kongnet_ai_interpretability_report.txt")
+            ],
+            "default_parameters": {
+                "radius": 50.0,
+                "distance_units": "microns",
+                "min_probability": 0.0
+            },
+            "clinical_warning": (
+                "These are model-derived spatial research features, not a clinical diagnosis."
+            )
+        }
+
+    elif task_type == "kongnet_nucleus_detection":
+        plan = {
+            "task_type": task_type,
+            "goal": "Run KongNet PanNuke nucleus detection on the WSI and generate a TIAViz-compatible AnnotationStore.",
+            "steps": [
+                "Read WSI metadata.",
+                "Run TIAToolbox NucleusDetector with model KongNet_PanNuke_1.",
+                "Save nucleus detections as a TIAViz-compatible AnnotationStore (.db).",
+                "Save a JSON run summary containing the TIAViz launch command.",
+                "Open the slide and nucleus overlay in TIAViz using the generated command."
+            ],
+            "suggested_tools_after_approval": [
+                "wsi_metadata",
+                "predict_kongnet_nucleus_detection",
+                "check_prediction_job",
+                "save_run_report"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_nucleus_predictions.json"),
+                os.path.join(output_dir, "kongnet_nucleus_annotationstore"),
+                os.path.join(output_dir, "run_report.json")
+            ],
+            "default_parameters": {
+                "model_name": "KongNet_PanNuke_1",
+                "batch_size": 16,
+                "output_type": "annotationstore",
+                "patch_mode": False,
+                "auto_get_mask": False,
+                "run_async": True
+            },
+            "class_mapping": {
+                "Neoplastic": 0,
+                "Inflammatory": 1,
+                "Connective": 2,
+                "Dead": 3,
+                "Epithelial": 4
+            },
+            "clinical_warning": (
+                "The output is nucleus detection/classification model output, not a clinical diagnosis."
             )
         }
 
@@ -775,9 +933,35 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
             }
         },
         {
+            "name": "predict_kongnet_nucleus_detection",
+            "title": "Detect Nuclei With KongNet PanNuke",
+            "description": "Runs TIAToolbox KongNet_PanNuke_1 nucleus detection on a WSI and saves a TIAViz-compatible annotationstore.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "save_dir": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "model_name": {"type": "string"},
+                    "batch_size": {"type": "integer"},
+                    "device": {"type": "string"},
+                    "output_type": {"type": "string"},
+                    "patch_mode": {"type": "boolean"},
+                    "auto_get_mask": {"type": "boolean"},
+                    "num_workers": {"type": "integer"},
+                    "overwrite": {"type": "boolean"},
+                    "run_async": {"type": "boolean"},
+                    "wait": {"type": "boolean"}
+                },
+                "required": ["approval_token", "wsi_path"],
+                "additionalProperties": False
+            }
+        },
+        {
             "name": "check_prediction_job",
             "title": "Check Background Prediction Job",
-            "description": "Checks a background ResNet18-Kather100K prediction job started by predict_kather_resnet18.",
+            "description": "Checks a background prediction job started by predict_kather_resnet18 or predict_kongnet_nucleus_detection.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -787,6 +971,92 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "search_dir": {"type": "string"}
                 },
                 "required": ["approval_token"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "export_kongnet_nuclei_to_csv",
+            "title": "Export KongNet Nuclei To CSV",
+            "description": "Exports nucleus IDs, centroids, classes, probabilities, and optional physical coordinates from a KongNet AnnotationStore.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "min_probability": {"type": "number"},
+                    "cell_types": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_csv_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "find_cells_within_radius",
+            "title": "Find Cells Within Radius",
+            "description": "Counts selected target nuclei around each source nucleus using pixel or physical distances.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "radius": {"type": "number"},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "source_types": {"type": "array", "items": {"type": "string"}},
+                    "target_types": {"type": "array", "items": {"type": "string"}},
+                    "min_probability": {"type": "number"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_csv_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_cell_type_cooccurrence",
+            "title": "Compute Cell Type Co-occurrence",
+            "description": "Computes an undirected cell-type pair matrix within a configurable radius.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "radius": {"type": "number"},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "cell_types": {"type": "array", "items": {"type": "string"}},
+                    "min_probability": {"type": "number"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_nearest_neighbour_features",
+            "title": "Compute Nearest Neighbour Features",
+            "description": "Finds each source nucleus's nearest selected target and summarizes distances by cell-type pair.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "source_types": {"type": "array", "items": {"type": "string"}},
+                    "target_types": {"type": "array", "items": {"type": "string"}},
+                    "min_probability": {"type": "number"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_csv_path"],
                 "additionalProperties": False
             }
         },
@@ -910,6 +1180,27 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "output_report_path": {"type": "string"}
                 },
                 "required": ["approval_token", "predictions_json_path", "metrics_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_kongnet_ai_report",
+            "title": "Generate KongNet AI Interpretability Report",
+            "description": "Generates and saves a plain-text (.txt) KongNet nucleus-composition, confidence, and spatial interpretability report. Do not use save_run_report for this artifact.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "nuclei_csv_path": {"type": "string"},
+                    "cooccurrence_json_path": {"type": "string"},
+                    "neighbourhood_json_path": {"type": "string"},
+                    "nearest_neighbour_json_path": {"type": "string"},
+                    "output_report_path": {
+                        "type": "string",
+                        "description": "Destination text file. A .txt suffix is enforced even if another extension is supplied."
+                    }
+                },
+                "required": ["approval_token", "nuclei_csv_path"],
                 "additionalProperties": False
             }
         },
@@ -1081,6 +1372,36 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                 )
             return
 
+        if name == "predict_kongnet_nucleus_detection":
+            require_plan(args)
+
+            run_async = bool_arg(args.get("run_async"), True)
+            wait = bool_arg(args.get("wait"), False)
+
+            if run_async and not wait:
+                job_args = dict(args)
+                job_args["job_tool"] = "predict_kongnet_nucleus_detection"
+                tool_result(req_id, start_prediction_job(job_args))
+            else:
+                num_workers = args.get("num_workers")
+                tool_result(
+                    req_id,
+                    tool_predict_kongnet_nucleus_detection(
+                        wsi_path=args.get("wsi_path", ""),
+                        output_json_path=args.get("output_json_path"),
+                        model_name=str(args.get("model_name", "KongNet_PanNuke_1")),
+                        batch_size=int(args.get("batch_size", 16)),
+                        device=str(args.get("device", "auto")),
+                        save_dir=args.get("save_dir"),
+                        output_type=str(args.get("output_type", "annotationstore")),
+                        patch_mode=bool_arg(args.get("patch_mode"), False),
+                        auto_get_mask=bool_arg(args.get("auto_get_mask"), False),
+                        num_workers=int(num_workers) if num_workers is not None else None,
+                        overwrite=bool_arg(args.get("overwrite"), True),
+                    )
+                )
+            return
+
         if name == "check_prediction_job":
             require_plan(args)
             tool_result(
@@ -1089,6 +1410,80 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     job_id=optional_str(args.get("job_id")),
                     status_path=optional_str(args.get("status_path")),
                     search_dir=optional_str(args.get("search_dir")),
+                )
+            )
+            return
+
+        if name == "export_kongnet_nuclei_to_csv":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_export_kongnet_nuclei_to_csv(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_csv_path=args.get("output_csv_path", ""),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    min_probability=float(args.get("min_probability", 0.0)),
+                    cell_types=args.get("cell_types"),
+                )
+            )
+            return
+
+        if name == "find_cells_within_radius":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_find_cells_within_radius(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_csv_path=args.get("output_csv_path", ""),
+                    output_json_path=args.get("output_json_path"),
+                    radius=float(args.get("radius", 50.0)),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    source_types=args.get("source_types"),
+                    target_types=args.get("target_types"),
+                    min_probability=float(args.get("min_probability", 0.0)),
+                )
+            )
+            return
+
+        if name == "compute_cell_type_cooccurrence":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_compute_cell_type_cooccurrence(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_csv_path=args.get("output_csv_path"),
+                    radius=float(args.get("radius", 50.0)),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    cell_types=args.get("cell_types"),
+                    min_probability=float(args.get("min_probability", 0.0)),
+                )
+            )
+            return
+
+        if name == "compute_nearest_neighbour_features":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_compute_nearest_neighbour_features(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_csv_path=args.get("output_csv_path", ""),
+                    output_json_path=args.get("output_json_path"),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    source_types=args.get("source_types"),
+                    target_types=args.get("target_types"),
+                    min_probability=float(args.get("min_probability", 0.0)),
                 )
             )
             return
@@ -1190,6 +1585,20 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             )
             return
 
+        if name == "generate_kongnet_ai_report":
+            require_plan(args)
+            tool_result(
+                req_id,
+                tool_generate_kongnet_ai_report(
+                    nuclei_csv_path=args.get("nuclei_csv_path", ""),
+                    cooccurrence_json_path=args.get("cooccurrence_json_path"),
+                    neighbourhood_json_path=args.get("neighbourhood_json_path"),
+                    nearest_neighbour_json_path=args.get("nearest_neighbour_json_path"),
+                    output_report_path=args.get("output_report_path"),
+                )
+            )
+            return
+
         
 
         if name == "save_run_report":
@@ -1200,6 +1609,16 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
             if not isinstance(output_path, str) or not output_path.strip():
                 tool_error(req_id, 'save_run_report requires "output_path".')
+                return
+
+            output_name = os.path.basename(output_path).casefold()
+            if "kongnet" in output_name and "interpretability" in output_name:
+                tool_error(
+                    req_id,
+                    "KongNet interpretability reports must be created with "
+                    "generate_kongnet_ai_report, which saves a plain-text .txt file. "
+                    "save_run_report is only for JSON run metadata.",
+                )
                 return
 
             parent = os.path.dirname(output_path)
