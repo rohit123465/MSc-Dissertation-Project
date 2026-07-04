@@ -3,8 +3,9 @@ tia_tools.py
 ------------
 MCP-only pathology agent tool logic.
 
-Main MVP model:
+Main MVP models:
 - resnet18-kather100k patch classification via Hugging Face/timm
+- KongNet_PanNuke_1 nucleus detection via TIAToolbox NucleusDetector
 
 Core outputs:
 - WSI metadata
@@ -12,6 +13,7 @@ Core outputs:
 - Tissue mask
 - Patch extraction
 - Kather patch predictions
+- KongNet nucleus AnnotationStore predictions
 - Tissue-class aggregation
 - Colour variance
 - Patch entropy
@@ -1205,6 +1207,636 @@ def tool_predict_kather_resnet18(
 
     lines.append("\nImportant: this output is not a clinical diagnosis.")
     return "\n".join(lines)
+
+
+KONGNET_PANNUKE_CLASS_DICT = {
+    0: "Neoplastic",
+    1: "Inflammatory",
+    2: "Connective",
+    3: "Dead",
+    4: "Epithelial",
+}
+
+
+def _flatten_annotationstore_paths(output: Any) -> List[str]:
+    paths: List[str] = []
+
+    if isinstance(output, dict):
+        values = output.values()
+    elif isinstance(output, (list, tuple, set)):
+        values = output
+    else:
+        values = [output]
+
+    for value in values:
+        if isinstance(value, (list, tuple, set)):
+            paths.extend(str(v) for v in value if str(v).lower().endswith(".db"))
+        elif str(value).lower().endswith(".db"):
+            paths.append(str(value))
+
+    return paths
+
+
+def _load_kongnet_nucleus_detector():
+    try:
+        from tiatoolbox.models.engine.nucleus_detector import NucleusDetector
+
+        return NucleusDetector
+    except ModuleNotFoundError as exc:
+        if exc.name != "tiatoolbox.models.engine.nucleus_detector":
+            raise
+
+        import sys
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            tiatoolbox_version = version("tiatoolbox")
+        except PackageNotFoundError:
+            tiatoolbox_version = "not installed"
+
+        raise RuntimeError(
+            "KongNet_PanNuke_1 requires TIAToolbox's NucleusDetector engine, "
+            "but this Python environment does not provide "
+            "tiatoolbox.models.engine.nucleus_detector. Upgrade the same "
+            "environment used by the MCP server with: "
+            'python -m pip install --upgrade "tiatoolbox>=2.0.0". '
+            f"Python executable: {sys.executable}. "
+            f"Detected TIAToolbox version: {tiatoolbox_version}."
+        ) from exc
+    except ImportError as exc:
+        import sys
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            tiatoolbox_version = version("tiatoolbox")
+        except PackageNotFoundError:
+            tiatoolbox_version = "not installed"
+
+        try:
+            numpy_version = version("numpy")
+        except PackageNotFoundError:
+            numpy_version = "not installed"
+
+        raise RuntimeError(
+            "TIAToolbox's KongNet nucleus detector could not be imported. "
+            "This usually means the active Python environment has an incompatible "
+            "compiled dependency, commonly OpenCV built against NumPy 1.x while "
+            "NumPy 2.x is installed. Try: "
+            'python -m pip install "numpy<2" --force-reinstall, then reinstall '
+            "opencv-python/tiatoolbox if needed. "
+            f"Python executable: {sys.executable}. "
+            f"TIAToolbox version: {tiatoolbox_version}. "
+            f"NumPy version: {numpy_version}. "
+            f"Original import error: {exc}"
+        ) from exc
+
+
+def tool_predict_kongnet_nucleus_detection(
+    wsi_path: str,
+    output_json_path: Optional[str] = None,
+    model_name: str = "KongNet_PanNuke_1",
+    batch_size: int = 16,
+    device: str = "auto",
+    save_dir: Optional[str] = None,
+    output_type: str = "annotationstore",
+    patch_mode: bool = False,
+    auto_get_mask: bool = False,
+    num_workers: Optional[int] = None,
+    overwrite: bool = True,
+) -> str:
+    """Run KongNet PanNuke nucleus detection and save TIAViz overlays.
+
+    The output is a TIAToolbox AnnotationStore (.db) containing one vector
+    annotation per detected nucleus, with the class labels used by
+    KongNet_PanNuke_1: Neoplastic, Inflammatory, Connective, Dead, Epithelial.
+    """
+    import multiprocessing
+    from pathlib import Path
+
+    NucleusDetector = _load_kongnet_nucleus_detector()
+
+    if model_name != "KongNet_PanNuke_1":
+        raise ValueError("Only model_name='KongNet_PanNuke_1' is supported by this tool.")
+
+    if not isinstance(wsi_path, str) or not wsi_path.strip():
+        raise ValueError("predict_kongnet_nucleus_detection requires a WSI file path.")
+
+    if not os.path.exists(wsi_path):
+        raise FileNotFoundError(f"WSI file not found: {wsi_path}")
+
+    if patch_mode is not False:
+        raise ValueError("For TIAViz WSI nucleus detection, patch_mode must be False.")
+
+    if output_type != "annotationstore":
+        raise ValueError("For TIAViz compatibility, output_type must be 'annotationstore'.")
+
+    selected_device = _choose_device(device)
+    worker_count = (
+        int(num_workers)
+        if isinstance(num_workers, int) and num_workers > 0
+        else multiprocessing.cpu_count()
+    )
+
+    if not save_dir:
+        if output_json_path:
+            save_dir = os.path.join(
+                os.path.dirname(output_json_path) or ".",
+                "kongnet_nucleus_annotationstore",
+            )
+        else:
+            save_dir = os.path.join(os.getcwd(), "kongnet_nucleus_annotationstore")
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    detector = NucleusDetector(
+        model=model_name,
+        num_workers=worker_count,
+        batch_size=int(batch_size),
+        device=selected_device,
+        verbose=True,
+    )
+
+    output = detector.run(
+        images=[Path(wsi_path)],
+        masks=None,
+        patch_mode=False,
+        save_dir=save_dir,
+        output_type="annotationstore",
+        class_dict=KONGNET_PANNUKE_CLASS_DICT,
+        auto_get_mask=bool(auto_get_mask),
+        num_workers=worker_count,
+        verbose=True,
+        overwrite=bool(overwrite),
+    )
+
+    annotationstore_paths = _flatten_annotationstore_paths(output)
+    slides_dir = os.path.dirname(wsi_path) or "."
+    tiaviz_command = f'tiatoolbox visualize --slides "{slides_dir}" --overlays "{save_dir}"'
+
+    result = {
+        "mode": "wsi_nucleus_detection_annotationstore",
+        "model_name": model_name,
+        "model_description": (
+            "Nucleus detection model for connective, neoplastic, epithelial, "
+            "dead, and inflammatory nuclei across multiple cancers."
+        ),
+        "wsi_path": wsi_path,
+        "save_dir": save_dir,
+        "annotationstore_paths": annotationstore_paths,
+        "output_type": output_type,
+        "device": selected_device,
+        "num_workers": worker_count,
+        "batch_size": int(batch_size),
+        "patch_mode": False,
+        "auto_get_mask": bool(auto_get_mask),
+        "class_dict": KONGNET_PANNUKE_CLASS_DICT,
+        "tiaviz_command": tiaviz_command,
+        "tiatoolbox_output": _json_safe(output),
+        "clinical_warning": (
+            "This is model-derived nucleus detection/classification output, "
+            "not a clinical diagnosis."
+        ),
+    }
+
+    if output_json_path:
+        ensure_parent_dir(output_json_path)
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+
+    lines = [
+        "WSI nucleus detection completed successfully.",
+        f"Model: {model_name}",
+        f"WSI: {wsi_path}",
+        f"AnnotationStore output saved to: {save_dir}",
+        f"Detected output DBs: {len(annotationstore_paths)}",
+        f"Device: {selected_device}",
+        f"Workers: {worker_count}",
+        "",
+        "Open in TIAViz with:",
+        tiaviz_command,
+    ]
+
+    if annotationstore_paths:
+        lines.append("\nAnnotationStore files:")
+        lines.extend(annotationstore_paths)
+
+    if output_json_path:
+        lines.append(f"\nRun summary saved to: {output_json_path}")
+
+    lines.append("\nImportant: this output is not a clinical diagnosis.")
+    return "\n".join(lines)
+
+
+def _normalise_kongnet_cell_types(cell_types: Optional[List[str]]) -> Optional[List[str]]:
+    if not cell_types:
+        return None
+
+    canonical = {name.casefold(): name for name in KONGNET_PANNUKE_CLASS_DICT.values()}
+    normalised = []
+    for value in cell_types:
+        key = str(value).strip().casefold()
+        if key not in canonical:
+            valid = ", ".join(KONGNET_PANNUKE_CLASS_DICT.values())
+            raise ValueError(f"Unknown KongNet cell type '{value}'. Valid types: {valid}.")
+        if canonical[key] not in normalised:
+            normalised.append(canonical[key])
+    return normalised
+
+
+def _resolve_spatial_scale(
+    distance_units: str,
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+) -> Dict[str, Any]:
+    units = str(distance_units).strip().lower()
+    if units not in {"microns", "pixels"}:
+        raise ValueError("distance_units must be either 'microns' or 'pixels'.")
+
+    if units == "pixels":
+        return {"units": units, "x_scale": 1.0, "y_scale": 1.0, "source": "pixels"}
+
+    if mpp is not None:
+        value = float(mpp)
+        if value <= 0:
+            raise ValueError("mpp must be greater than 0.")
+        return {"units": units, "x_scale": value, "y_scale": value, "source": "mpp"}
+
+    if not wsi_path or not os.path.exists(wsi_path):
+        raise ValueError(
+            "Micrometre distances require either a valid wsi_path or a positive mpp value."
+        )
+
+    from tiatoolbox.wsicore.wsireader import WSIReader
+
+    reader = WSIReader.open(wsi_path)
+    slide_mpp = reader.info.mpp
+    try:
+        values = list(slide_mpp)
+    except TypeError:
+        values = [slide_mpp, slide_mpp]
+
+    x_scale = float(values[0])
+    y_scale = float(values[1] if len(values) > 1 else values[0])
+    if x_scale <= 0 or y_scale <= 0:
+        raise ValueError(f"WSI has invalid MPP metadata: {slide_mpp}.")
+
+    return {
+        "units": units,
+        "x_scale": x_scale,
+        "y_scale": y_scale,
+        "source": "wsi_metadata",
+        "wsi_path": wsi_path,
+    }
+
+
+def _load_kongnet_nuclei(
+    annotationstore_path: str,
+    cell_types: Optional[List[str]] = None,
+    min_probability: float = 0.0,
+) -> List[Dict[str, Any]]:
+    from tiatoolbox.annotation.storage import SQLiteStore
+
+    if not isinstance(annotationstore_path, str) or not os.path.exists(annotationstore_path):
+        raise FileNotFoundError(f"AnnotationStore not found: {annotationstore_path}")
+    if not 0.0 <= float(min_probability) <= 1.0:
+        raise ValueError("min_probability must be between 0 and 1.")
+
+    selected_types = _normalise_kongnet_cell_types(cell_types)
+    selected = set(selected_types) if selected_types else None
+    id_by_name = {name: type_id for type_id, name in KONGNET_PANNUKE_CLASS_DICT.items()}
+
+    nuclei = []
+    store = SQLiteStore(annotationstore_path)
+    try:
+        for annotation_id, annotation in store.items():
+            properties = dict(annotation.properties or {})
+            raw_type = properties.get("type")
+            if isinstance(raw_type, int):
+                cell_type = KONGNET_PANNUKE_CLASS_DICT.get(raw_type, str(raw_type))
+            else:
+                cell_type = str(raw_type or "Unknown")
+
+            probability = float(properties.get("probability", properties.get("prob", 1.0)))
+            if probability < float(min_probability):
+                continue
+            if selected is not None and cell_type not in selected:
+                continue
+
+            centroid = annotation.geometry.centroid
+            nuclei.append({
+                "annotation_id": str(annotation_id),
+                "x_px": float(centroid.x),
+                "y_px": float(centroid.y),
+                "type": cell_type,
+                "type_id": id_by_name.get(cell_type),
+                "probability": probability,
+            })
+    finally:
+        store.close()
+
+    return nuclei
+
+
+def _nucleus_coordinates(nuclei: List[Dict[str, Any]], scale: Dict[str, Any]):
+    import numpy as np
+
+    return np.asarray([
+        [nucleus["x_px"] * scale["x_scale"], nucleus["y_px"] * scale["y_scale"]]
+        for nucleus in nuclei
+    ], dtype=float)
+
+
+def _write_json(path: Optional[str], payload: Dict[str, Any]) -> None:
+    if not path:
+        return
+    ensure_parent_dir(path)
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(payload, file, indent=2)
+
+
+def tool_export_kongnet_nuclei_to_csv(
+    annotationstore_path: str,
+    output_csv_path: str,
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    min_probability: float = 0.0,
+    cell_types: Optional[List[str]] = None,
+) -> str:
+    """Export KongNet detections with pixel and optional physical coordinates."""
+    nuclei = _load_kongnet_nuclei(annotationstore_path, cell_types, min_probability)
+    scale = None
+    if mpp is not None or wsi_path:
+        scale = _resolve_spatial_scale("microns", wsi_path=wsi_path, mpp=mpp)
+
+    ensure_parent_dir(output_csv_path)
+    fields = [
+        "annotation_id", "x_px", "y_px", "x_um", "y_um",
+        "type_id", "type", "probability",
+    ]
+    with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fields)
+        writer.writeheader()
+        for nucleus in nuclei:
+            writer.writerow({
+                **nucleus,
+                "x_um": nucleus["x_px"] * scale["x_scale"] if scale else "",
+                "y_um": nucleus["y_px"] * scale["y_scale"] if scale else "",
+            })
+
+    counts = Counter(nucleus["type"] for nucleus in nuclei)
+    return "\n".join([
+        "KongNet nuclei exported successfully.",
+        f"Nuclei exported: {len(nuclei)}",
+        f"Class counts: {dict(counts)}",
+        f"Physical coordinates included: {scale is not None}",
+        f"CSV: {output_csv_path}",
+    ])
+
+
+def tool_find_cells_within_radius(
+    annotationstore_path: str,
+    output_csv_path: str,
+    radius: float = 50.0, #  default, used only if caller omits radius
+    distance_units: str = "microns",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    source_types: Optional[List[str]] = None,
+    target_types: Optional[List[str]] = None,
+    min_probability: float = 0.0,
+    output_json_path: Optional[str] = None,
+) -> str:
+    """Count target nuclei around every selected source nucleus."""
+    import numpy as np
+    from scipy.spatial import cKDTree
+
+    if float(radius) <= 0:
+        raise ValueError("radius must be greater than 0.")
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    source = _load_kongnet_nuclei(annotationstore_path, source_types, min_probability)
+    target = _load_kongnet_nuclei(annotationstore_path, target_types, min_probability)
+    if not source or not target:
+        raise RuntimeError("No source or target nuclei matched the requested filters.")
+
+    source_coords = _nucleus_coordinates(source, scale)
+    target_coords = _nucleus_coordinates(target, scale)
+    tree = cKDTree(target_coords)
+    rows = []
+    total_links = 0
+    for nucleus, point in zip(source, source_coords, strict=False):
+        candidates = tree.query_ball_point(point, float(radius))
+        neighbours = [index for index in candidates if target[index]["annotation_id"] != nucleus["annotation_id"]]
+        distances = [float(np.linalg.norm(target_coords[index] - point)) for index in neighbours]
+        nearest_index = neighbours[int(np.argmin(distances))] if distances else None
+        rows.append({
+            "source_id": nucleus["annotation_id"],
+            "source_type": nucleus["type"],
+            "x_px": nucleus["x_px"],
+            "y_px": nucleus["y_px"],
+            "neighbour_count": len(neighbours),
+            "nearest_target_id": target[nearest_index]["annotation_id"] if nearest_index is not None else "",
+            "nearest_target_type": target[nearest_index]["type"] if nearest_index is not None else "",
+            "nearest_distance": min(distances) if distances else "",
+        })
+        total_links += len(neighbours)
+
+    ensure_parent_dir(output_csv_path)
+    with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    counts = [row["neighbour_count"] for row in rows]
+    summary = {
+        "annotationstore_path": annotationstore_path,
+        "radius": float(radius),
+        "distance_units": scale["units"],
+        "scale": scale,
+        "source_types": _normalise_kongnet_cell_types(source_types),
+        "target_types": _normalise_kongnet_cell_types(target_types),
+        "source_nuclei": len(source),
+        "target_nuclei": len(target),
+        "directed_neighbour_links": total_links,
+        "sources_with_neighbours": sum(count > 0 for count in counts),
+        "mean_neighbours_per_source": float(np.mean(counts)),
+        "median_neighbours_per_source": float(np.median(counts)),
+        "output_csv_path": output_csv_path,
+    }
+    _write_json(output_json_path, summary)
+    return "\n".join([
+        "Radius neighbourhood analysis completed.",
+        f"Sources: {len(source)}; targets: {len(target)}",
+        f"Radius: {radius} {scale['units']}",
+        f"Mean neighbours per source: {summary['mean_neighbours_per_source']:.3f}",
+        f"CSV: {output_csv_path}",
+        f"JSON: {output_json_path}" if output_json_path else "JSON summary: not requested",
+    ])
+
+
+def tool_compute_cell_type_cooccurrence(
+    annotationstore_path: str,
+    output_json_path: str,
+    radius: float = 50.0, # ← default, used only if caller omits radius
+    distance_units: str = "microns",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    cell_types: Optional[List[str]] = None,
+    min_probability: float = 0.0,
+    output_csv_path: Optional[str] = None,
+) -> str:
+    """Compute undirected cell-type pair counts within a spatial radius."""
+    from scipy.spatial import cKDTree
+
+    if float(radius) <= 0:
+        raise ValueError("radius must be greater than 0.")
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    nuclei = _load_kongnet_nuclei(annotationstore_path, cell_types, min_probability)
+    if len(nuclei) < 2:
+        raise RuntimeError("At least two matching nuclei are required for co-occurrence analysis.")
+
+    class_names = _normalise_kongnet_cell_types(cell_types) or list(KONGNET_PANNUKE_CLASS_DICT.values())
+    matrix = {source: {target: 0 for target in class_names} for source in class_names}
+    coords = _nucleus_coordinates(nuclei, scale)
+    pairs = cKDTree(coords).query_pairs(float(radius))
+    for first, second in pairs:
+        first_type = nuclei[first]["type"]
+        second_type = nuclei[second]["type"]
+        matrix[first_type][second_type] += 1
+        if first_type != second_type:
+            matrix[second_type][first_type] += 1
+
+    class_counts = Counter(nucleus["type"] for nucleus in nuclei)
+    epithelial_count = class_counts.get("Epithelial", 0)
+    neoplastic_count = class_counts.get("Neoplastic", 0)
+    inflammatory_count = class_counts.get("Inflammatory", 0)
+    summary = {
+        "annotationstore_path": annotationstore_path,
+        "radius": float(radius),
+        "distance_units": scale["units"],
+        "scale": scale,
+        "nucleus_count": len(nuclei),
+        "undirected_pair_count": len(pairs),
+        "class_counts": dict(class_counts),
+        "cooccurrence_matrix": matrix,
+        "inflammatory_to_epithelial_ratio": (
+            inflammatory_count / epithelial_count if epithelial_count else None
+        ),
+        "inflammatory_to_neoplastic_ratio": (
+            inflammatory_count / neoplastic_count if neoplastic_count else None
+        ),
+        "clinical_warning": "Spatial model output for research use; not a clinical diagnosis.",
+    }
+    _write_json(output_json_path, summary)
+
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["source_type", *class_names])
+            for source_type in class_names:
+                writer.writerow([source_type, *[matrix[source_type][target] for target in class_names]])
+
+    return "\n".join([
+        "Cell-type co-occurrence analysis completed.",
+        f"Nuclei: {len(nuclei)}",
+        f"Pairs within {radius} {scale['units']}: {len(pairs)}",
+        f"JSON: {output_json_path}",
+        f"CSV: {output_csv_path}" if output_csv_path else "CSV matrix: not requested",
+    ])
+
+
+def tool_compute_nearest_neighbour_features(
+    annotationstore_path: str,
+    output_csv_path: str,
+    distance_units: str = "microns",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    source_types: Optional[List[str]] = None,
+    target_types: Optional[List[str]] = None,
+    min_probability: float = 0.0,
+    output_json_path: Optional[str] = None,
+) -> str:
+    """Find the nearest matching target nucleus for every source nucleus."""
+    import numpy as np
+    from scipy.spatial import cKDTree
+
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    source = _load_kongnet_nuclei(annotationstore_path, source_types, min_probability)
+    target = _load_kongnet_nuclei(annotationstore_path, target_types, min_probability)
+    if not source or not target:
+        raise RuntimeError("No source or target nuclei matched the requested filters.")
+
+    source_coords = _nucleus_coordinates(source, scale)
+    target_coords = _nucleus_coordinates(target, scale)
+    tree = cKDTree(target_coords)
+    query_k = min(8, len(target))
+    rows = []
+    grouped_distances: Dict[str, List[float]] = {}
+    for nucleus, point in zip(source, source_coords, strict=False):
+        distances, indices = tree.query(point, k=query_k)
+        distances = np.atleast_1d(distances)
+        indices = np.atleast_1d(indices)
+        selected = next(
+            (
+                (float(distance), int(index))
+                for distance, index in zip(distances, indices, strict=False)
+                if target[int(index)]["annotation_id"] != nucleus["annotation_id"]
+            ),
+            None,
+        )
+        if selected is None:
+            continue
+        distance, index = selected
+        neighbour = target[index]
+        pair_name = f"{nucleus['type']}->{neighbour['type']}"
+        grouped_distances.setdefault(pair_name, []).append(distance)
+        rows.append({
+            "source_id": nucleus["annotation_id"],
+            "source_type": nucleus["type"],
+            "source_x_px": nucleus["x_px"],
+            "source_y_px": nucleus["y_px"],
+            "neighbour_id": neighbour["annotation_id"],
+            "neighbour_type": neighbour["type"],
+            "distance": distance,
+            "distance_units": scale["units"],
+        })
+
+    if not rows:
+        raise RuntimeError("No non-self nearest neighbours were found.")
+    ensure_parent_dir(output_csv_path)
+    with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    all_distances = [row["distance"] for row in rows]
+    summary = {
+        "annotationstore_path": annotationstore_path,
+        "distance_units": scale["units"],
+        "scale": scale,
+        "source_types": _normalise_kongnet_cell_types(source_types),
+        "target_types": _normalise_kongnet_cell_types(target_types),
+        "source_nuclei_with_neighbour": len(rows),
+        "mean_distance": float(np.mean(all_distances)),
+        "median_distance": float(np.median(all_distances)),
+        "pair_summaries": {
+            pair: {
+                "count": len(values),
+                "mean_distance": float(np.mean(values)),
+                "median_distance": float(np.median(values)),
+            }
+            for pair, values in sorted(grouped_distances.items())
+        },
+        "output_csv_path": output_csv_path,
+    }
+    _write_json(output_json_path, summary)
+    return "\n".join([
+        "Nearest-neighbour analysis completed.",
+        f"Source nuclei with a neighbour: {len(rows)}",
+        f"Mean distance: {summary['mean_distance']:.3f} {scale['units']}",
+        f"Median distance: {summary['median_distance']:.3f} {scale['units']}",
+        f"CSV: {output_csv_path}",
+        f"JSON: {output_json_path}" if output_json_path else "JSON summary: not requested",
+    ])
 
 def _estimate_patch_size_from_predictions(preds: List[Dict[str, Any]], fallback: int = 224) -> int:
     xs = sorted({int(p["x"]) for p in preds if int(p.get("x", -1)) >= 0})
@@ -2954,4 +3586,183 @@ def tool_generate_final_ai_report(
         with open(output_report_path, "w", encoding="utf-8") as f:
             f.write(report)
 
+    return report
+
+
+def tool_generate_kongnet_ai_report(
+    nuclei_csv_path: str,
+    cooccurrence_json_path: Optional[str] = None,
+    neighbourhood_json_path: Optional[str] = None,
+    nearest_neighbour_json_path: Optional[str] = None,
+    output_report_path: Optional[str] = None,
+) -> str:
+    """Generate a research-oriented interpretability report for KongNet outputs."""
+    if not os.path.exists(nuclei_csv_path):
+        raise FileNotFoundError(f"Nuclei CSV not found: {nuclei_csv_path}")
+
+    if not output_report_path:
+        output_report_path = os.path.join(
+            os.path.dirname(os.path.abspath(nuclei_csv_path)),
+            "kongnet_ai_interpretability_report.txt",
+        )
+    else:
+        report_root, report_extension = os.path.splitext(output_report_path)
+        if report_extension.lower() != ".txt":
+            output_report_path = f"{report_root if report_extension else output_report_path}.txt"
+
+    with open(nuclei_csv_path, "r", encoding="utf-8", newline="") as file:
+        nuclei = list(csv.DictReader(file))
+    if not nuclei:
+        raise ValueError("The nuclei CSV contains no detections.")
+
+    def load_optional(path: Optional[str], label: str) -> Optional[Dict[str, Any]]:
+        if not path:
+            return None
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"{label} file not found: {path}")
+        with open(path, "r", encoding="utf-8") as file:
+            return json.load(file)
+
+    cooccurrence = load_optional(cooccurrence_json_path, "Co-occurrence JSON")
+    neighbourhood = load_optional(neighbourhood_json_path, "Neighbourhood JSON")
+    nearest = load_optional(nearest_neighbour_json_path, "Nearest-neighbour JSON")
+
+    counts = Counter(row.get("type", "Unknown") or "Unknown" for row in nuclei)
+    probabilities = []
+    for row in nuclei:
+        try:
+            probabilities.append(float(row.get("probability", "")))
+        except (TypeError, ValueError):
+            pass
+    total = len(nuclei)
+    dominant_type, dominant_count = counts.most_common(1)[0]
+    mean_probability = sum(probabilities) / len(probabilities) if probabilities else None
+    low_confidence = sum(value < 0.5 for value in probabilities)
+
+    key_findings = [
+        f"KongNet identified {total:,} nuclei. The most common predicted type was "
+        f"{dominant_type} ({dominant_count / total * 100:.1f}% of detections)."
+    ]
+    if probabilities:
+        key_findings.append(
+            f"The mean model probability was {mean_probability:.3f}; "
+            f"{low_confidence / len(probabilities) * 100:.1f}% of scored detections were below 0.50. "
+            "This indicates model confidence only, not confirmed accuracy."
+        )
+    if cooccurrence:
+        pair_count = cooccurrence.get("undirected_pair_count")
+        radius = cooccurrence.get("radius", "the selected")
+        units = cooccurrence.get("distance_units", "distance units")
+        key_findings.append(
+            f"The spatial analysis found {int(pair_count):,} nearby cell pairs within "
+            f"{radius} {units}." if isinstance(pair_count, (int, float)) else
+            f"Cell co-occurrence was assessed within {radius} {units}."
+        )
+    if nearest:
+        pair_summaries = nearest.get("pair_summaries", {})
+        if pair_summaries:
+            strongest = max(pair_summaries.items(), key=lambda item: item[1].get("count", 0))
+            key_findings.append(
+                f"The most frequently observed nearest-neighbour relationship was "
+                f"{strongest[0].replace('->', ' to ')} ({strongest[1].get('count', 0):,} observations)."
+            )
+
+    lines = [
+        "KongNet AI Interpretability Report",
+        "==================================",
+        "",
+        "1. Executive Summary",
+        "--------------------",
+        *[f"- {finding}" for finding in key_findings],
+        "- These findings describe model predictions in the analysed region; they are not a diagnosis or evidence of biological causation.",
+        "",
+        "2. System Overview",
+        "------------------",
+        "This report summarises nucleus detection, nucleus-type classification, confidence, and available spatial analyses from KongNet_PanNuke_1.",
+        "It describes model-derived patterns and does not establish tissue diagnosis, prognosis, or treatment guidance.",
+        "",
+        "3. Detection Summary",
+        "--------------------",
+        "- Model: KongNet_PanNuke_1",
+        f"- Detected nuclei: {total}",
+        f"- Dominant predicted cell type: {dominant_type} ({dominant_count / total * 100:.2f}%)",
+        f"- Detection source: {nuclei_csv_path}",
+        "",
+        "4. Predicted Cell-Type Composition",
+        "----------------------------------",
+    ]
+    for cell_type, count in counts.most_common():
+        lines.append(f"- {cell_type}: {count} ({count / total * 100:.2f}%)")
+
+    lines += ["", "5. Model Confidence", "-------------------"]
+    if probabilities:
+        lines += [
+            f"- Detections with probability values: {len(probabilities)} of {total}",
+            f"- Mean predicted probability: {mean_probability:.4f}",
+            f"- Minimum / maximum probability: {min(probabilities):.4f} / {max(probabilities):.4f}",
+            f"- Probability below 0.50: {low_confidence} ({low_confidence / len(probabilities) * 100:.2f}%)",
+            "Interpretation: probabilities reflect model confidence, not correctness or calibrated clinical certainty.",
+        ]
+    else:
+        lines.append("- No usable probability values were present; confidence could not be summarised.")
+
+    lines += ["", "6. Spatial Cell Relationships", "-----------------------------"]
+    if cooccurrence:
+        inflammatory_epithelial = cooccurrence.get("inflammatory_to_epithelial_ratio")
+        inflammatory_neoplastic = cooccurrence.get("inflammatory_to_neoplastic_ratio")
+        lines += [
+            f"- Co-occurrence radius: {cooccurrence.get('radius', 'unknown')} {cooccurrence.get('distance_units', '')}".rstrip(),
+            f"- Cell pairs within radius: {cooccurrence.get('undirected_pair_count', 'unknown')}",
+            f"- Inflammatory-to-epithelial ratio: {float(inflammatory_epithelial):.2f}" if inflammatory_epithelial is not None else "- Inflammatory-to-epithelial ratio: unavailable (no epithelial detections)",
+            f"- Inflammatory-to-neoplastic ratio: {float(inflammatory_neoplastic):.2f}" if inflammatory_neoplastic is not None else "- Inflammatory-to-neoplastic ratio: unavailable (no neoplastic detections)",
+            "Interpretation: these ratios compare predicted cell counts; a larger ratio means more inflammatory detections relative to the named comparison type.",
+        ]
+    else:
+        lines.append("- Co-occurrence analysis was not supplied.")
+    if neighbourhood:
+        source_count = neighbourhood.get("source_nuclei")
+        sources_with_neighbours = neighbourhood.get("sources_with_neighbours")
+        lines += [
+            f"- Mean neighbours per source: {float(neighbourhood.get('mean_neighbours_per_source', 0)):.3f}",
+            f"- Sources with neighbours: {neighbourhood.get('sources_with_neighbours', 'unknown')} of {neighbourhood.get('source_nuclei', 'unknown')}",
+        ]
+        if isinstance(source_count, (int, float)) and source_count and isinstance(sources_with_neighbours, (int, float)):
+            lines.append(f"Interpretation: {sources_with_neighbours / source_count * 100:.1f}% of source cells had at least one selected target within the chosen radius.")
+    else:
+        lines.append("- Radius-neighbourhood analysis was not supplied.")
+    if nearest:
+        lines += [
+            f"- Mean nearest-neighbour distance: {float(nearest.get('mean_distance', 0)):.3f} {nearest.get('distance_units', '')}".rstrip(),
+            f"- Median nearest-neighbour distance: {float(nearest.get('median_distance', 0)):.3f} {nearest.get('distance_units', '')}".rstrip(),
+        ]
+        pair_summaries = nearest.get("pair_summaries", {})
+        if pair_summaries:
+            strongest = max(pair_summaries.items(), key=lambda item: item[1].get("count", 0))
+            lines.append(f"- Most frequent nearest-neighbour pairing: {strongest[0]} ({strongest[1].get('count', 0)} observations)")
+    else:
+        lines.append("- Nearest-neighbour analysis was not supplied.")
+
+    lines += [
+        "",
+        "7. Interpretation Guidance",
+        "--------------------------",
+        "Cell proportions describe the analysed region and are sensitive to tissue sampling, detection errors, class confusion, probability filtering, and slide quality.",
+        "Spatial counts and distances describe proximity, not biological interaction or causality. Comparisons across slides require consistent magnification, physical scaling, regions, filters, and analysis parameters.",
+        "",
+        "8. Recommended Supporting Outputs",
+        "---------------------------------",
+        "- TIAViz nucleus overlay / AnnotationStore for visual verification",
+        "- KongNet nuclei CSV for detection-level audit",
+        "- Cell-type co-occurrence matrix",
+        "- Radius-neighbourhood and nearest-neighbour tables",
+        "",
+        "9. Overall Conclusion",
+        "---------------------",
+        f"KongNet detected {total} nuclei, with {dominant_type} as the most frequent predicted type. The supplied spatial analyses should be interpreted alongside the overlay and detection-level data.",
+        "Final caution: all findings are model-derived research outputs and are not clinical diagnoses.",
+    ]
+    report = "\n".join(lines)
+    ensure_parent_dir(output_report_path)
+    with open(output_report_path, "w", encoding="utf-8") as file:
+        file.write(report)
     return report
