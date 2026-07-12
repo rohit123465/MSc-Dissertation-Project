@@ -7,6 +7,8 @@ import subprocess
 from datetime import datetime, timezone
 from typing import Any, Dict
 
+os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
 from tia_tools import (
     tool_health,
     tool_echo,
@@ -16,12 +18,19 @@ from tia_tools import (
     tool_tissue_mask,
     tool_extract_patches,
     tool_analyze_patch_statistics,
+    tool_predict_patch_model,
     tool_predict_kather_resnet18,
     tool_predict_kongnet_nucleus_detection,
+    tool_predict_nucleus_instance_segmentation,
+    tool_predict_multi_task_segmentation,
+    tool_predict_semantic_segmentation,
     tool_export_kongnet_nuclei_to_csv,
     tool_find_cells_within_radius,
     tool_compute_cell_type_cooccurrence,
     tool_compute_nearest_neighbour_features,
+    tool_analyze_kongnet_regions,
+    tool_export_kongnet_regions_to_annotationstore,
+    tool_characterize_kongnet_cell_neighbourhoods,
     tool_aggregate_kather_metrics,
     tool_summarize_kather_results,
     tool_generate_confidence_histogram,
@@ -30,6 +39,22 @@ from tia_tools import (
     tool_extract_top_abnormal_patches,
     tool_generate_final_ai_report,
     tool_generate_kongnet_ai_report,
+    tool_generate_nucleus_instance_segmentation_report,
+    tool_run_kongnet_spatial_workflow,
+    tool_rank_kongnet_regions,
+    tool_answer_kongnet_spatial_question,
+    tool_generate_kongnet_region_heatmaps,
+    tool_generate_kongnet_slide_summary,
+    PATCH_PREDICTION_MODEL_CATALOG,
+    _patch_prediction_model_summary,
+    KONGNET_MODEL_CATALOG,
+    _kongnet_model_summary,
+    NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG,
+    _nucleus_instance_segmentation_model_summary,
+    MULTI_TASK_SEGMENTATION_MODEL_CATALOG,
+    _multi_task_segmentation_model_summary,
+    SEMANTIC_SEGMENTATION_MODEL_CATALOG,
+    _semantic_segmentation_model_summary,
 )
 
 PROTOCOL_VERSION = "2025-06-18"
@@ -116,18 +141,28 @@ def start_prediction_job(args: Dict[str, Any]) -> Dict[str, Any]:
     stderr_path = os.path.join(jobs_dir, f"{job_id}.stderr.log")
 
     job_tool = str(args.get("job_tool", args.get("tool_name", "predict_kather_resnet18")))
-    default_model_name = (
-        "KongNet_PanNuke_1"
-        if job_tool == "predict_kongnet_nucleus_detection"
-        else "resnet18-kather100k"
-    )
+    if job_tool == "predict_kongnet_nucleus_detection":
+        default_model_name = "KongNet_PanNuke_1"
+        default_batch_size = 16
+    elif job_tool == "predict_nucleus_instance_segmentation":
+        default_model_name = "hovernet_fast-monusac"
+        default_batch_size = 8
+    elif job_tool == "predict_multi_task_segmentation":
+        default_model_name = "hovernetplus-oed"
+        default_batch_size = 8
+    elif job_tool == "predict_semantic_segmentation":
+        default_model_name = "fcn_resnet50_unet-bcss"
+        default_batch_size = 8
+    else:
+        default_model_name = "resnet18-kather100k"
+        default_batch_size = 64
 
     job_args = {
         "patch_dir": args.get("patch_dir"),
         "output_json_path": args.get("output_json_path"),
         "output_csv_path": args.get("output_csv_path"),
         "model_name": str(args.get("model_name", default_model_name)),
-        "batch_size": int(args.get("batch_size", 64)),
+        "batch_size": int(args.get("batch_size", default_batch_size)),
         "device": str(args.get("device", "auto")),
         "input_size": int(args.get("input_size", 224)),
         "wsi_path": args.get("wsi_path"),
@@ -271,7 +306,58 @@ def run_predict_job(job_id: str, args_path: str, status_path: str) -> int:
             result = tool_predict_kongnet_nucleus_detection(
                 **{key: value for key, value in job_args.items() if key in allowed}
             )
-        else:
+        elif job_tool == "predict_nucleus_instance_segmentation":
+            allowed = {
+                "wsi_path",
+                "output_json_path",
+                "model_name",
+                "batch_size",
+                "device",
+                "save_dir",
+                "output_type",
+                "patch_mode",
+                "auto_get_mask",
+                "num_workers",
+                "overwrite",
+            }
+            result = tool_predict_nucleus_instance_segmentation(
+                **{key: value for key, value in job_args.items() if key in allowed}
+            )
+        elif job_tool == "predict_multi_task_segmentation":
+            allowed = {
+                "wsi_path",
+                "output_json_path",
+                "model_name",
+                "batch_size",
+                "device",
+                "save_dir",
+                "output_type",
+                "patch_mode",
+                "auto_get_mask",
+                "num_workers",
+                "overwrite",
+            }
+            result = tool_predict_multi_task_segmentation(
+                **{key: value for key, value in job_args.items() if key in allowed}
+            )
+        elif job_tool == "predict_semantic_segmentation":
+            allowed = {
+                "wsi_path",
+                "output_json_path",
+                "model_name",
+                "batch_size",
+                "device",
+                "save_dir",
+                "output_type",
+                "patch_mode",
+                "auto_get_mask",
+                "num_workers",
+                "overwrite",
+            }
+            result = tool_predict_semantic_segmentation(
+                **{key: value for key, value in job_args.items() if key in allowed}
+            )
+        elif job_tool in {"predict_kather_resnet18", "predict_patch_model"}:
             allowed = {
                 "patch_dir",
                 "output_json_path",
@@ -286,9 +372,11 @@ def run_predict_job(job_id: str, args_path: str, status_path: str) -> int:
                 "output_type",
                 "patch_mode",
             }
-            result = tool_predict_kather_resnet18(
+            result = tool_predict_patch_model(
                 **{key: value for key, value in job_args.items() if key in allowed}
             )
+        else:
+            raise ValueError(f"Unsupported prediction job tool: {job_tool}")
 
         status.update({
             "status": "completed",
@@ -367,6 +455,21 @@ def infer_task_type(user_prompt: str) -> str:
     request = user_prompt.lower()
 
     if any(k in request for k in [
+        "show me tumour-immune",
+        "show me tumor-immune",
+        "top inflammatory region",
+        "top neoplastic region",
+        "top tumour-immune",
+        "top tumor-immune",
+        "most inflammatory region",
+        "most tumour-rich region",
+        "most tumor-rich region",
+        "most interactive region",
+        "spatial pathology question",
+    ]):
+        return "spatial_pathology_question"
+
+    if any(k in request for k in [
         "co-occurrence",
         "cooccurrence",
         "nearest neighbour",
@@ -381,15 +484,72 @@ def infer_task_type(user_prompt: str) -> str:
         "export nuclei",
         "nuclei csv",
         "nucleus csv",
+        "tumour-immune",
+        "tumor-immune",
+        "inflammatory region",
+        "neoplastic region",
+        "stromal region",
+        "epithelial region",
+        "rank region",
+        "top inflammatory",
+        "top neoplastic",
+        "spatial pathology question",
+        "region heatmap",
+        "interaction heatmap",
+        "density heatmap",
+        "slide summary",
+        "spatial workflow",
+        "full kongnet workflow",
     ]):
         return "nucleus_spatial_analysis"
+
+    if any(k in request for k in [
+        "semantic segmentation",
+        "semantic segment",
+        "fcn_resnet50_unet",
+        "fcn_resnet50_unet-bcss",
+        "bcss",
+        "breast cancer segmentation",
+        "segment tumor stroma necrosis",
+        "segment tumour stroma necrosis",
+    ]):
+        return "semantic_segmentation"
+
+    if any(k in request for k in [
+        "hovernetplus",
+        "hovernet plus",
+        "hovernetplus-oed",
+        "multi-task segmentation",
+        "multi task segmentation",
+        "output region",
+        "region class",
+        "oral epithelial dysplasia",
+        "oed",
+    ]):
+        return "multi_task_segmentation"
+
+    if any(k in request for k in [
+        "hovernet",
+        "hover-net",
+        "monusac",
+        "consep",
+        "kumar",
+        "pannuke hovernet",
+        "hovernet pannuke",
+        "hovernet_fast-pannuke",
+        "hovernet_original-consep",
+        "hovernet_original-kumar",
+        "instance segmentation",
+        "nucleus instance segmentation",
+        "nuclei instance segmentation",
+    ]):
+        return "nucleus_instance_segmentation"
 
     if any(k in request for k in [
         "kongnet",
         "nucleus",
         "nuclei",
         "nuclear",
-        "instance segmentation",
         "nucleus detection",
         "tiaviz",
     ]):
@@ -473,7 +633,13 @@ def infer_task_type(user_prompt: str) -> str:
         or "predict" in request
         or "kather" in request
         or "resnet18" in request
+        or "pcam" in request
+        or "wide_resnet50_2" in request
+        or "wide_resnet50_2-pcam" in request
         or "classify" in request
+        or "metastatic tissue" in request
+        or "metastasis" in request
+        or "lymph node" in request
         or "tumour" in request
         or "tumor" in request
         or "likelihood" in request
@@ -590,6 +756,26 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
             )
         }
 
+    elif task_type == "spatial_pathology_question":
+        plan = {
+            "task_type": task_type,
+            "goal": "Answer a spatial pathology question using explainable KongNet ROI evidence.",
+            "steps": [
+                "Read the saved fixed-ROI spatial analysis.",
+                "Infer whether the question concerns tumour-immune interaction, inflammatory infiltration, neoplastic composition, stromal composition, epithelial composition, or density.",
+                "Rank regions using the corresponding transparent metric.",
+                "Return the highest-ranking regions with values and interpretation limitations."
+            ],
+            "suggested_tools_after_approval": [
+                "answer_kongnet_spatial_question"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_spatial_question_answer.txt")
+            ],
+            "default_parameters": {"top_k": 5},
+            "clinical_warning": "Answers query model-derived ROI evidence and are not clinical diagnoses."
+        }
+
     elif task_type == "nucleus_spatial_analysis":
         plan = {
             "task_type": task_type,
@@ -599,20 +785,30 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "Export nucleus coordinates, classes, and probabilities to CSV.",
                 "Count selected target cells within a configurable physical radius.",
                 "Compute the cell-type co-occurrence matrix and inflammatory cell ratios.",
-                "Compute nearest-neighbour distances by source and target cell type."
+                "Compute nearest-neighbour distances by source and target cell type.",
+                "Divide the slide into local ROIs and compute composition and spatial features per region.",
+                "Export ROI rectangles as a TIAViz-compatible AnnotationStore for true WSI overlay.",
+                "Characterise every cell by neighbour type and cluster the profiles into spatial communities.",
+                "Include region and community findings in the text interpretability report."
+                " Rank regions, generate heatmaps, answer an optional pathology question, and create a slide summary."
             ],
             "suggested_tools_after_approval": [
-                "export_kongnet_nuclei_to_csv",
-                "find_cells_within_radius",
-                "compute_cell_type_cooccurrence",
-                "compute_nearest_neighbour_features",
-                "generate_kongnet_ai_report"
+                "run_kongnet_spatial_workflow"
             ],
             "expected_outputs": [
                 os.path.join(output_dir, "kongnet_nuclei.csv"),
                 os.path.join(output_dir, "radius_neighbourhoods.csv"),
                 os.path.join(output_dir, "cell_type_cooccurrence.json"),
                 os.path.join(output_dir, "nearest_neighbours.csv"),
+                os.path.join(output_dir, "kongnet_regions.json"),
+                os.path.join(output_dir, "kongnet_region_boundaries.db"),
+                os.path.join(output_dir, "kongnet_cell_neighbourhoods.csv"),
+                os.path.join(output_dir, "kongnet_spatial_communities.json"),
+                os.path.join(output_dir, "kongnet_region_rankings.txt"),
+                os.path.join(output_dir, "kongnet_density_heatmap.db"),
+                os.path.join(output_dir, "kongnet_inflammatory_heatmap.db"),
+                os.path.join(output_dir, "kongnet_tumour_immune_interaction_heatmap.db"),
+                os.path.join(output_dir, "kongnet_slide_summary.txt"),
                 os.path.join(output_dir, "kongnet_ai_interpretability_report.txt")
             ],
             "default_parameters": {
@@ -625,13 +821,133 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
             )
         }
 
+    elif task_type == "semantic_segmentation":
+        plan = {
+            "task_type": task_type,
+            "goal": "Run semantic segmentation on the WSI and generate TIAViz-compatible outputs where supported.",
+            "steps": [
+                "Read WSI metadata.",
+                "Run TIAToolbox SemanticSegmentor with the requested model.",
+                "Save semantic region outputs in the requested AnnotationStore-compatible format.",
+                "Save a JSON run summary containing model metadata and the TIAViz launch command.",
+                "Open the slide and generated semantic overlay in TIAViz using the generated command."
+            ],
+            "suggested_tools_after_approval": [
+                "wsi_metadata",
+                "predict_semantic_segmentation",
+                "check_prediction_job",
+                "save_run_report"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "semantic_segmentation_predictions.json"),
+                os.path.join(output_dir, "semantic_segmentation_annotationstore"),
+                os.path.join(output_dir, "run_report.json")
+            ],
+            "default_parameters": {
+                "model_name": "fcn_resnet50_unet-bcss",
+                "batch_size": 8,
+                "output_type": "annotationstore",
+                "patch_mode": False,
+                "auto_get_mask": False,
+                "num_workers": 1,
+                "run_async": True
+            },
+            "supported_models": {
+                model_name: _semantic_segmentation_model_summary(model_name, model_meta)
+                for model_name, model_meta in SEMANTIC_SEGMENTATION_MODEL_CATALOG.items()
+            },
+            "clinical_warning": (
+                "The output is model-derived semantic segmentation, not a clinical diagnosis."
+            )
+        }
+
+    elif task_type == "multi_task_segmentation":
+        plan = {
+            "task_type": task_type,
+            "goal": "Run multi-task segmentation on the WSI and generate TIAViz-compatible outputs where supported.",
+            "steps": [
+                "Read WSI metadata.",
+                "Run TIAToolbox MultiTaskSegmentor with the requested model.",
+                "Save model outputs in the requested AnnotationStore-compatible format.",
+                "Save a JSON run summary containing model metadata and the TIAViz launch command.",
+                "Open the slide and generated overlays in TIAViz using the generated command."
+            ],
+            "suggested_tools_after_approval": [
+                "wsi_metadata",
+                "predict_multi_task_segmentation",
+                "check_prediction_job",
+                "save_run_report"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "multi_task_segmentation_predictions.json"),
+                os.path.join(output_dir, "multi_task_segmentation_annotationstore"),
+                os.path.join(output_dir, "run_report.json")
+            ],
+            "default_parameters": {
+                "model_name": "hovernetplus-oed",
+                "batch_size": 8,
+                "output_type": "annotationstore",
+                "patch_mode": False,
+                "auto_get_mask": False,
+                "num_workers": 1,
+                "run_async": True
+            },
+            "supported_models": {
+                model_name: _multi_task_segmentation_model_summary(model_name, model_meta)
+                for model_name, model_meta in MULTI_TASK_SEGMENTATION_MODEL_CATALOG.items()
+            },
+            "clinical_warning": (
+                "The output is model-derived multi-task segmentation, not a clinical diagnosis."
+            )
+        }
+
+    elif task_type == "nucleus_instance_segmentation":
+        plan = {
+            "task_type": task_type,
+            "goal": "Run nucleus instance segmentation on the WSI and generate a TIAViz-compatible AnnotationStore.",
+            "steps": [
+                "Read WSI metadata.",
+                "Run TIAToolbox NucleusInstanceSegmentor with the requested model.",
+                "Save nucleus instance boundaries/classes as a TIAViz-compatible AnnotationStore (.db).",
+                "Save a JSON run summary containing the TIAViz launch command.",
+                "Open the slide and instance segmentation overlay in TIAViz using the generated command."
+            ],
+            "suggested_tools_after_approval": [
+                "wsi_metadata",
+                "predict_nucleus_instance_segmentation",
+                "check_prediction_job",
+                "save_run_report"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "nucleus_instance_segmentation_predictions.json"),
+                os.path.join(output_dir, "nucleus_instance_segmentation_annotationstore"),
+                os.path.join(output_dir, "run_report.json")
+            ],
+            "default_parameters": {
+                "model_name": "hovernet_fast-monusac",
+                "batch_size": 8,
+                "output_type": "annotationstore",
+                "patch_mode": False,
+                "auto_get_mask": False,
+                "num_workers": 1,
+                "run_async": True
+            },
+            "supported_models": {
+                model_name: _nucleus_instance_segmentation_model_summary(model_name, model_meta)
+                for model_name, model_meta in NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG.items()
+            },
+            "clinical_warning": (
+                "The output is model-derived nucleus instance segmentation, not a clinical diagnosis."
+            )
+        }
+
     elif task_type == "kongnet_nucleus_detection":
         plan = {
             "task_type": task_type,
-            "goal": "Run KongNet PanNuke nucleus detection on the WSI and generate a TIAViz-compatible AnnotationStore.",
+            "goal": "Run KongNet nucleus detection on the WSI and generate a TIAViz-compatible AnnotationStore.",
             "steps": [
                 "Read WSI metadata.",
-                "Run TIAToolbox NucleusDetector with model KongNet_PanNuke_1.",
+                "Run TIAToolbox NucleusDetector with the requested KongNet model.",
                 "Save nucleus detections as a TIAViz-compatible AnnotationStore (.db).",
                 "Save a JSON run summary containing the TIAViz launch command.",
                 "Open the slide and nucleus overlay in TIAViz using the generated command."
@@ -653,14 +969,12 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "output_type": "annotationstore",
                 "patch_mode": False,
                 "auto_get_mask": False,
+                "num_workers": 1,
                 "run_async": True
             },
-            "class_mapping": {
-                "Neoplastic": 0,
-                "Inflammatory": 1,
-                "Connective": 2,
-                "Dead": 3,
-                "Epithelial": 4
+            "supported_models": {
+                model_name: _kongnet_model_summary(model_name, model_meta)
+                for model_name, model_meta in KONGNET_MODEL_CATALOG.items()
             },
             "clinical_warning": (
                 "The output is nucleus detection/classification model output, not a clinical diagnosis."
@@ -670,17 +984,17 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
     elif task_type == "kather_prediction":
         plan = {
             "task_type": task_type,
-            "goal": "Run ResNet18-Kather100K WSI tissue classification and generate a TIAViz-compatible AnnotationStore.",
+            "goal": "Run patch-level WSI prediction and generate a TIAViz-compatible AnnotationStore.",
             "steps": [
                 "Read WSI metadata.",
-                "Run pretrained ResNet18-Kather100K classification directly on the WSI.",
+                "Run the requested pretrained patch prediction model directly on the WSI.",
                 "Save prediction output as a TIAViz-compatible AnnotationStore (.db).",
                 "Save a JSON run summary containing the TIAViz launch command.",
                 "Open the slide and overlay in TIAViz using the generated command."
             ],
             "suggested_tools_after_approval": [
                 "wsi_metadata",
-                "predict_kather_resnet18",
+                "predict_patch_model",
                 "check_prediction_job",
                 "save_run_report"
             ],
@@ -695,8 +1009,12 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "output_type": "annotationstore",
                 "run_async": True
             },
+            "supported_models": {
+                model_name: _patch_prediction_model_summary(model_name, model_meta)
+                for model_name, model_meta in PATCH_PREDICTION_MODEL_CATALOG.items()
+            },
             "clinical_warning": (
-                "The output is tissue-type classification and model-confidence analysis, not a clinical diagnosis."
+                "The output is patch-level classification/model-confidence analysis, not a clinical diagnosis."
             )
         }
 
@@ -906,9 +1224,9 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
             }
         },
         {
-            "name": "predict_kather_resnet18",
-            "title": "Predict WSI Tissue Classes With ResNet18-Kather100K",
-            "description": "Runs pretrained resnet18-kather100k directly on a WSI and saves a TIAViz-compatible annotationstore. Patch-folder mode is retained as fallback.",
+            "name": "predict_patch_model",
+            "title": "Predict WSI Patch Classes",
+            "description": "Runs a registered patch-level prediction model directly on a WSI and saves a TIAViz-compatible annotationstore. Defaults to resnet18-kather100k and also supports wide_resnet50_2-pcam.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -921,7 +1239,40 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "patch_dir": {"type": "string"},
                     "output_json_path": {"type": "string"},
                     "output_csv_path": {"type": "string"},
-                    "model_name": {"type": "string"},
+                    "model_name": {
+                        "type": "string",
+                        "enum": list(PATCH_PREDICTION_MODEL_CATALOG.keys()),
+                    },
+                    "batch_size": {"type": "integer"},
+                    "device": {"type": "string"},
+                    "input_size": {"type": "integer"},
+                    "run_async": {"type": "boolean"},
+                    "wait": {"type": "boolean"}
+                },
+                "required": ["approval_token"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "predict_kather_resnet18",
+            "title": "Predict WSI Patch Classes (Legacy Alias)",
+            "description": "Backward-compatible alias for predict_patch_model. Defaults to resnet18-kather100k and also supports registered patch prediction models.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "save_dir": {"type": "string"},
+                    "ioconfig": {"type": "object"},
+                    "output_type": {"type": "string"},
+                    "patch_mode": {"type": "boolean"},
+                    "patch_dir": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "model_name": {
+                        "type": "string",
+                        "enum": list(PATCH_PREDICTION_MODEL_CATALOG.keys()),
+                    },
                     "batch_size": {"type": "integer"},
                     "device": {"type": "string"},
                     "input_size": {"type": "integer"},
@@ -934,8 +1285,8 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
         },
         {
             "name": "predict_kongnet_nucleus_detection",
-            "title": "Detect Nuclei With KongNet PanNuke",
-            "description": "Runs TIAToolbox KongNet_PanNuke_1 nucleus detection on a WSI and saves a TIAViz-compatible annotationstore.",
+            "title": "Detect Nuclei With KongNet",
+            "description": "Runs TIAToolbox KongNet nucleus detection on a WSI and saves a TIAViz-compatible annotationstore. Defaults to KongNet_PanNuke_1, but supports any registered KongNet model, including KongNet_CoNIC_1, KongNet_Det_MIDOG_1, KongNet_MONKEY_1, KongNet_PUMA_T1_3, and KongNet_PUMA_T2_3, when model_name is explicitly provided.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -943,7 +1294,97 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "wsi_path": {"type": "string"},
                     "save_dir": {"type": "string"},
                     "output_json_path": {"type": "string"},
-                    "model_name": {"type": "string"},
+                    "model_name": {
+                        "type": "string",
+                        "enum": list(KONGNET_MODEL_CATALOG.keys()),
+                    },
+                    "batch_size": {"type": "integer"},
+                    "device": {"type": "string"},
+                    "output_type": {"type": "string"},
+                    "patch_mode": {"type": "boolean"},
+                    "auto_get_mask": {"type": "boolean"},
+                    "num_workers": {"type": "integer"},
+                    "overwrite": {"type": "boolean"},
+                    "run_async": {"type": "boolean"},
+                    "wait": {"type": "boolean"}
+                },
+                "required": ["approval_token", "wsi_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "predict_nucleus_instance_segmentation",
+            "title": "Segment Nucleus Instances",
+            "description": "Runs TIAToolbox nucleus instance segmentation on a WSI and saves a TIAViz-compatible annotationstore. Defaults to hovernet_fast-monusac, and also supports hovernet_fast-pannuke, hovernet_original-consep, and hovernet_original-kumar through the separate nucleus instance segmentation model catalog.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "save_dir": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "model_name": {
+                        "type": "string",
+                        "enum": list(NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG.keys()),
+                    },
+                    "batch_size": {"type": "integer"},
+                    "device": {"type": "string"},
+                    "output_type": {"type": "string"},
+                    "patch_mode": {"type": "boolean"},
+                    "auto_get_mask": {"type": "boolean"},
+                    "num_workers": {"type": "integer"},
+                    "overwrite": {"type": "boolean"},
+                    "run_async": {"type": "boolean"},
+                    "wait": {"type": "boolean"}
+                },
+                "required": ["approval_token", "wsi_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "predict_multi_task_segmentation",
+            "title": "Run Multi-Task Segmentation",
+            "description": "Runs TIAToolbox multi-task segmentation on a WSI. Defaults to hovernetplus-oed, using the separate multi-task segmentation model catalog.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "save_dir": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "model_name": {
+                        "type": "string",
+                        "enum": list(MULTI_TASK_SEGMENTATION_MODEL_CATALOG.keys()),
+                    },
+                    "batch_size": {"type": "integer"},
+                    "device": {"type": "string"},
+                    "output_type": {"type": "string"},
+                    "patch_mode": {"type": "boolean"},
+                    "auto_get_mask": {"type": "boolean"},
+                    "num_workers": {"type": "integer"},
+                    "overwrite": {"type": "boolean"},
+                    "run_async": {"type": "boolean"},
+                    "wait": {"type": "boolean"}
+                },
+                "required": ["approval_token", "wsi_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "predict_semantic_segmentation",
+            "title": "Run Semantic Segmentation",
+            "description": "Runs TIAToolbox semantic segmentation on a WSI. Defaults to fcn_resnet50_unet-bcss, using the separate semantic segmentation model catalog.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "save_dir": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "model_name": {
+                        "type": "string",
+                        "enum": list(SEMANTIC_SEGMENTATION_MODEL_CATALOG.keys()),
+                    },
                     "batch_size": {"type": "integer"},
                     "device": {"type": "string"},
                     "output_type": {"type": "string"},
@@ -961,7 +1402,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
         {
             "name": "check_prediction_job",
             "title": "Check Background Prediction Job",
-            "description": "Checks a background prediction job started by predict_kather_resnet18 or predict_kongnet_nucleus_detection.",
+            "description": "Checks a background prediction job started by predict_patch_model, predict_kather_resnet18, predict_kongnet_nucleus_detection, predict_nucleus_instance_segmentation, predict_multi_task_segmentation, or predict_semantic_segmentation.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -990,6 +1431,99 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "cell_types": {"type": "array", "items": {"type": "string"}}
                 },
                 "required": ["approval_token", "annotationstore_path", "output_csv_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "run_kongnet_spatial_workflow",
+            "title": "Run Full KongNet Spatial Workflow",
+            "description": "Runs the complete single-WSI KongNet interpretability workflow: nuclei export, radius neighbourhoods, co-occurrence, nearest neighbours, local ROIs, TIAViz ROI overlay, per-cell communities, and a plain-text report.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_dir": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "min_probability": {"type": "number"},
+                    "neighbourhood_radius": {"type": "number"},
+                    "region_size": {"type": "number"},
+                    "min_cells_per_region": {"type": "integer"},
+                    "community_count": {"type": "integer"},
+                    "pathology_question": {"type": "string"},
+                    "overwrite": {"type": "boolean"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_dir"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "rank_kongnet_regions",
+            "title": "Rank KongNet Regions",
+            "description": "Ranks ROIs by inflammatory, neoplastic, epithelial, stromal, density, and normalized tumour-immune interaction measurements.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "top_k": {"type": "integer"}
+                },
+                "required": ["approval_token", "regions_json_path", "output_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "answer_kongnet_spatial_question",
+            "title": "Ask the KongNet Spatial Pathology Assistant",
+            "description": "Answers explainable questions about tumour-immune interaction, inflammatory, neoplastic, epithelial, stromal, or dense regions using ROI evidence.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "question": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "top_k": {"type": "integer"}
+                },
+                "required": ["approval_token", "question", "regions_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_kongnet_region_heatmaps",
+            "title": "Generate KongNet Region Heatmaps",
+            "description": "Generates density, inflammatory, and tumour-immune interaction heatmaps as TIAViz-compatible AnnotationStores only.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "output_dir": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "overwrite": {"type": "boolean"}
+                },
+                "required": ["approval_token", "regions_json_path", "output_dir"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_kongnet_slide_summary",
+            "title": "Generate KongNet Slide Summary",
+            "description": "Creates a concise text summary of whole-slide cell composition and the highest-ranked inflammatory, neoplastic, and tumour-immune ROIs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "nuclei_csv_path": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "output_json_path": {"type": "string"}
+                },
+                "required": ["approval_token", "nuclei_csv_path", "regions_json_path", "output_txt_path"],
                 "additionalProperties": False
             }
         },
@@ -1057,6 +1591,69 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "min_probability": {"type": "number"}
                 },
                 "required": ["approval_token", "annotationstore_path", "output_csv_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "analyze_kongnet_regions",
+            "title": "Analyse KongNet Local Regions",
+            "description": "Divides detections into fixed local ROIs and computes cell composition, density, local pair counts, and nearest-neighbour distance separately for every region.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "region_size": {"type": "number"},
+                    "neighbourhood_radius": {"type": "number"},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "min_cells_per_region": {"type": "integer"},
+                    "min_probability": {"type": "number"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "characterize_kongnet_cell_neighbourhoods",
+            "title": "Characterise KongNet Cell Neighbourhoods",
+            "description": "Counts every predicted cell type around each individual cell and clusters similar local profiles into interpretable spatial communities.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "radius": {"type": "number"},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "min_probability": {"type": "number"},
+                    "community_count": {"type": "integer"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_csv_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "export_kongnet_regions_to_annotationstore",
+            "title": "Export KongNet ROI Boundaries For TIAViz",
+            "description": "Converts fixed ROI results into coloured rectangular annotations in baseline WSI coordinates. Save this DB beside the nucleus AnnotationStore to view both on the real slide in TIAViz.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "output_db_path": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "overwrite": {"type": "boolean"}
+                },
+                "required": ["approval_token", "regions_json_path", "output_db_path"],
                 "additionalProperties": False
             }
         },
@@ -1195,12 +1792,35 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "cooccurrence_json_path": {"type": "string"},
                     "neighbourhood_json_path": {"type": "string"},
                     "nearest_neighbour_json_path": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "communities_json_path": {"type": "string"},
+                    "rankings_json_path": {"type": "string"},
+                    "slide_summary_json_path": {"type": "string"},
                     "output_report_path": {
                         "type": "string",
                         "description": "Destination text file. A .txt suffix is enforced even if another extension is supplied."
                     }
                 },
                 "required": ["approval_token", "nuclei_csv_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_nucleus_instance_segmentation_report",
+            "title": "Generate Nucleus Instance Segmentation Report",
+            "description": "Generates and saves a plain-text (.txt) report for HoVer-Net/nucleus instance segmentation AnnotationStore or CSV outputs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_report_path": {
+                        "type": "string",
+                        "description": "Destination text file. A .txt suffix is enforced even if another extension is supplied."
+                    },
+                    "min_probability": {"type": "number"}
+                },
+                "required": ["approval_token", "annotationstore_path"],
                 "additionalProperties": False
             }
         },
@@ -1344,18 +1964,20 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             )
             return
 
-        if name == "predict_kather_resnet18":
+        if name in {"predict_patch_model", "predict_kather_resnet18"}:
             require_plan(args)
 
             run_async = bool_arg(args.get("run_async"), True)
             wait = bool_arg(args.get("wait"), False)
 
             if run_async and not wait:
-                tool_result(req_id, start_prediction_job(args))
+                job_args = dict(args)
+                job_args["job_tool"] = "predict_patch_model"
+                tool_result(req_id, start_prediction_job(job_args))
             else:
                 tool_result(
                     req_id,
-                    tool_predict_kather_resnet18(
+                    tool_predict_patch_model(
                         patch_dir=args.get("patch_dir"),
                         output_json_path=args.get("output_json_path"),
                         output_csv_path=args.get("output_csv_path"),
@@ -1402,6 +2024,96 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                 )
             return
 
+        if name == "predict_nucleus_instance_segmentation":
+            require_plan(args)
+
+            run_async = bool_arg(args.get("run_async"), True)
+            wait = bool_arg(args.get("wait"), False)
+
+            if run_async and not wait:
+                job_args = dict(args)
+                job_args["job_tool"] = "predict_nucleus_instance_segmentation"
+                tool_result(req_id, start_prediction_job(job_args))
+            else:
+                num_workers = args.get("num_workers")
+                tool_result(
+                    req_id,
+                    tool_predict_nucleus_instance_segmentation(
+                        wsi_path=args.get("wsi_path", ""),
+                        output_json_path=args.get("output_json_path"),
+                        model_name=str(args.get("model_name", "hovernet_fast-monusac")),
+                        batch_size=int(args.get("batch_size", 8)),
+                        device=str(args.get("device", "auto")),
+                        save_dir=args.get("save_dir"),
+                        output_type=str(args.get("output_type", "annotationstore")),
+                        patch_mode=bool_arg(args.get("patch_mode"), False),
+                        auto_get_mask=bool_arg(args.get("auto_get_mask"), False),
+                        num_workers=int(num_workers) if num_workers is not None else None,
+                        overwrite=bool_arg(args.get("overwrite"), True),
+                    )
+                )
+            return
+
+        if name == "predict_multi_task_segmentation":
+            require_plan(args)
+
+            run_async = bool_arg(args.get("run_async"), True)
+            wait = bool_arg(args.get("wait"), False)
+
+            if run_async and not wait:
+                job_args = dict(args)
+                job_args["job_tool"] = "predict_multi_task_segmentation"
+                tool_result(req_id, start_prediction_job(job_args))
+            else:
+                num_workers = args.get("num_workers")
+                tool_result(
+                    req_id,
+                    tool_predict_multi_task_segmentation(
+                        wsi_path=args.get("wsi_path", ""),
+                        output_json_path=args.get("output_json_path"),
+                        model_name=str(args.get("model_name", "hovernetplus-oed")),
+                        batch_size=int(args.get("batch_size", 8)),
+                        device=str(args.get("device", "auto")),
+                        save_dir=args.get("save_dir"),
+                        output_type=str(args.get("output_type", "annotationstore")),
+                        patch_mode=bool_arg(args.get("patch_mode"), False),
+                        auto_get_mask=bool_arg(args.get("auto_get_mask"), False),
+                        num_workers=int(num_workers) if num_workers is not None else None,
+                        overwrite=bool_arg(args.get("overwrite"), True),
+                    )
+                )
+            return
+
+        if name == "predict_semantic_segmentation":
+            require_plan(args)
+
+            run_async = bool_arg(args.get("run_async"), True)
+            wait = bool_arg(args.get("wait"), False)
+
+            if run_async and not wait:
+                job_args = dict(args)
+                job_args["job_tool"] = "predict_semantic_segmentation"
+                tool_result(req_id, start_prediction_job(job_args))
+            else:
+                num_workers = args.get("num_workers")
+                tool_result(
+                    req_id,
+                    tool_predict_semantic_segmentation(
+                        wsi_path=args.get("wsi_path", ""),
+                        output_json_path=args.get("output_json_path"),
+                        model_name=str(args.get("model_name", "fcn_resnet50_unet-bcss")),
+                        batch_size=int(args.get("batch_size", 8)),
+                        device=str(args.get("device", "auto")),
+                        save_dir=args.get("save_dir"),
+                        output_type=str(args.get("output_type", "annotationstore")),
+                        patch_mode=bool_arg(args.get("patch_mode"), False),
+                        auto_get_mask=bool_arg(args.get("auto_get_mask"), False),
+                        num_workers=int(num_workers) if num_workers is not None else None,
+                        overwrite=bool_arg(args.get("overwrite"), True),
+                    )
+                )
+            return
+
         if name == "check_prediction_job":
             require_plan(args)
             tool_result(
@@ -1426,6 +2138,81 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     mpp=float(mpp) if mpp is not None else None,
                     min_probability=float(args.get("min_probability", 0.0)),
                     cell_types=args.get("cell_types"),
+                )
+            )
+            return
+
+        if name == "run_kongnet_spatial_workflow":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_run_kongnet_spatial_workflow(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_dir=args.get("output_dir", ""),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    min_probability=float(args.get("min_probability", 0.0)),
+                    neighbourhood_radius=float(args.get("neighbourhood_radius", 50.0)),
+                    region_size=float(args.get("region_size", 500.0)),
+                    min_cells_per_region=int(args.get("min_cells_per_region", 10)),
+                    community_count=int(args.get("community_count", 4)),
+                    pathology_question=args.get("pathology_question"),
+                    overwrite=bool_arg(args.get("overwrite"), True),
+                )
+            )
+            return
+
+        if name == "rank_kongnet_regions":
+            require_plan(args)
+            tool_result(
+                req_id,
+                tool_rank_kongnet_regions(
+                    regions_json_path=args.get("regions_json_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_txt_path=args.get("output_txt_path"),
+                    top_k=int(args.get("top_k", 5)),
+                )
+            )
+            return
+
+        if name == "answer_kongnet_spatial_question":
+            require_plan(args)
+            tool_result(
+                req_id,
+                tool_answer_kongnet_spatial_question(
+                    question=args.get("question", ""),
+                    regions_json_path=args.get("regions_json_path", ""),
+                    output_txt_path=args.get("output_txt_path"),
+                    top_k=int(args.get("top_k", 5)),
+                )
+            )
+            return
+
+        if name == "generate_kongnet_region_heatmaps":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_generate_kongnet_region_heatmaps(
+                    regions_json_path=args.get("regions_json_path", ""),
+                    output_dir=args.get("output_dir", ""),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    overwrite=bool_arg(args.get("overwrite"), True),
+                )
+            )
+            return
+
+        if name == "generate_kongnet_slide_summary":
+            require_plan(args)
+            tool_result(
+                req_id,
+                tool_generate_kongnet_slide_summary(
+                    nuclei_csv_path=args.get("nuclei_csv_path", ""),
+                    regions_json_path=args.get("regions_json_path", ""),
+                    output_txt_path=args.get("output_txt_path", ""),
+                    output_json_path=args.get("output_json_path"),
                 )
             )
             return
@@ -1484,6 +2271,60 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     source_types=args.get("source_types"),
                     target_types=args.get("target_types"),
                     min_probability=float(args.get("min_probability", 0.0)),
+                )
+            )
+            return
+
+        if name == "analyze_kongnet_regions":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_analyze_kongnet_regions(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_csv_path=args.get("output_csv_path"),
+                    region_size=float(args.get("region_size", 500.0)),
+                    neighbourhood_radius=float(args.get("neighbourhood_radius", 50.0)),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    min_cells_per_region=int(args.get("min_cells_per_region", 10)),
+                    min_probability=float(args.get("min_probability", 0.0)),
+                )
+            )
+            return
+
+        if name == "characterize_kongnet_cell_neighbourhoods":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_characterize_kongnet_cell_neighbourhoods(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_csv_path=args.get("output_csv_path", ""),
+                    output_json_path=args.get("output_json_path"),
+                    radius=float(args.get("radius", 50.0)),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    min_probability=float(args.get("min_probability", 0.0)),
+                    community_count=int(args.get("community_count", 4)),
+                )
+            )
+            return
+
+        if name == "export_kongnet_regions_to_annotationstore":
+            require_plan(args)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_export_kongnet_regions_to_annotationstore(
+                    regions_json_path=args.get("regions_json_path", ""),
+                    output_db_path=args.get("output_db_path", ""),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    overwrite=bool_arg(args.get("overwrite"), True),
                 )
             )
             return
@@ -1594,7 +2435,24 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     cooccurrence_json_path=args.get("cooccurrence_json_path"),
                     neighbourhood_json_path=args.get("neighbourhood_json_path"),
                     nearest_neighbour_json_path=args.get("nearest_neighbour_json_path"),
+                    regions_json_path=args.get("regions_json_path"),
+                    communities_json_path=args.get("communities_json_path"),
+                    rankings_json_path=args.get("rankings_json_path"),
+                    slide_summary_json_path=args.get("slide_summary_json_path"),
                     output_report_path=args.get("output_report_path"),
+                )
+            )
+            return
+
+        if name == "generate_nucleus_instance_segmentation_report":
+            require_plan(args)
+            min_probability = args.get("min_probability", 0.0)
+            tool_result(
+                req_id,
+                tool_generate_nucleus_instance_segmentation_report(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_report_path=args.get("output_report_path"),
+                    min_probability=float(min_probability) if min_probability is not None else 0.0,
                 )
             )
             return
