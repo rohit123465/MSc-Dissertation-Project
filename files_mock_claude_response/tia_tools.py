@@ -5,7 +5,7 @@ MCP-only pathology agent tool logic.
 
 Main MVP models:
 - resnet18-kather100k patch classification via Hugging Face/timm
-- KongNet_PanNuke_1 nucleus detection via TIAToolbox NucleusDetector
+- KongNet nucleus detection via TIAToolbox NucleusDetector
 
 Core outputs:
 - WSI metadata
@@ -32,6 +32,7 @@ Post-processing:
 """
 
 import os
+import sys
 import re
 import csv
 import json
@@ -479,6 +480,69 @@ KATHER_CLASS_RGB = {
     "TUM": (0, 0, 255),
 }
 
+PATCH_PREDICTION_KATHER_CLASS_DICT = dict(KATHER_INDEX_TO_CLASS)
+
+PATCH_PREDICTION_PCAM_CLASS_DICT = {
+    0: "Non-Metastatic Tissue",
+    1: "Metastatic Tissue",
+}
+
+PATCH_PREDICTION_MODEL_CATALOG = {
+    "resnet18-kather100k": {
+        "class_dict": PATCH_PREDICTION_KATHER_CLASS_DICT,
+        "model_type": "patch_predictor",
+        "target_node": "Patch-Level Prediction",
+        "description": "Patch-level tissue classification using the Kather100K tissue classes.",
+        "primary_site": "colorectal",
+        "resolution_mpp": None,
+        "patch_shape": None,
+        "stride_shape": None,
+        "limitation": "Research output only; not a clinical diagnosis.",
+        "postprocessing": "kather",
+    },
+    "wide_resnet50_2-pcam": {
+        "class_dict": PATCH_PREDICTION_PCAM_CLASS_DICT,
+        "model_type": "patch_predictor",
+        "target_node": "Patch-Level Prediction",
+        "description": "Predict lymph node metastases status at a patch level in lymph node images.",
+        "primary_site": "lymph node",
+        "resolution_mpp": None,
+        "patch_shape": None,
+        "stride_shape": None,
+        "limitation": "Patch-level metastasis prediction only; not a clinical diagnosis.",
+        "postprocessing": "binary_metastasis",
+    },
+}
+
+
+def _patch_prediction_model_metadata(model_name: str) -> Dict[str, Any]:
+    try:
+        return PATCH_PREDICTION_MODEL_CATALOG[model_name]
+    except KeyError as exc:
+        valid = ", ".join(sorted(PATCH_PREDICTION_MODEL_CATALOG))
+        raise ValueError(
+            f"Unsupported patch prediction model_name '{model_name}'. Valid models: {valid}."
+        ) from exc
+
+
+def _patch_prediction_model_summary(model_name: str, model_meta: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "model_name": model_name,
+        "model_type": model_meta.get("model_type", "patch_predictor"),
+        "target_node": model_meta.get("target_node", "Patch-Level Prediction"),
+        "class_mapping": _class_mapping_from_dict(model_meta.get("class_dict", {})),
+        "description": model_meta.get("description", ""),
+        "primary_site": model_meta.get("primary_site"),
+        "input_resolution": (
+            {"units": "mpp", "value": model_meta.get("resolution_mpp")}
+            if model_meta.get("resolution_mpp") is not None
+            else None
+        ),
+        "patch_shape": model_meta.get("patch_shape"),
+        "stride_shape": model_meta.get("stride_shape"),
+        "limitation": model_meta.get("limitation"),
+    }
+
 
 def _parse_patch_filename(path: str) -> Dict[str, int]:
     name = os.path.basename(path)
@@ -646,7 +710,7 @@ def _load_pretrained_model(model_name: str, device: str):
     import timm
     from tiatoolbox.models.engine.patch_predictor import PatchPredictor
 
-    if model_name == "resnet18-kather100k":
+    if model_name in PATCH_PREDICTION_MODEL_CATALOG:
         # hf_model_name = "hf-hub:1aurent/resnet18.tiatoolbox-kather100k"
 
         # model = timm.create_model(
@@ -660,7 +724,8 @@ def _load_pretrained_model(model_name: str, device: str):
 
         return predictor
 
-    raise ValueError(f"Unsupported model_name: {model_name}")
+    valid = ", ".join(sorted(PATCH_PREDICTION_MODEL_CATALOG))
+    raise ValueError(f"Unsupported model_name: {model_name}. Valid models: {valid}.")
 
 
 def _create_patch_predictor(predictor_cls, model_name: str, batch_size: int):
@@ -990,7 +1055,7 @@ def convert_kather_raw_json_to_annotationstore(
     }
 
 
-def tool_predict_kather_resnet18(
+def tool_predict_patch_model(
     patch_dir: Optional[str] = None,
     output_json_path: Optional[str] = None,
     output_csv_path: Optional[str] = None,
@@ -1004,7 +1069,7 @@ def tool_predict_kather_resnet18(
     output_type: str = "annotationstore",
     patch_mode: bool = False,
 ) -> str:
-    """Run WSI-level ResNet18-Kather100K prediction for TIAViz.
+    """Run WSI-level patch prediction for TIAViz.
 
     This follows the TIAToolbox WSI prediction workflow:
     1) instantiate PatchPredictor
@@ -1016,10 +1081,7 @@ def tool_predict_kather_resnet18(
     from pathlib import Path
     from tiatoolbox.models.engine.patch_predictor import PatchPredictor
 
-    if model_name != "resnet18-kather100k":
-        raise ValueError(
-            "Only model_name='resnet18-kather100k' is supported by this MVP tool."
-        )
+    model_meta = _patch_prediction_model_metadata(model_name)
 
     # Backwards-compatible alias: older MCP calls passed the WSI file path as patch_dir.
     if not wsi_path and patch_dir:
@@ -1027,7 +1089,7 @@ def tool_predict_kather_resnet18(
 
     if not isinstance(wsi_path, str) or not wsi_path.strip():
         raise ValueError(
-            "predict_kather_resnet18 now requires a WSI file path via wsi_path "
+            "predict_patch_model requires a WSI file path via wsi_path "
             "or patch_dir as a backwards-compatible alias."
         )
 
@@ -1067,20 +1129,7 @@ def tool_predict_kather_resnet18(
     else:
         os.makedirs(save_dir, exist_ok=True)
 
-    # Exact class-index mapping from the TIAToolbox patch-prediction notebook.
-    # This keeps TIAViz labels aligned with ResNet18-Kather100K output indices.
-    label_dict = {
-        "BACK": 0,
-        "NORM": 1,
-        "DEB": 2,
-        "TUM": 3,
-        "ADI": 4,
-        "MUC": 5,
-        "MUS": 6,
-        "STR": 7,
-        "LYM": 8,
-    }
-    class_dict = {v: k for k, v in label_dict.items()}
+    class_dict = model_meta["class_dict"]
 
     predictor = _create_patch_predictor(
         PatchPredictor,
@@ -1121,7 +1170,7 @@ def tool_predict_kather_resnet18(
         actual_output_type = "annotationstore"
 
     postprocessing_result = None
-    if raw_prediction_paths:
+    if raw_prediction_paths and model_meta.get("postprocessing") == "kather":
         try:
             postprocessing_result = run_kather_postprocessing_pipeline(
                 predictions_json_path=raw_prediction_paths[0],
@@ -1137,6 +1186,13 @@ def tool_predict_kather_resnet18(
                     "but automatic post-processing failed."
                 ),
             }
+    elif raw_prediction_paths:
+        postprocessing_result = {
+            "message": (
+                f"Automatic Kather-specific post-processing skipped for {model_name}; "
+                "the prediction output and AnnotationStore were still created."
+            )
+        }
 
     slides_dir = os.path.dirname(wsi_path) or "."
     overlay_path = (
@@ -1149,6 +1205,9 @@ def tool_predict_kather_resnet18(
     result = {
         "mode": f"wsi_{actual_output_type}",
         "model_name": model_name,
+        "model_description": model_meta["description"],
+        "primary_site": model_meta["primary_site"],
+        "model_metadata": _patch_prediction_model_summary(model_name, model_meta),
         "wsi_path": wsi_path,
         "save_dir": save_dir,
         "annotationstore_path": (
@@ -1209,6 +1268,37 @@ def tool_predict_kather_resnet18(
     return "\n".join(lines)
 
 
+def tool_predict_kather_resnet18(
+    patch_dir: Optional[str] = None,
+    output_json_path: Optional[str] = None,
+    output_csv_path: Optional[str] = None,
+    model_name: str = "resnet18-kather100k",
+    batch_size: int = 64,
+    device: str = "auto",
+    input_size: int = 224,
+    wsi_path: Optional[str] = None,
+    save_dir: Optional[str] = None,
+    ioconfig: Optional[Dict[str, Any]] = None,
+    output_type: str = "annotationstore",
+    patch_mode: bool = False,
+) -> str:
+    """Backward-compatible wrapper for the general patch prediction tool."""
+    return tool_predict_patch_model(
+        patch_dir=patch_dir,
+        output_json_path=output_json_path,
+        output_csv_path=output_csv_path,
+        model_name=model_name,
+        batch_size=batch_size,
+        device=device,
+        input_size=input_size,
+        wsi_path=wsi_path,
+        save_dir=save_dir,
+        ioconfig=ioconfig,
+        output_type=output_type,
+        patch_mode=patch_mode,
+    )
+
+
 KONGNET_PANNUKE_CLASS_DICT = {
     0: "Neoplastic",
     1: "Inflammatory",
@@ -1216,6 +1306,483 @@ KONGNET_PANNUKE_CLASS_DICT = {
     3: "Dead",
     4: "Epithelial",
 }
+
+KONGNET_CONIC_CLASS_DICT = {
+    0: "Neutrophil",
+    1: "Epithelial",
+    2: "Lymphocyte",
+    3: "Plasma",
+    4: "Eosinophil",
+    5: "Connective",
+}
+
+KONGNET_MIDOG_CLASS_DICT = {
+    0: "Mitotic_Figure",
+}
+
+KONGNET_MONKEY_CLASS_DICT = {
+    0: "Overall_Inflammatory",
+    1: "Lymphocyte",
+    2: "Monocyte",
+}
+
+KONGNET_PUMA_T1_CLASS_DICT = {
+    0: "Tumour_Cell",
+    1: "Lymphocyte",
+    2: "Other_Cell",
+}
+
+KONGNET_PUMA_T2_CLASS_DICT = {
+    0: "Tumour_Cell",
+    1: "Lymphocyte",
+    2: "Plasma_Cell",
+    3: "Histiocyte",
+    4: "Melanophage",
+    5: "Neutrophil",
+    6: "Stroma_Cell",
+    7: "Epithelial_Cell",
+    8: "Endothelial_Cell",
+    9: "Apoptotic_Cell",
+}
+
+KONGNET_MODEL_CATALOG = {
+    "KongNet_PanNuke_1": {
+        "class_dict": KONGNET_PANNUKE_CLASS_DICT,
+        "model_type": "nucleus_detection",
+        "target_node": "Nucleus Detection",
+        "description": (
+            "Nucleus detection model for connective, neoplastic, epithelial, "
+            "dead, and inflammatory nuclei across multiple cancers."
+        ),
+        "primary_site": "multiple",
+        "resolution_mpp": None,
+        "patch_shape": None,
+        "stride_shape": None,
+        "limitation": "Research output only; not a clinical diagnosis.",
+    },
+    "KongNet_CoNIC_1": {
+        "class_dict": KONGNET_CONIC_CLASS_DICT,
+        "model_type": "nucleus_detection",
+        "target_node": "Nucleus Detection",
+        "description": (
+            "Nuclei detection model for neutrophils, epithelial, lymphocytes, "
+            "plasma, eosinophil, and connective nuclei in colorectal cancer. "
+            "Does not work for other cancer types."
+        ),
+        "primary_site": "colorectal",
+        "resolution_mpp": 0.5,
+        "patch_shape": [512, 512],
+        "stride_shape": [512, 512],
+        "limitation": "Designed for colorectal cancer; do not use as a general cancer model.",
+    },
+    "KongNet_Det_MIDOG_1": {
+        "class_dict": KONGNET_MIDOG_CLASS_DICT,
+        "model_type": "nucleus_detection",
+        "target_node": "Nucleus Detection",
+        "description": (
+            "Nuclei detection model for mitotic nuclei detection across "
+            "different cancer types."
+        ),
+        "primary_site": "multi-site",
+        "resolution_mpp": 0.5,
+        "patch_shape": [512, 512],
+        "stride_shape": [512, 512],
+        "limitation": "Specialised mitotic-figure detector; does not classify all nuclei.",
+    },
+    "KongNet_MONKEY_1": {
+        "class_dict": KONGNET_MONKEY_CLASS_DICT,
+        "model_type": "nucleus_detection",
+        "target_node": "Nucleus Detection",
+        "description": (
+            "Best model for detecting lymphocytes, monocytes, and inflammatory "
+            "cells in kidney biopsy images. Does not work for other cancer types."
+        ),
+        "primary_site": "kidney",
+        "resolution_mpp": 0.5,
+        "patch_shape": [512, 512],
+        "stride_shape": [512, 512],
+        "limitation": "Designed for kidney biopsy images; not intended for other cancer types.",
+    },
+    "KongNet_PUMA_T1_3": {
+        "class_dict": KONGNET_PUMA_T1_CLASS_DICT,
+        "model_type": "nucleus_detection",
+        "target_node": "Nucleus Detection",
+        "description": (
+            "Nuclei detection model for detecting Tumor and Lymphocyte nuclei "
+            "in melanoma histology images. Does not work for other cancer types."
+        ),
+        "primary_site": "skin",
+        "resolution_mpp": 0.5,
+        "patch_shape": [512, 512],
+        "stride_shape": [512, 512],
+        "limitation": "Designed for melanoma histology images; not intended for other cancer types.",
+    },
+    "KongNet_PUMA_T2_3": {
+        "class_dict": KONGNET_PUMA_T2_CLASS_DICT,
+        "model_type": "nucleus_detection",
+        "target_node": "Nucleus Detection",
+        "description": (
+            "Nuclei Detection model for detecting tumor, lymphocytes, plasma, "
+            "histiocyte, melanophage, neutrophil, stroma, epithelium, "
+            "endothelium, and apoptotic nuclei in melanoma images and metastatic "
+            "melanoma for Bone, Gastrointestinal tract, Lung, Liver, brain, "
+            "soft tissue, and lymph node cancers. Does not work for other cancer types."
+        ),
+        "primary_site": "skin",
+        "resolution_mpp": 0.5,
+        "patch_shape": [512, 512],
+        "stride_shape": [512, 512],
+        "limitation": (
+            "Designed for melanoma and selected metastatic melanoma sites; "
+            "not intended for other cancer types."
+        ),
+    },
+}
+
+KONGNET_IMMUNE_CELL_TYPES = {
+    "Inflammatory",
+    "Overall_Inflammatory",
+    "Neutrophil",
+    "Lymphocyte",
+    "Plasma",
+    "Plasma_Cell",
+    "Histiocyte",
+    "Melanophage",
+    "Eosinophil",
+    "Monocyte",
+}
+KONGNET_ALL_CLASS_NAMES = []
+for _model_meta in KONGNET_MODEL_CATALOG.values():
+    for _class_name in _model_meta["class_dict"].values():
+        if _class_name not in KONGNET_ALL_CLASS_NAMES:
+            KONGNET_ALL_CLASS_NAMES.append(_class_name)
+
+
+def _kongnet_model_metadata(model_name: str) -> Dict[str, Any]:
+    try:
+        return KONGNET_MODEL_CATALOG[model_name]
+    except KeyError as exc:
+        valid = ", ".join(sorted(KONGNET_MODEL_CATALOG))
+        raise ValueError(f"Unsupported KongNet model_name '{model_name}'. Valid models: {valid}.") from exc
+
+
+def _model_class_mapping(model_meta: Dict[str, Any]) -> Dict[str, int]:
+    return {label: int(type_id) for type_id, label in model_meta["class_dict"].items()}
+
+
+def _kongnet_model_summary(model_name: str, model_meta: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the public model summary used by MCP clients and saved run JSON."""
+    return {
+        "model_name": model_name,
+        "model_type": model_meta.get("model_type", "nucleus_detection"),
+        "target_node": model_meta.get("target_node", "Nucleus Detection"),
+        "class_mapping": _model_class_mapping(model_meta),
+        "description": model_meta.get("description", ""),
+        "primary_site": model_meta.get("primary_site"),
+        "input_resolution": (
+            {"units": "mpp", "value": model_meta.get("resolution_mpp")}
+            if model_meta.get("resolution_mpp") is not None
+            else None
+        ),
+        "patch_shape": model_meta.get("patch_shape"),
+        "stride_shape": model_meta.get("stride_shape"),
+        "limitation": model_meta.get("limitation"),
+    }
+
+
+NUCLEUS_INSTANCE_SEGMENTATION_MONUSAC_CLASS_DICT = {
+    0: "Background",
+    1: "Epithelial",
+    2: "Lymphocyte",
+    3: "Macrophage",
+    4: "Neutrophil",
+}
+
+NUCLEUS_INSTANCE_SEGMENTATION_PANNUKE_CLASS_DICT = {
+    0: "Background",
+    1: "Neoplastic",
+    2: "Inflammatory",
+    3: "Connective",
+    4: "Dead",
+    5: "Non-Neoplastic Epithelial",
+}
+
+NUCLEUS_INSTANCE_SEGMENTATION_CONSEP_CLASS_DICT = {
+    0: "Background",
+    1: "Epithelial",
+    2: "Inflammatory",
+    3: "Spindle-Shaped",
+    4: "Miscellaneous",
+}
+
+NUCLEUS_INSTANCE_SEGMENTATION_KUMAR_CLASS_DICT = {}
+
+NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG = {
+    "hovernet_fast-monusac": {
+        "class_dict": NUCLEUS_INSTANCE_SEGMENTATION_MONUSAC_CLASS_DICT,
+        "model_type": "nucleus_instance_segmentation",
+        "target_node": "Nucleus Instance Segmentation",
+        "description": (
+            "Instance Segmentation and detection of Epithelial, Lymphocyte, "
+            "Macrophage, and Neutrophil nuclei across different cancer types."
+        ),
+        "primary_site": "multi-site",
+        "resolution_mpp": None,
+        "patch_shape": None,
+        "stride_shape": None,
+        "limitation": "Research output only; not a clinical diagnosis.",
+    },
+    "hovernet_fast-pannuke": {
+        "class_dict": NUCLEUS_INSTANCE_SEGMENTATION_PANNUKE_CLASS_DICT,
+        "model_type": "nucleus_instance_segmentation",
+        "target_node": "Nucleus Instance Segmentation",
+        "description": (
+            "Instance Segmentation and detection of Neoplastic, Inflammatory, "
+            "Connective, Dead, and Non-Neoplastic Epithelial nuclei across "
+            "different cancer types."
+        ),
+        "primary_site": "multi-site",
+        "resolution_mpp": None,
+        "patch_shape": None,
+        "stride_shape": None,
+        "limitation": "Research output only; not a clinical diagnosis.",
+    },
+    "hovernet_original-consep": {
+        "class_dict": NUCLEUS_INSTANCE_SEGMENTATION_CONSEP_CLASS_DICT,
+        "model_type": "nucleus_instance_segmentation",
+        "target_node": "Nucleus Instance Segmentation",
+        "description": (
+            "Instance Segmentation and detection of Epithelial, Inflammatory, "
+            "and Spindle-Shaped nuclei in colorectal images."
+        ),
+        "primary_site": "colorectal",
+        "resolution_mpp": None,
+        "patch_shape": None,
+        "stride_shape": None,
+        "limitation": "Designed for colorectal images; not intended as a general cancer model.",
+    },
+    "hovernet_original-kumar": {
+        "class_dict": NUCLEUS_INSTANCE_SEGMENTATION_KUMAR_CLASS_DICT,
+        "model_type": "nucleus_instance_segmentation",
+        "target_node": "Nucleus Instance Segmentation",
+        "description": (
+            "Instance Segmentation and detection of Epithelial, Inflammatory, "
+            "and Spindle-Shaped nuclei across different cancer types."
+        ),
+        "primary_site": "multi-site",
+        "resolution_mpp": 0.5,
+        "patch_shape": [512, 512],
+        "stride_shape": [512, 512],
+        "limitation": (
+            "No class mapping was supplied in the model metadata; treat outputs "
+            "as instance segmentation unless class labels are present in the AnnotationStore."
+        ),
+    },
+}
+
+
+def _nucleus_instance_segmentation_model_metadata(model_name: str) -> Dict[str, Any]:
+    try:
+        return NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG[model_name]
+    except KeyError as exc:
+        valid = ", ".join(sorted(NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG))
+        raise ValueError(
+            f"Unsupported nucleus instance segmentation model_name '{model_name}'. "
+            f"Valid models: {valid}."
+        ) from exc
+
+
+def _nucleus_instance_segmentation_model_summary(model_name: str, model_meta: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "model_name": model_name,
+        "model_type": model_meta.get("model_type", "nucleus_instance_segmentation"),
+        "target_node": model_meta.get("target_node", "Nucleus Instance Segmentation"),
+        "class_mapping": _model_class_mapping(model_meta),
+        "description": model_meta.get("description", ""),
+        "primary_site": model_meta.get("primary_site"),
+        "input_resolution": (
+            {"units": "mpp", "value": model_meta.get("resolution_mpp")}
+            if model_meta.get("resolution_mpp") is not None
+            else None
+        ),
+        "patch_shape": model_meta.get("patch_shape"),
+        "stride_shape": model_meta.get("stride_shape"),
+        "limitation": model_meta.get("limitation"),
+    }
+
+
+def _infer_nucleus_instance_segmentation_model_name_from_counts(counts: Counter) -> str:
+    names = set(counts)
+    if names & {"Spindle-Shaped", "Miscellaneous"}:
+        return "hovernet_original-consep"
+    if names & {"Non-Neoplastic Epithelial", "Neoplastic", "Inflammatory", "Connective", "Dead"}:
+        return "hovernet_fast-pannuke"
+    if names & {"Macrophage", "Neutrophil"}:
+        return "hovernet_fast-monusac"
+    return "nucleus_instance_segmentation"
+
+
+MULTI_TASK_SEGMENTATION_OED_NUCLEAR_CLASS_DICT = {
+    0: "Background",
+    1: "Other",
+    2: "Epithelial",
+}
+
+MULTI_TASK_SEGMENTATION_OED_REGION_CLASS_DICT = {
+    0: "Background",
+    1: "Other Tissue",
+    2: "Basal Epithelium",
+    3: "Epithelium",
+    4: "Keratin",
+}
+
+MULTI_TASK_SEGMENTATION_MODEL_CATALOG = {
+    "hovernetplus-oed": {
+        "nuclear_class_dict": MULTI_TASK_SEGMENTATION_OED_NUCLEAR_CLASS_DICT,
+        "output_region_class_dict": MULTI_TASK_SEGMENTATION_OED_REGION_CLASS_DICT,
+        "model_type": "multi_task_segmentation",
+        "target_node": "Multi-Task Segmentation",
+        "description": (
+            "Multi-task segmentation model with nuclear classes and output-region "
+            "classes for oral epithelial dysplasia-style tissue analysis."
+        ),
+        "primary_site": "oral",
+        "resolution_mpp": None,
+        "patch_shape": None,
+        "stride_shape": None,
+        "limitation": "Research output only; not a clinical diagnosis.",
+    },
+}
+
+
+def _class_mapping_from_dict(class_dict: Dict[int, str]) -> Dict[str, int]:
+    return {label: int(type_id) for type_id, label in class_dict.items()}
+
+
+def _multi_task_segmentation_model_metadata(model_name: str) -> Dict[str, Any]:
+    try:
+        return MULTI_TASK_SEGMENTATION_MODEL_CATALOG[model_name]
+    except KeyError as exc:
+        valid = ", ".join(sorted(MULTI_TASK_SEGMENTATION_MODEL_CATALOG))
+        raise ValueError(
+            f"Unsupported multi-task segmentation model_name '{model_name}'. "
+            f"Valid models: {valid}."
+        ) from exc
+
+
+def _multi_task_segmentation_model_summary(model_name: str, model_meta: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "model_name": model_name,
+        "model_type": model_meta.get("model_type", "multi_task_segmentation"),
+        "target_node": model_meta.get("target_node", "Multi-Task Segmentation"),
+        "nuclear_class_mapping": _class_mapping_from_dict(model_meta.get("nuclear_class_dict", {})),
+        "output_region_class_mapping": _class_mapping_from_dict(model_meta.get("output_region_class_dict", {})),
+        "description": model_meta.get("description", ""),
+        "primary_site": model_meta.get("primary_site"),
+        "input_resolution": (
+            {"units": "mpp", "value": model_meta.get("resolution_mpp")}
+            if model_meta.get("resolution_mpp") is not None
+            else None
+        ),
+        "patch_shape": model_meta.get("patch_shape"),
+        "stride_shape": model_meta.get("stride_shape"),
+        "limitation": model_meta.get("limitation"),
+    }
+
+
+SEMANTIC_SEGMENTATION_BCSS_CLASS_DICT = {
+    0: "Tumour",
+    1: "Stroma",
+    2: "Inflamatory",
+    3: "Necrosis",
+    4: "Others",
+}
+
+SEMANTIC_SEGMENTATION_MODEL_CATALOG = {
+    "fcn_resnet50_unet-bcss": {
+        "class_dict": SEMANTIC_SEGMENTATION_BCSS_CLASS_DICT,
+        "model_type": "semantic_segmentation",
+        "target_node": "Semantic Segmentation",
+        "description": "Segments tumor, stroma, necrosis, and inflamatory regions in breast cancer images.",
+        "primary_site": "breast",
+        "resolution_mpp": 0.5,
+        "patch_shape": [512, 512],
+        "stride_shape": [512, 512],
+        "limitation": "Semantic region segmentation only; not a clinical diagnosis.",
+    },
+}
+
+
+def _semantic_segmentation_model_metadata(model_name: str) -> Dict[str, Any]:
+    try:
+        return SEMANTIC_SEGMENTATION_MODEL_CATALOG[model_name]
+    except KeyError as exc:
+        valid = ", ".join(sorted(SEMANTIC_SEGMENTATION_MODEL_CATALOG))
+        raise ValueError(
+            f"Unsupported semantic segmentation model_name '{model_name}'. "
+            f"Valid models: {valid}."
+        ) from exc
+
+
+def _semantic_segmentation_model_summary(model_name: str, model_meta: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "model_name": model_name,
+        "model_type": model_meta.get("model_type", "semantic_segmentation"),
+        "target_node": model_meta.get("target_node", "Semantic Segmentation"),
+        "class_mapping": _model_class_mapping(model_meta),
+        "description": model_meta.get("description", ""),
+        "primary_site": model_meta.get("primary_site"),
+        "input_resolution": (
+            {"units": "mpp", "value": model_meta.get("resolution_mpp")}
+            if model_meta.get("resolution_mpp") is not None
+            else None
+        ),
+        "patch_shape": model_meta.get("patch_shape"),
+        "stride_shape": model_meta.get("stride_shape"),
+        "limitation": model_meta.get("limitation"),
+    }
+
+
+def _infer_kongnet_model_name_from_counts(counts: Counter) -> str:
+    names = set(counts)
+    if names & {"Plasma_Cell", "Histiocyte", "Melanophage", "Stroma_Cell", "Epithelial_Cell", "Endothelial_Cell", "Apoptotic_Cell"}:
+        return "KongNet_PUMA_T2_3"
+    if names & {"Tumour_Cell", "Other_Cell"}:
+        return "KongNet_PUMA_T1_3"
+    if names & {"Overall_Inflammatory", "Monocyte"}:
+        return "KongNet_MONKEY_1"
+    if names & {"Mitotic_Figure"}:
+        return "KongNet_Det_MIDOG_1"
+    if names & {"Neutrophil", "Lymphocyte", "Plasma", "Eosinophil"}:
+        return "KongNet_CoNIC_1"
+    if names & {"Neoplastic", "Inflammatory", "Dead"}:
+        return "KongNet_PanNuke_1"
+    return "KongNet"
+
+
+def _ordered_kongnet_class_names(nuclei: Optional[List[Dict[str, Any]]] = None) -> List[str]:
+    present = {str(nucleus.get("type", "Unknown")) for nucleus in nuclei or []}
+    ordered = [name for name in KONGNET_ALL_CLASS_NAMES if not present or name in present]
+    extras = sorted(name for name in present if name not in ordered)
+    return ordered + extras
+
+
+def _kongnet_immune_fraction(class_counts: Counter, total: int) -> float:
+    if total <= 0:
+        return 0.0
+    return sum(class_counts.get(name, 0) for name in KONGNET_IMMUNE_CELL_TYPES) / total
+
+
+def _kongnet_pair_count(pair_counts: Dict[str, int], first_types: set, second_types: set) -> int:
+    total = 0
+    for pair_name, count in pair_counts.items():
+        parts = str(pair_name).split("--")
+        if len(parts) != 2:
+            continue
+        first, second = parts
+        if (first in first_types and second in second_types) or (first in second_types and second in first_types):
+            total += int(count)
+    return total
 
 
 def _flatten_annotationstore_paths(output: Any) -> List[str]:
@@ -1255,7 +1822,7 @@ def _load_kongnet_nucleus_detector():
             tiatoolbox_version = "not installed"
 
         raise RuntimeError(
-            "KongNet_PanNuke_1 requires TIAToolbox's NucleusDetector engine, "
+            "KongNet nucleus detection requires TIAToolbox's NucleusDetector engine, "
             "but this Python environment does not provide "
             "tiatoolbox.models.engine.nucleus_detector. Upgrade the same "
             "environment used by the MCP server with: "
@@ -1291,6 +1858,133 @@ def _load_kongnet_nucleus_detector():
         ) from exc
 
 
+def _load_nucleus_instance_segmentor():
+    try:
+        from tiatoolbox.models.engine.nucleus_instance_segmentor import NucleusInstanceSegmentor
+
+        return NucleusInstanceSegmentor
+    except ModuleNotFoundError as exc:
+        if exc.name != "tiatoolbox.models.engine.nucleus_instance_segmentor":
+            raise
+
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            tiatoolbox_version = version("tiatoolbox")
+        except PackageNotFoundError:
+            tiatoolbox_version = "not installed"
+
+        raise RuntimeError(
+            "Nucleus instance segmentation requires TIAToolbox's "
+            "NucleusInstanceSegmentor engine, but this Python environment does "
+            "not provide tiatoolbox.models.engine.nucleus_instance_segmentor. "
+            'Upgrade the MCP environment with: python -m pip install --upgrade "tiatoolbox>=2.0.0". '
+            f"Python executable: {sys.executable}. "
+            f"Detected TIAToolbox version: {tiatoolbox_version}."
+        ) from exc
+    except ImportError as exc:
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            tiatoolbox_version = version("tiatoolbox")
+        except PackageNotFoundError:
+            tiatoolbox_version = "not installed"
+
+        try:
+            numpy_version = version("numpy")
+        except PackageNotFoundError:
+            numpy_version = "not installed"
+
+        raise RuntimeError(
+            "TIAToolbox's nucleus instance segmentor could not be imported. "
+            "This usually indicates an incompatible compiled dependency. "
+            f"Python executable: {sys.executable}. "
+            f"TIAToolbox version: {tiatoolbox_version}. "
+            f"NumPy version: {numpy_version}. "
+            f"Original import error: {exc}"
+        ) from exc
+
+
+def _load_multi_task_segmentor():
+    try:
+        from tiatoolbox.models.engine.multi_task_segmentor import MultiTaskSegmentor
+
+        return MultiTaskSegmentor
+    except ModuleNotFoundError as exc:
+        if exc.name != "tiatoolbox.models.engine.multi_task_segmentor":
+            raise
+
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            tiatoolbox_version = version("tiatoolbox")
+        except PackageNotFoundError:
+            tiatoolbox_version = "not installed"
+
+        raise RuntimeError(
+            "Multi-task segmentation requires TIAToolbox's MultiTaskSegmentor "
+            "engine, but this Python environment does not provide "
+            "tiatoolbox.models.engine.multi_task_segmentor. "
+            'Upgrade the MCP environment with: python -m pip install --upgrade "tiatoolbox>=2.0.0". '
+            f"Python executable: {sys.executable}. "
+            f"Detected TIAToolbox version: {tiatoolbox_version}."
+        ) from exc
+    except ImportError as exc:
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            tiatoolbox_version = version("tiatoolbox")
+        except PackageNotFoundError:
+            tiatoolbox_version = "not installed"
+
+        raise RuntimeError(
+            "TIAToolbox's MultiTaskSegmentor could not be imported. "
+            f"Python executable: {sys.executable}. "
+            f"TIAToolbox version: {tiatoolbox_version}. "
+            f"Original import error: {exc}"
+        ) from exc
+
+
+def _load_semantic_segmentor():
+    try:
+        from tiatoolbox.models.engine.semantic_segmentor import SemanticSegmentor
+
+        return SemanticSegmentor
+    except ModuleNotFoundError as exc:
+        if exc.name != "tiatoolbox.models.engine.semantic_segmentor":
+            raise
+
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            tiatoolbox_version = version("tiatoolbox")
+        except PackageNotFoundError:
+            tiatoolbox_version = "not installed"
+
+        raise RuntimeError(
+            "Semantic segmentation requires TIAToolbox's SemanticSegmentor "
+            "engine, but this Python environment does not provide "
+            "tiatoolbox.models.engine.semantic_segmentor. "
+            'Upgrade the MCP environment with: python -m pip install --upgrade "tiatoolbox>=2.0.0". '
+            f"Python executable: {sys.executable}. "
+            f"Detected TIAToolbox version: {tiatoolbox_version}."
+        ) from exc
+    except ImportError as exc:
+        from importlib.metadata import PackageNotFoundError, version
+
+        try:
+            tiatoolbox_version = version("tiatoolbox")
+        except PackageNotFoundError:
+            tiatoolbox_version = "not installed"
+
+        raise RuntimeError(
+            "TIAToolbox's SemanticSegmentor could not be imported. "
+            f"Python executable: {sys.executable}. "
+            f"TIAToolbox version: {tiatoolbox_version}. "
+            f"Original import error: {exc}"
+        ) from exc
+
+
 def tool_predict_kongnet_nucleus_detection(
     wsi_path: str,
     output_json_path: Optional[str] = None,
@@ -1304,19 +1998,25 @@ def tool_predict_kongnet_nucleus_detection(
     num_workers: Optional[int] = None,
     overwrite: bool = True,
 ) -> str:
-    """Run KongNet PanNuke nucleus detection and save TIAViz overlays.
+    """Run KongNet nucleus detection and save TIAViz overlays.
+
+    Defaults to model_name="KongNet_PanNuke_1", but the same workflow also
+    supports any registered KongNet model, including "KongNet_CoNIC_1",
+    "KongNet_Det_MIDOG_1", "KongNet_MONKEY_1", "KongNet_PUMA_T1_3",
+    and "KongNet_PUMA_T2_3", when explicitly provided.
 
     The output is a TIAToolbox AnnotationStore (.db) containing one vector
-    annotation per detected nucleus, with the class labels used by
-    KongNet_PanNuke_1: Neoplastic, Inflammatory, Connective, Dead, Epithelial.
+    annotation per detected nucleus, with the class labels defined by the
+    selected KongNet model.
     """
     import multiprocessing
     from pathlib import Path
 
-    NucleusDetector = _load_kongnet_nucleus_detector()
+    os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 
-    if model_name != "KongNet_PanNuke_1":
-        raise ValueError("Only model_name='KongNet_PanNuke_1' is supported by this tool.")
+    NucleusDetector = _load_kongnet_nucleus_detector()
+    model_meta = _kongnet_model_metadata(model_name)
+    class_dict = model_meta["class_dict"]
 
     if not isinstance(wsi_path, str) or not wsi_path.strip():
         raise ValueError("predict_kongnet_nucleus_detection requires a WSI file path.")
@@ -1331,11 +2031,16 @@ def tool_predict_kongnet_nucleus_detection(
         raise ValueError("For TIAViz compatibility, output_type must be 'annotationstore'.")
 
     selected_device = _choose_device(device)
-    worker_count = (
-        int(num_workers)
-        if isinstance(num_workers, int) and num_workers > 0
-        else multiprocessing.cpu_count()
-    )
+    if isinstance(num_workers, int) and num_workers > 0:
+        worker_count = int(num_workers)
+    elif sys.platform.startswith("win"):
+        # Windows uses the "spawn" multiprocessing strategy. In MCP/background
+        # processes, spawning many TIAToolbox workers can fail while unpickling
+        # the child process bootstrap state. Use one worker by default and let
+        # callers opt into more workers explicitly when their environment is stable.
+        worker_count = 1
+    else:
+        worker_count = multiprocessing.cpu_count()
 
     if not save_dir:
         if output_json_path:
@@ -1362,7 +2067,7 @@ def tool_predict_kongnet_nucleus_detection(
         patch_mode=False,
         save_dir=save_dir,
         output_type="annotationstore",
-        class_dict=KONGNET_PANNUKE_CLASS_DICT,
+        class_dict=class_dict,
         auto_get_mask=bool(auto_get_mask),
         num_workers=worker_count,
         verbose=True,
@@ -1376,10 +2081,10 @@ def tool_predict_kongnet_nucleus_detection(
     result = {
         "mode": "wsi_nucleus_detection_annotationstore",
         "model_name": model_name,
-        "model_description": (
-            "Nucleus detection model for connective, neoplastic, epithelial, "
-            "dead, and inflammatory nuclei across multiple cancers."
-        ),
+        "model_description": model_meta["description"],
+        "primary_site": model_meta["primary_site"],
+        "input_resolution_mpp": model_meta["resolution_mpp"],
+        "model_metadata": _kongnet_model_summary(model_name, model_meta),
         "wsi_path": wsi_path,
         "save_dir": save_dir,
         "annotationstore_paths": annotationstore_paths,
@@ -1389,7 +2094,7 @@ def tool_predict_kongnet_nucleus_detection(
         "batch_size": int(batch_size),
         "patch_mode": False,
         "auto_get_mask": bool(auto_get_mask),
-        "class_dict": KONGNET_PANNUKE_CLASS_DICT,
+        "class_dict": class_dict,
         "tiaviz_command": tiaviz_command,
         "tiatoolbox_output": _json_safe(output),
         "clinical_warning": (
@@ -1427,16 +2132,453 @@ def tool_predict_kongnet_nucleus_detection(
     return "\n".join(lines)
 
 
+def tool_predict_nucleus_instance_segmentation(
+    wsi_path: str,
+    output_json_path: Optional[str] = None,
+    model_name: str = "hovernet_fast-monusac",
+    batch_size: int = 8,
+    device: str = "auto",
+    save_dir: Optional[str] = None,
+    output_type: str = "annotationstore",
+    patch_mode: bool = False,
+    auto_get_mask: bool = False,
+    num_workers: Optional[int] = None,
+    overwrite: bool = True,
+) -> str:
+    """Run nucleus instance segmentation and save TIAViz overlays.
+
+    Defaults to model_name="hovernet_fast-monusac". The model is selected from
+    NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG and run through TIAToolbox's
+    NucleusInstanceSegmentor engine.
+    """
+    import multiprocessing
+    from pathlib import Path
+
+    os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
+    NucleusInstanceSegmentor = _load_nucleus_instance_segmentor()
+    model_meta = _nucleus_instance_segmentation_model_metadata(model_name)
+    class_dict = model_meta["class_dict"]
+
+    if not isinstance(wsi_path, str) or not wsi_path.strip():
+        raise ValueError("predict_nucleus_instance_segmentation requires a WSI file path.")
+
+    if not os.path.exists(wsi_path):
+        raise FileNotFoundError(f"WSI file not found: {wsi_path}")
+
+    if patch_mode is not False:
+        raise ValueError("For TIAViz WSI nucleus instance segmentation, patch_mode must be False.")
+
+    if output_type != "annotationstore":
+        raise ValueError("For TIAViz compatibility, output_type must be 'annotationstore'.")
+
+    selected_device = _choose_device(device)
+    if isinstance(num_workers, int) and num_workers > 0:
+        worker_count = int(num_workers)
+    elif sys.platform.startswith("win"):
+        worker_count = 1
+    else:
+        worker_count = multiprocessing.cpu_count()
+
+    if not save_dir:
+        if output_json_path:
+            save_dir = os.path.join(
+                os.path.dirname(output_json_path) or ".",
+                "nucleus_instance_segmentation_annotationstore",
+            )
+        else:
+            save_dir = os.path.join(os.getcwd(), "nucleus_instance_segmentation_annotationstore")
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    segmentor = NucleusInstanceSegmentor(
+        model=model_name,
+        num_workers=worker_count,
+        batch_size=int(batch_size),
+        device=selected_device,
+        verbose=True,
+    )
+
+    input_resolutions = (
+        [{"units": "mpp", "resolution": float(model_meta["resolution_mpp"])}]
+        if model_meta.get("resolution_mpp") is not None
+        else None
+    )
+
+    run_kwargs = {
+        "images": [Path(wsi_path)],
+        "masks": None,
+        "input_resolutions": input_resolutions,
+        "patch_input_shape": model_meta.get("patch_shape"),
+        "patch_mode": False,
+        "save_dir": save_dir,
+        "output_type": "annotationstore",
+        "auto_get_mask": bool(auto_get_mask),
+        "num_workers": worker_count,
+        "verbose": True,
+        "overwrite": bool(overwrite),
+    }
+    if class_dict:
+        run_kwargs["class_dict"] = class_dict
+    output = segmentor.run(**run_kwargs)
+
+    annotationstore_paths = _flatten_annotationstore_paths(output)
+    slides_dir = os.path.dirname(wsi_path) or "."
+    tiaviz_command = f'tiatoolbox visualize --slides "{slides_dir}" --overlays "{save_dir}"'
+
+    result = {
+        "mode": "wsi_nucleus_instance_segmentation_annotationstore",
+        "model_name": model_name,
+        "model_description": model_meta["description"],
+        "primary_site": model_meta["primary_site"],
+        "input_resolution_mpp": model_meta["resolution_mpp"],
+        "model_metadata": _nucleus_instance_segmentation_model_summary(model_name, model_meta),
+        "wsi_path": wsi_path,
+        "save_dir": save_dir,
+        "annotationstore_paths": annotationstore_paths,
+        "output_type": output_type,
+        "device": selected_device,
+        "num_workers": worker_count,
+        "batch_size": int(batch_size),
+        "patch_mode": False,
+        "auto_get_mask": bool(auto_get_mask),
+        "class_dict": class_dict,
+        "tiaviz_command": tiaviz_command,
+        "tiatoolbox_output": _json_safe(output),
+        "clinical_warning": (
+            "This is model-derived nucleus instance segmentation output, "
+            "not a clinical diagnosis."
+        ),
+    }
+
+    if output_json_path:
+        ensure_parent_dir(output_json_path)
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+
+    lines = [
+        "WSI nucleus instance segmentation completed successfully.",
+        f"Model: {model_name}",
+        f"WSI: {wsi_path}",
+        f"AnnotationStore output saved to: {save_dir}",
+        f"Detected output DBs: {len(annotationstore_paths)}",
+        f"Device: {selected_device}",
+        f"Workers: {worker_count}",
+        "",
+        "Open in TIAViz with:",
+        tiaviz_command,
+    ]
+
+    if annotationstore_paths:
+        lines.append("\nAnnotationStore files:")
+        lines.extend(annotationstore_paths)
+
+    if output_json_path:
+        lines.append(f"\nRun summary saved to: {output_json_path}")
+
+    lines.append("\nImportant: this output is not a clinical diagnosis.")
+    return "\n".join(lines)
+
+
+def tool_predict_multi_task_segmentation(
+    wsi_path: str,
+    output_json_path: Optional[str] = None,
+    model_name: str = "hovernetplus-oed",
+    batch_size: int = 8,
+    device: str = "auto",
+    save_dir: Optional[str] = None,
+    output_type: str = "annotationstore",
+    patch_mode: bool = False,
+    auto_get_mask: bool = False,
+    num_workers: Optional[int] = None,
+    overwrite: bool = True,
+) -> str:
+    """Run multi-task segmentation and save TIAViz-compatible outputs where supported."""
+    import multiprocessing
+    from pathlib import Path
+
+    os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
+    MultiTaskSegmentor = _load_multi_task_segmentor()
+    model_meta = _multi_task_segmentation_model_metadata(model_name)
+    nuclear_class_dict = model_meta.get("nuclear_class_dict", {})
+
+    if not isinstance(wsi_path, str) or not wsi_path.strip():
+        raise ValueError("predict_multi_task_segmentation requires a WSI file path.")
+
+    if not os.path.exists(wsi_path):
+        raise FileNotFoundError(f"WSI file not found: {wsi_path}")
+
+    if patch_mode is not False:
+        raise ValueError("For TIAViz WSI multi-task segmentation, patch_mode must be False.")
+
+    if output_type != "annotationstore":
+        raise ValueError("For TIAViz compatibility, output_type must be 'annotationstore'.")
+
+    selected_device = _choose_device(device)
+    if isinstance(num_workers, int) and num_workers > 0:
+        worker_count = int(num_workers)
+    elif sys.platform.startswith("win"):
+        worker_count = 1
+    else:
+        worker_count = multiprocessing.cpu_count()
+
+    if not save_dir:
+        if output_json_path:
+            save_dir = os.path.join(
+                os.path.dirname(output_json_path) or ".",
+                "multi_task_segmentation_annotationstore",
+            )
+        else:
+            save_dir = os.path.join(os.getcwd(), "multi_task_segmentation_annotationstore")
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    segmentor = MultiTaskSegmentor(
+        model=model_name,
+        num_workers=worker_count,
+        batch_size=int(batch_size),
+        device=selected_device,
+        verbose=True,
+    )
+
+    input_resolutions = (
+        [{"units": "mpp", "resolution": float(model_meta["resolution_mpp"])}]
+        if model_meta.get("resolution_mpp") is not None
+        else None
+    )
+
+    run_kwargs = {
+        "images": [Path(wsi_path)],
+        "masks": None,
+        "input_resolutions": input_resolutions,
+        "patch_input_shape": model_meta.get("patch_shape"),
+        "patch_mode": False,
+        "save_dir": save_dir,
+        "output_type": "annotationstore",
+        "auto_get_mask": bool(auto_get_mask),
+        "num_workers": worker_count,
+        "verbose": True,
+        "overwrite": bool(overwrite),
+    }
+    if nuclear_class_dict:
+        run_kwargs["class_dict"] = nuclear_class_dict
+    output = segmentor.run(**run_kwargs)
+
+    annotationstore_paths = _flatten_annotationstore_paths(output)
+    slides_dir = os.path.dirname(wsi_path) or "."
+    tiaviz_command = f'tiatoolbox visualize --slides "{slides_dir}" --overlays "{save_dir}"'
+
+    result = {
+        "mode": "wsi_multi_task_segmentation_annotationstore",
+        "model_name": model_name,
+        "model_description": model_meta["description"],
+        "primary_site": model_meta["primary_site"],
+        "input_resolution_mpp": model_meta["resolution_mpp"],
+        "model_metadata": _multi_task_segmentation_model_summary(model_name, model_meta),
+        "wsi_path": wsi_path,
+        "save_dir": save_dir,
+        "annotationstore_paths": annotationstore_paths,
+        "output_type": output_type,
+        "device": selected_device,
+        "num_workers": worker_count,
+        "batch_size": int(batch_size),
+        "patch_mode": False,
+        "auto_get_mask": bool(auto_get_mask),
+        "nuclear_class_dict": nuclear_class_dict,
+        "output_region_class_dict": model_meta.get("output_region_class_dict", {}),
+        "tiaviz_command": tiaviz_command,
+        "tiatoolbox_output": _json_safe(output),
+        "clinical_warning": (
+            "This is model-derived multi-task segmentation output, not a clinical diagnosis."
+        ),
+    }
+
+    if output_json_path:
+        ensure_parent_dir(output_json_path)
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+
+    lines = [
+        "WSI multi-task segmentation completed successfully.",
+        f"Model: {model_name}",
+        f"WSI: {wsi_path}",
+        f"Output saved to: {save_dir}",
+        f"Detected output DBs: {len(annotationstore_paths)}",
+        f"Device: {selected_device}",
+        f"Workers: {worker_count}",
+        "",
+        "Open in TIAViz with:",
+        tiaviz_command,
+    ]
+
+    if annotationstore_paths:
+        lines.append("\nAnnotationStore files:")
+        lines.extend(annotationstore_paths)
+
+    if output_json_path:
+        lines.append(f"\nRun summary saved to: {output_json_path}")
+
+    lines.append("\nImportant: this output is not a clinical diagnosis.")
+    return "\n".join(lines)
+
+
+def tool_predict_semantic_segmentation(
+    wsi_path: str,
+    output_json_path: Optional[str] = None,
+    model_name: str = "fcn_resnet50_unet-bcss",
+    batch_size: int = 8,
+    device: str = "auto",
+    save_dir: Optional[str] = None,
+    output_type: str = "annotationstore",
+    patch_mode: bool = False,
+    auto_get_mask: bool = False,
+    num_workers: Optional[int] = None,
+    overwrite: bool = True,
+) -> str:
+    """Run semantic segmentation and save TIAViz-compatible outputs where supported."""
+    import multiprocessing
+    from pathlib import Path
+
+    os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
+
+    SemanticSegmentor = _load_semantic_segmentor()
+    model_meta = _semantic_segmentation_model_metadata(model_name)
+    class_dict = model_meta["class_dict"]
+
+    if not isinstance(wsi_path, str) or not wsi_path.strip():
+        raise ValueError("predict_semantic_segmentation requires a WSI file path.")
+
+    if not os.path.exists(wsi_path):
+        raise FileNotFoundError(f"WSI file not found: {wsi_path}")
+
+    if patch_mode is not False:
+        raise ValueError("For TIAViz WSI semantic segmentation, patch_mode must be False.")
+
+    if output_type != "annotationstore":
+        raise ValueError("For TIAViz compatibility, output_type must be 'annotationstore'.")
+
+    selected_device = _choose_device(device)
+    if isinstance(num_workers, int) and num_workers > 0:
+        worker_count = int(num_workers)
+    elif sys.platform.startswith("win"):
+        worker_count = 1
+    else:
+        worker_count = multiprocessing.cpu_count()
+
+    if not save_dir:
+        if output_json_path:
+            save_dir = os.path.join(
+                os.path.dirname(output_json_path) or ".",
+                "semantic_segmentation_annotationstore",
+            )
+        else:
+            save_dir = os.path.join(os.getcwd(), "semantic_segmentation_annotationstore")
+
+    os.makedirs(save_dir, exist_ok=True)
+
+    segmentor = SemanticSegmentor(
+        model=model_name,
+        num_workers=worker_count,
+        batch_size=int(batch_size),
+        device=selected_device,
+        verbose=True,
+    )
+
+    input_resolutions = (
+        [{"units": "mpp", "resolution": float(model_meta["resolution_mpp"])}]
+        if model_meta.get("resolution_mpp") is not None
+        else None
+    )
+
+    output = segmentor.run(
+        images=[Path(wsi_path)],
+        masks=None,
+        input_resolutions=input_resolutions,
+        patch_input_shape=model_meta.get("patch_shape"),
+        patch_mode=False,
+        save_dir=save_dir,
+        output_type="annotationstore",
+        class_dict=class_dict,
+        auto_get_mask=bool(auto_get_mask),
+        num_workers=worker_count,
+        verbose=True,
+        overwrite=bool(overwrite),
+    )
+
+    annotationstore_paths = _flatten_annotationstore_paths(output)
+    slides_dir = os.path.dirname(wsi_path) or "."
+    tiaviz_command = f'tiatoolbox visualize --slides "{slides_dir}" --overlays "{save_dir}"'
+
+    result = {
+        "mode": "wsi_semantic_segmentation_annotationstore",
+        "model_name": model_name,
+        "model_description": model_meta["description"],
+        "primary_site": model_meta["primary_site"],
+        "input_resolution_mpp": model_meta["resolution_mpp"],
+        "model_metadata": _semantic_segmentation_model_summary(model_name, model_meta),
+        "wsi_path": wsi_path,
+        "save_dir": save_dir,
+        "annotationstore_paths": annotationstore_paths,
+        "output_type": output_type,
+        "device": selected_device,
+        "num_workers": worker_count,
+        "batch_size": int(batch_size),
+        "patch_mode": False,
+        "auto_get_mask": bool(auto_get_mask),
+        "class_dict": class_dict,
+        "tiaviz_command": tiaviz_command,
+        "tiatoolbox_output": _json_safe(output),
+        "clinical_warning": (
+            "This is model-derived semantic segmentation output, not a clinical diagnosis."
+        ),
+    }
+
+    if output_json_path:
+        ensure_parent_dir(output_json_path)
+        with open(output_json_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+
+    lines = [
+        "WSI semantic segmentation completed successfully.",
+        f"Model: {model_name}",
+        f"WSI: {wsi_path}",
+        f"Output saved to: {save_dir}",
+        f"Detected output DBs: {len(annotationstore_paths)}",
+        f"Device: {selected_device}",
+        f"Workers: {worker_count}",
+        "",
+        "Open in TIAViz with:",
+        tiaviz_command,
+    ]
+
+    if annotationstore_paths:
+        lines.append("\nAnnotationStore files:")
+        lines.extend(annotationstore_paths)
+
+    if output_json_path:
+        lines.append(f"\nRun summary saved to: {output_json_path}")
+
+    lines.append("\nImportant: this output is not a clinical diagnosis.")
+    return "\n".join(lines)
+
+
 def _normalise_kongnet_cell_types(cell_types: Optional[List[str]]) -> Optional[List[str]]:
     if not cell_types:
         return None
 
-    canonical = {name.casefold(): name for name in KONGNET_PANNUKE_CLASS_DICT.values()}
+    canonical = {name.casefold(): name for name in KONGNET_ALL_CLASS_NAMES}
+    immune_aliases = {"immune", "inflammatory", "inflammation", "inflammatory cells", "immune cells"}
     normalised = []
     for value in cell_types:
         key = str(value).strip().casefold()
+        if key in immune_aliases:
+            for immune_type in KONGNET_ALL_CLASS_NAMES:
+                if immune_type in KONGNET_IMMUNE_CELL_TYPES and immune_type not in normalised:
+                    normalised.append(immune_type)
+            continue
         if key not in canonical:
-            valid = ", ".join(KONGNET_PANNUKE_CLASS_DICT.values())
+            valid = ", ".join(KONGNET_ALL_CLASS_NAMES)
             raise ValueError(f"Unknown KongNet cell type '{value}'. Valid types: {valid}.")
         if canonical[key] not in normalised:
             normalised.append(canonical[key])
@@ -1494,25 +2636,46 @@ def _load_kongnet_nuclei(
     cell_types: Optional[List[str]] = None,
     min_probability: float = 0.0,
 ) -> List[Dict[str, Any]]:
-    from tiatoolbox.annotation.storage import SQLiteStore
-
     if not isinstance(annotationstore_path, str) or not os.path.exists(annotationstore_path):
-        raise FileNotFoundError(f"AnnotationStore not found: {annotationstore_path}")
+        raise FileNotFoundError(f"KongNet AnnotationStore or nuclei CSV not found: {annotationstore_path}")
     if not 0.0 <= float(min_probability) <= 1.0:
         raise ValueError("min_probability must be between 0 and 1.")
 
     selected_types = _normalise_kongnet_cell_types(cell_types)
     selected = set(selected_types) if selected_types else None
-    id_by_name = {name: type_id for type_id, name in KONGNET_PANNUKE_CLASS_DICT.items()}
+    id_by_name = {}
+    name_by_id = {}
+    for metadata in KONGNET_MODEL_CATALOG.values():
+        for type_id, name in metadata["class_dict"].items():
+            id_by_name.setdefault(name, type_id)
+            name_by_id.setdefault(type_id, name)
 
     nuclei = []
+    if os.path.splitext(annotationstore_path)[1].lower() == ".csv":
+        with open(annotationstore_path, "r", encoding="utf-8", newline="") as file:
+            for row_index, row in enumerate(csv.DictReader(file), start=1):
+                cell_type = str(row.get("type") or "Unknown")
+                probability = float(row.get("probability") or 1.0)
+                if probability < float(min_probability) or (selected is not None and cell_type not in selected):
+                    continue
+                nuclei.append({
+                    "annotation_id": str(row.get("annotation_id") or row_index),
+                    "x_px": float(row["x_px"]),
+                    "y_px": float(row["y_px"]),
+                    "type": cell_type,
+                    "type_id": int(row["type_id"]) if row.get("type_id") not in (None, "") else id_by_name.get(cell_type),
+                    "probability": probability,
+                })
+        return nuclei
+
+    from tiatoolbox.annotation.storage import SQLiteStore
     store = SQLiteStore(annotationstore_path)
     try:
         for annotation_id, annotation in store.items():
             properties = dict(annotation.properties or {})
             raw_type = properties.get("type")
             if isinstance(raw_type, int):
-                cell_type = KONGNET_PANNUKE_CLASS_DICT.get(raw_type, str(raw_type))
+                cell_type = name_by_id.get(raw_type, str(raw_type))
             else:
                 cell_type = str(raw_type or "Unknown")
 
@@ -1535,6 +2698,73 @@ def _load_kongnet_nuclei(
         store.close()
 
     return nuclei
+
+
+def _load_nucleus_instance_segmentation_instances(
+    annotationstore_path: str,
+    min_probability: float = 0.0,
+) -> List[Dict[str, Any]]:
+    if not isinstance(annotationstore_path, str) or not os.path.exists(annotationstore_path):
+        raise FileNotFoundError(f"Nucleus instance segmentation AnnotationStore or CSV not found: {annotationstore_path}")
+    if not 0.0 <= float(min_probability) <= 1.0:
+        raise ValueError("min_probability must be between 0 and 1.")
+
+    id_by_name = {}
+    name_by_id = {}
+    for metadata in NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG.values():
+        for type_id, name in metadata["class_dict"].items():
+            id_by_name.setdefault(name, type_id)
+            name_by_id.setdefault(type_id, name)
+
+    instances = []
+    if os.path.splitext(annotationstore_path)[1].lower() == ".csv":
+        with open(annotationstore_path, "r", encoding="utf-8", newline="") as file:
+            for row_index, row in enumerate(csv.DictReader(file), start=1):
+                cell_type = str(row.get("type") or row.get("cell_type") or "Unknown")
+                try:
+                    probability = float(row.get("probability") or row.get("prob") or 1.0)
+                except (TypeError, ValueError):
+                    probability = 1.0
+                if probability < float(min_probability):
+                    continue
+                instances.append({
+                    "annotation_id": str(row.get("annotation_id") or row_index),
+                    "type": cell_type,
+                    "type_id": int(row["type_id"]) if row.get("type_id") not in (None, "") else id_by_name.get(cell_type),
+                    "probability": probability,
+                    "area": float(row["area"]) if row.get("area") not in (None, "") else None,
+                })
+        return instances
+
+    from tiatoolbox.annotation.storage import SQLiteStore
+    store = SQLiteStore(annotationstore_path)
+    try:
+        for annotation_id, annotation in store.items():
+            properties = dict(annotation.properties or {})
+            raw_type = properties.get("type", properties.get("label"))
+            if isinstance(raw_type, int):
+                cell_type = name_by_id.get(raw_type, str(raw_type))
+            else:
+                cell_type = str(raw_type or "Unknown")
+
+            try:
+                probability = float(properties.get("probability", properties.get("prob", 1.0)))
+            except (TypeError, ValueError):
+                probability = 1.0
+            if probability < float(min_probability):
+                continue
+
+            instances.append({
+                "annotation_id": str(annotation_id),
+                "type": cell_type,
+                "type_id": id_by_name.get(cell_type),
+                "probability": probability,
+                "area": float(annotation.geometry.area) if annotation.geometry is not None else None,
+            })
+    finally:
+        store.close()
+
+    return instances
 
 
 def _nucleus_coordinates(nuclei: List[Dict[str, Any]], scale: Dict[str, Any]):
@@ -1693,13 +2923,23 @@ def tool_compute_cell_type_cooccurrence(
     if len(nuclei) < 2:
         raise RuntimeError("At least two matching nuclei are required for co-occurrence analysis.")
 
-    class_names = _normalise_kongnet_cell_types(cell_types) or list(KONGNET_PANNUKE_CLASS_DICT.values())
+    class_names = _normalise_kongnet_cell_types(cell_types) or _ordered_kongnet_class_names(nuclei)
     matrix = {source: {target: 0 for target in class_names} for source in class_names}
     coords = _nucleus_coordinates(nuclei, scale)
     pairs = cKDTree(coords).query_pairs(float(radius))
     for first, second in pairs:
         first_type = nuclei[first]["type"]
         second_type = nuclei[second]["type"]
+        if first_type not in matrix:
+            matrix[first_type] = {target: 0 for target in class_names}
+            for source in matrix:
+                matrix[source].setdefault(first_type, 0)
+            class_names.append(first_type)
+        if second_type not in matrix:
+            matrix[second_type] = {target: 0 for target in class_names}
+            for source in matrix:
+                matrix[source].setdefault(second_type, 0)
+            class_names.append(second_type)
         matrix[first_type][second_type] += 1
         if first_type != second_type:
             matrix[second_type][first_type] += 1
@@ -1707,7 +2947,7 @@ def tool_compute_cell_type_cooccurrence(
     class_counts = Counter(nucleus["type"] for nucleus in nuclei)
     epithelial_count = class_counts.get("Epithelial", 0)
     neoplastic_count = class_counts.get("Neoplastic", 0)
-    inflammatory_count = class_counts.get("Inflammatory", 0)
+    inflammatory_count = sum(class_counts.get(name, 0) for name in KONGNET_IMMUNE_CELL_TYPES)
     summary = {
         "annotationstore_path": annotationstore_path,
         "radius": float(radius),
@@ -1836,6 +3076,486 @@ def tool_compute_nearest_neighbour_features(
         f"Median distance: {summary['median_distance']:.3f} {scale['units']}",
         f"CSV: {output_csv_path}",
         f"JSON: {output_json_path}" if output_json_path else "JSON summary: not requested",
+    ])
+
+
+def _kongnet_region_label(class_counts: Counter) -> str:
+    """Assign a readable, descriptive label without implying diagnosis."""
+    total = sum(class_counts.values()) or 1
+    class_names = _ordered_kongnet_class_names([{"type": name} for name in class_counts])
+    fractions = {name: class_counts.get(name, 0) / total for name in class_names}
+    immune_fraction = _kongnet_immune_fraction(class_counts, total)
+    if fractions.get("Neoplastic", 0.0) >= 0.25 and immune_fraction >= 0.20:
+        return "mixed tumour-immune region"
+    if "Neoplastic" not in fractions and fractions.get("Epithelial", 0.0) >= 0.25 and immune_fraction >= 0.20:
+        return "mixed epithelial-immune region"
+    dominant = max(fractions, key=fractions.get)
+    return {
+        "Neoplastic": "high neoplastic-density region",
+        "Inflammatory": "high immune-density region",
+        "Neutrophil": "high immune-density region",
+        "Lymphocyte": "high immune-density region",
+        "Plasma": "high immune-density region",
+        "Eosinophil": "high immune-density region",
+        "Epithelial": "epithelial-rich region",
+        "Connective": "connective/stromal-rich region",
+        "Dead": "dead-cell-rich region",
+    }.get(dominant, "mixed-cell region")
+
+
+def tool_analyze_kongnet_regions(
+    annotationstore_path: str,
+    output_json_path: str,
+    output_csv_path: Optional[str] = None,
+    region_size: float = 500.0,
+    neighbourhood_radius: float = 50.0,
+    distance_units: str = "microns",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    min_cells_per_region: int = 10,
+    min_probability: float = 0.0,
+) -> str:
+    """Compute composition and spatial features independently in fixed local ROIs."""
+    import numpy as np
+    from scipy.spatial import cKDTree
+
+    if region_size <= 0 or neighbourhood_radius <= 0:
+        raise ValueError("region_size and neighbourhood_radius must be greater than 0.")
+    if min_cells_per_region < 1:
+        raise ValueError("min_cells_per_region must be at least 1.")
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
+    if not nuclei:
+        raise RuntimeError("No nuclei matched the requested probability threshold.")
+    coords = _nucleus_coordinates(nuclei, scale)
+    origin = coords.min(axis=0)
+    bins = np.floor((coords - origin) / float(region_size)).astype(int)
+    grouped: Dict[tuple, List[int]] = {}
+    for index, cell_bin in enumerate(bins):
+        grouped.setdefault((int(cell_bin[0]), int(cell_bin[1])), []).append(index)
+
+    class_names = _ordered_kongnet_class_names(nuclei)
+    regions = []
+    for (grid_x, grid_y), indices in sorted(grouped.items()):
+        if len(indices) < min_cells_per_region:
+            continue
+        region_cells = [nuclei[index] for index in indices]
+        region_coords = coords[indices]
+        class_counts = Counter(cell["type"] for cell in region_cells)
+        tree = cKDTree(region_coords)
+        pairs = tree.query_pairs(float(neighbourhood_radius))
+        pair_counts = Counter()
+        for first, second in pairs:
+            pair_name = "--".join(sorted((region_cells[first]["type"], region_cells[second]["type"])))
+            pair_counts[pair_name] += 1
+        if len(region_cells) > 1:
+            nearest_distances = tree.query(region_coords, k=2)[0][:, 1]
+            mean_nearest = float(np.mean(nearest_distances))
+        else:
+            mean_nearest = None
+        x_min = float(origin[0] + grid_x * region_size)
+        y_min = float(origin[1] + grid_y * region_size)
+        area = float(region_size) ** 2
+        region = {
+            "region_id": f"R{len(regions) + 1}",
+            "region_label": _kongnet_region_label(class_counts),
+            "grid_x": grid_x,
+            "grid_y": grid_y,
+            "x_min": x_min,
+            "y_min": y_min,
+            "x_max": x_min + float(region_size),
+            "y_max": y_min + float(region_size),
+            "distance_units": scale["units"],
+            "cell_count": len(region_cells),
+            "cell_density_per_square_unit": len(region_cells) / area,
+            "class_counts": {name: class_counts.get(name, 0) for name in class_names},
+            "class_percentages": {name: class_counts.get(name, 0) / len(region_cells) * 100 for name in class_names},
+            "pairs_within_radius": len(pairs),
+            "pair_counts": dict(pair_counts),
+            "mean_nearest_neighbour_distance": mean_nearest,
+        }
+        regions.append(region)
+
+    summary = {
+        "annotationstore_path": annotationstore_path,
+        "method": "fixed non-overlapping grid ROIs",
+        "region_size": float(region_size),
+        "neighbourhood_radius": float(neighbourhood_radius),
+        "distance_units": scale["units"],
+        "scale": scale,
+        "min_cells_per_region": min_cells_per_region,
+        "region_count": len(regions),
+        "regions": regions,
+        "interpretation_warning": "Region labels describe model-predicted composition and are not diagnoses.",
+    }
+    _write_json(output_json_path, summary)
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        fields = [
+            "region_id", "region_label", "grid_x", "grid_y", "x_min", "y_min", "x_max", "y_max",
+            "distance_units", "cell_count", "cell_density_per_square_unit", "pairs_within_radius",
+            "mean_nearest_neighbour_distance",
+            *[f"{name}_count" for name in class_names],
+            *[f"{name}_percentage" for name in class_names],
+        ]
+        with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=fields)
+            writer.writeheader()
+            for region in regions:
+                row = {key: region.get(key) for key in fields}
+                for name in class_names:
+                    row[f"{name}_count"] = region["class_counts"][name]
+                    row[f"{name}_percentage"] = region["class_percentages"][name]
+                writer.writerow(row)
+    return "\n".join([
+        "KongNet ROI analysis completed.",
+        f"Regions retained: {len(regions)}",
+        f"Region size: {region_size} {scale['units']}",
+        f"Local pair radius: {neighbourhood_radius} {scale['units']}",
+        f"JSON: {output_json_path}",
+        f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
+    ])
+
+
+KONGNET_REGION_COLOURS = {
+    "high neoplastic-density region": "#E53935",
+    "high immune-density region": "#1E88E5",
+    "epithelial-rich region": "#43A047",
+    "mixed tumour-immune region": "#8E24AA",
+    "mixed epithelial-immune region": "#6A1B9A",
+    "connective/stromal-rich region": "#FB8C00",
+    "dead-cell-rich region": "#6D4C41",
+    "mixed-cell region": "#757575",
+}
+
+
+def tool_export_kongnet_regions_to_annotationstore(
+    regions_json_path: str,
+    output_db_path: str,
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    overwrite: bool = True,
+) -> str:
+    """Create TIAViz-loadable ROI rectangles in baseline WSI coordinates."""
+    from shapely.geometry import box
+    from tiatoolbox.annotation.storage import Annotation, SQLiteStore
+
+    if not os.path.exists(regions_json_path):
+        raise FileNotFoundError(f"Regions JSON not found: {regions_json_path}")
+    with open(regions_json_path, "r", encoding="utf-8") as file:
+        data = json.load(file)
+    regions = data.get("regions", [])
+    if not regions:
+        raise ValueError("Regions JSON contains no ROI records.")
+
+    units = str(data.get("distance_units", "pixels")).lower()
+    stored_scale = data.get("scale") or {}
+    if units == "pixels":
+        x_scale = y_scale = 1.0
+    elif mpp is not None or wsi_path:
+        resolved = _resolve_spatial_scale("microns", wsi_path=wsi_path, mpp=mpp)
+        x_scale, y_scale = resolved["x_scale"], resolved["y_scale"]
+    elif stored_scale.get("x_scale") and stored_scale.get("y_scale"):
+        x_scale = float(stored_scale["x_scale"])
+        y_scale = float(stored_scale["y_scale"])
+    else:
+        raise ValueError("Micron-based ROI coordinates require wsi_path, mpp, or scale metadata in the regions JSON.")
+
+    ensure_parent_dir(output_db_path)
+    if os.path.exists(output_db_path):
+        if not overwrite:
+            raise FileExistsError(f"Output AnnotationStore already exists: {output_db_path}")
+        os.remove(output_db_path)
+
+    annotations = []
+    keys = []
+    labels = sorted({str(region.get("region_label", "mixed-cell region")) for region in regions})
+    type_ids = {label: index for index, label in enumerate(labels)}
+    for index, region in enumerate(regions):
+        label = str(region.get("region_label", "mixed-cell region"))
+        colour = KONGNET_REGION_COLOURS.get(label, KONGNET_REGION_COLOURS["mixed-cell region"])
+        geometry = box(
+            float(region["x_min"]) / x_scale,
+            float(region["y_min"]) / y_scale,
+            float(region["x_max"]) / x_scale,
+            float(region["y_max"]) / y_scale,
+        )
+        properties = {
+            "type": label,
+            "label": label,
+            "type_id": type_ids[label],
+            "region_id": region.get("region_id", f"R{index + 1}"),
+            "cell_count": int(region.get("cell_count", 0)),
+            "cell_density": float(region.get("cell_density_per_square_unit", 0.0)),
+            "pairs_within_radius": int(region.get("pairs_within_radius", 0)),
+            "mean_nearest_neighbour_distance": region.get("mean_nearest_neighbour_distance"),
+            "colour": colour,
+            "color": colour,
+            "line_color": colour,
+            "fill_color": colour,
+            "fill_opacity": 0.12,
+            "is_roi": True,
+            "coordinate_space": "baseline",
+            "source": "KongNet fixed ROI analysis",
+        }
+        for cell_type, percentage in region.get("class_percentages", {}).items():
+            properties[f"pct_{cell_type}"] = float(percentage)
+        annotations.append(Annotation(geometry, properties=properties))
+        keys.append(str(properties["region_id"]))
+
+    store = SQLiteStore(output_db_path)
+    try:
+        store.append_many(annotations, keys=keys)
+        store.commit()
+        annotation_count = len(store)
+    finally:
+        store.close()
+
+    overlays_dir = os.path.dirname(os.path.abspath(output_db_path))
+    slides_dir = os.path.dirname(os.path.abspath(wsi_path)) if wsi_path else "<SLIDES_DIRECTORY>"
+    tiaviz_command = f'tiatoolbox visualize --slides "{slides_dir}" --overlays "{overlays_dir}"'
+    return "\n".join([
+        "KongNet ROI boundary overlay created.",
+        f"ROI rectangles: {annotation_count}",
+        f"AnnotationStore: {output_db_path}",
+        "Place the nucleus AnnotationStore in the same overlay directory to view both layers together.",
+        "Open in TIAViz with:",
+        tiaviz_command,
+    ])
+
+
+def tool_generate_kongnet_region_heatmaps(
+    regions_json_path: str,
+    output_dir: str,
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    overwrite: bool = True,
+) -> str:
+    """Generate ROI heatmaps as TIAViz AnnotationStores."""
+    from matplotlib import colormaps
+    from matplotlib.colors import Normalize, to_hex
+    from shapely.geometry import box
+    from tiatoolbox.annotation.storage import Annotation, SQLiteStore
+
+    if not os.path.exists(regions_json_path):
+        raise FileNotFoundError(f"Regions JSON not found: {regions_json_path}")
+    with open(regions_json_path, "r", encoding="utf-8") as file:
+        data = json.load(file)
+    regions = data.get("regions", [])
+    if not regions:
+        raise ValueError("Regions JSON contains no ROI records.")
+    os.makedirs(output_dir, exist_ok=True)
+
+    units = str(data.get("distance_units", "pixels")).lower()
+    stored_scale = data.get("scale") or {}
+    if units == "pixels":
+        x_scale = y_scale = 1.0
+    elif mpp is not None or wsi_path:
+        scale = _resolve_spatial_scale("microns", wsi_path=wsi_path, mpp=mpp)
+        x_scale, y_scale = scale["x_scale"], scale["y_scale"]
+    elif stored_scale.get("x_scale") and stored_scale.get("y_scale"):
+        x_scale, y_scale = float(stored_scale["x_scale"]), float(stored_scale["y_scale"])
+    else:
+        raise ValueError("Micron-based heatmaps require wsi_path, mpp, or scale metadata in the regions JSON.")
+
+    def density_value(region: Dict[str, Any]) -> float:
+        raw = float(region.get("cell_density_per_square_unit", 0.0))
+        return raw * 1_000_000.0 if units == "microns" else raw
+
+    heatmaps = {
+        "density": {
+            "title": "KongNet Cell Density by ROI",
+            "unit": "cells/mm²" if units == "microns" else "cells/pixel²",
+            "cmap": "viridis",
+            "value": density_value,
+        },
+        "inflammatory": {
+            "title": "KongNet Inflammatory Cell Percentage by ROI",
+            "unit": "% inflammatory nuclei",
+            "cmap": "Blues",
+            "value": lambda region: _kongnet_region_scores(region)["inflammatory_percentage"],
+        },
+        "tumour_immune_interaction": {
+            "title": "KongNet Tumour-Immune Interaction by ROI",
+            "unit": "pairs per 100 cells",
+            "cmap": "magma",
+            "value": lambda region: _kongnet_region_scores(region)["tumour_immune_pairs_per_100_cells"],
+        },
+    }
+    outputs = {}
+    for metric, config in heatmaps.items():
+        db_path = os.path.join(output_dir, f"kongnet_{metric}_heatmap.db")
+        legacy_png_path = os.path.join(output_dir, f"kongnet_{metric}_heatmap.png")
+        if os.path.exists(db_path) and not overwrite:
+            raise FileExistsError(f"Heatmap output already exists: {db_path}")
+        if overwrite and os.path.exists(legacy_png_path):
+            os.remove(legacy_png_path)
+        values = [float(config["value"](region)) for region in regions]
+        value_min, value_max = min(values), max(values)
+        norm = Normalize(vmin=value_min, vmax=value_max if value_max > value_min else value_min + 1.0)
+        cmap = colormaps[config["cmap"]]
+
+        if os.path.exists(db_path):
+            os.remove(db_path)
+        annotations, keys = [], []
+        for region, value in zip(regions, values, strict=False):
+            percentile = norm(value)
+            level = "high" if percentile >= 0.67 else "moderate" if percentile >= 0.33 else "low"
+            colour = to_hex(cmap(percentile), keep_alpha=False)
+            geometry = box(
+                float(region["x_min"]) / x_scale,
+                float(region["y_min"]) / y_scale,
+                float(region["x_max"]) / x_scale,
+                float(region["y_max"]) / y_scale,
+            )
+            label = f"{metric.replace('_', ' ')}: {level}"
+            annotations.append(Annotation(geometry, properties={
+                "type": label,
+                "label": label,
+                "region_id": region.get("region_id"),
+                "heatmap_metric": metric,
+                "heatmap_value": value,
+                "heatmap_unit": config["unit"],
+                "level": level,
+                "color": colour,
+                "colour": colour,
+                "fill_color": colour,
+                "line_color": colour,
+                "fill_opacity": 0.35,
+                "coordinate_space": "baseline",
+                "source": "KongNet fixed ROI heatmap",
+            }))
+            keys.append(str(region.get("region_id")))
+        store = SQLiteStore(db_path)
+        try:
+            store.append_many(annotations, keys=keys)
+            store.commit()
+        finally:
+            store.close()
+        outputs[metric] = {
+            "annotationstore_path": db_path,
+            "minimum": value_min,
+            "maximum": value_max,
+            "unit": config["unit"],
+        }
+
+    manifest_path = os.path.join(output_dir, "kongnet_heatmaps_manifest.json")
+    _write_json(manifest_path, {
+        "regions_json_path": regions_json_path,
+        "region_count": len(regions),
+        "heatmaps": outputs,
+        "clinical_warning": "Heatmaps visualize model-derived ROI measurements, not diagnoses.",
+    })
+    return "\n".join([
+        "KongNet ROI heatmaps generated.",
+        f"Regions visualized: {len(regions)}",
+        "Heatmaps: density, inflammatory percentage, tumour-immune interaction",
+        f"TIAViz AnnotationStore outputs: {os.path.abspath(output_dir)}",
+        f"Manifest: {manifest_path}",
+    ])
+
+
+def tool_characterize_kongnet_cell_neighbourhoods(
+    annotationstore_path: str,
+    output_csv_path: str,
+    output_json_path: Optional[str] = None,
+    radius: float = 50.0,
+    distance_units: str = "microns",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    min_probability: float = 0.0,
+    community_count: int = 4,
+) -> str:
+    """Characterise every nucleus by neighbour type and cluster local profiles."""
+    import numpy as np
+    from scipy.spatial import cKDTree
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler
+
+    if radius <= 0:
+        raise ValueError("radius must be greater than 0.")
+    if community_count < 1:
+        raise ValueError("community_count must be at least 1.")
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
+    if not nuclei:
+        raise RuntimeError("No nuclei matched the requested probability threshold.")
+    coords = _nucleus_coordinates(nuclei, scale)
+    tree = cKDTree(coords)
+    class_names = _ordered_kongnet_class_names(nuclei)
+    count_matrix = np.zeros((len(nuclei), len(class_names)), dtype=int)
+    rows = []
+    for index, (nucleus, point) in enumerate(zip(nuclei, coords, strict=False)):
+        neighbour_indices = [candidate for candidate in tree.query_ball_point(point, float(radius)) if candidate != index]
+        neighbour_counts = Counter(nuclei[candidate]["type"] for candidate in neighbour_indices)
+        count_matrix[index] = [neighbour_counts.get(name, 0) for name in class_names]
+        rows.append({
+            "annotation_id": nucleus["annotation_id"],
+            "cell_type": nucleus["type"],
+            "probability": nucleus["probability"],
+            "x": float(point[0]),
+            "y": float(point[1]),
+            "distance_units": scale["units"],
+            "radius": float(radius),
+            "total_neighbours": len(neighbour_indices),
+            **{f"{name}_neighbours": neighbour_counts.get(name, 0) for name in class_names},
+        })
+
+    totals = count_matrix.sum(axis=1, keepdims=True)
+    proportions = np.divide(count_matrix, totals, out=np.zeros_like(count_matrix, dtype=float), where=totals > 0)
+    features = np.column_stack((proportions, np.log1p(totals[:, 0])))
+    cluster_count = min(int(community_count), len(nuclei))
+    labels = KMeans(n_clusters=cluster_count, random_state=0, n_init=10).fit_predict(StandardScaler().fit_transform(features))
+    communities = []
+    for cluster_id in range(cluster_count):
+        indices = np.flatnonzero(labels == cluster_id)
+        own_counts = Counter(nuclei[index]["type"] for index in indices)
+        neighbour_totals = count_matrix[indices].sum(axis=0)
+        neighbour_composition = Counter({name: int(neighbour_totals[pos]) for pos, name in enumerate(class_names)})
+        combined = Counter(own_counts)
+        combined.update(neighbour_composition)
+        label = _kongnet_region_label(combined)
+        community = {
+            "community_id": f"C{cluster_id + 1}",
+            "community_label": label,
+            "cell_count": len(indices),
+            "centroid_x": float(np.mean(coords[indices, 0])),
+            "centroid_y": float(np.mean(coords[indices, 1])),
+            "own_cell_type_counts": dict(own_counts),
+            "mean_neighbour_counts": {
+                name: float(np.mean(count_matrix[indices, pos])) for pos, name in enumerate(class_names)
+            },
+            "mean_total_neighbours": float(np.mean(totals[indices, 0])),
+        }
+        communities.append(community)
+        for index in indices:
+            rows[int(index)]["community_id"] = community["community_id"]
+            rows[int(index)]["community_label"] = label
+
+    ensure_parent_dir(output_csv_path)
+    with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    summary = {
+        "annotationstore_path": annotationstore_path,
+        "radius": float(radius),
+        "distance_units": scale["units"],
+        "cell_count": len(nuclei),
+        "community_count": cluster_count,
+        "clustering_features": [*[f"{name}_neighbour_proportion" for name in class_names], "log_total_neighbours"],
+        "communities": communities,
+        "output_csv_path": output_csv_path,
+        "interpretation_warning": "Communities are unsupervised model-derived patterns, not validated biological classes.",
+    }
+    _write_json(output_json_path, summary)
+    return "\n".join([
+        "Per-cell KongNet neighbourhood characterisation completed.",
+        f"Cells characterised: {len(nuclei)}",
+        f"Radius: {radius} {scale['units']}",
+        f"Spatial communities: {cluster_count}",
+        f"CSV: {output_csv_path}",
+        f"JSON summary: {output_json_path}" if output_json_path else "JSON summary: not requested",
     ])
 
 def _estimate_patch_size_from_predictions(preds: List[Dict[str, Any]], fallback: int = 224) -> int:
@@ -3589,11 +5309,286 @@ def tool_generate_final_ai_report(
     return report
 
 
+def _kongnet_region_scores(region: Dict[str, Any]) -> Dict[str, float]:
+    """Derive size-aware, explicitly defined scores from one ROI record."""
+    counts = region.get("class_counts", {})
+    percentages = region.get("class_percentages", {})
+    pair_counts = region.get("pair_counts", {})
+    cell_count = max(int(region.get("cell_count", 0)), 1)
+    density = float(region.get("cell_density_per_square_unit", 0.0))
+    inflammatory_pct = float(sum(float(percentages.get(name, 0.0)) for name in KONGNET_IMMUNE_CELL_TYPES))
+    neoplastic_pct = float(percentages.get("Neoplastic", 0.0))
+    connective_pct = float(percentages.get("Connective", 0.0))
+    epithelial_pct = float(percentages.get("Epithelial", 0.0))
+    immune_count = int(sum(int(counts.get(name, 0)) for name in KONGNET_IMMUNE_CELL_TYPES))
+    target_types = {"Neoplastic"} if int(counts.get("Neoplastic", 0)) > 0 else ({"Epithelial"} if int(counts.get("Epithelial", 0)) > 0 else set())
+    target_count = int(sum(int(counts.get(name, 0)) for name in target_types))
+    interaction_pairs = _kongnet_pair_count(pair_counts, KONGNET_IMMUNE_CELL_TYPES, target_types)
+    possible_cross_pairs = immune_count * target_count
+    return {
+        "inflammatory_percentage": inflammatory_pct,
+        "neoplastic_percentage": neoplastic_pct,
+        "connective_percentage": connective_pct,
+        "epithelial_percentage": epithelial_pct,
+        "inflammatory_density": density * inflammatory_pct / 100.0,
+        "neoplastic_density": density * neoplastic_pct / 100.0,
+        "tumour_immune_pair_count": float(interaction_pairs),
+        "tumour_immune_pairs_per_100_cells": interaction_pairs / cell_count * 100.0,
+        "tumour_immune_contact_fraction": interaction_pairs / possible_cross_pairs if possible_cross_pairs else 0.0,
+        "interaction_target_types": ", ".join(sorted(target_types)) if target_types else "",
+    }
+
+
+def _rank_kongnet_regions(regions: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    enriched = []
+    for region in regions:
+        row = {
+            "region_id": region.get("region_id"),
+            "region_label": region.get("region_label"),
+            "cell_count": int(region.get("cell_count", 0)),
+            **_kongnet_region_scores(region),
+        }
+        enriched.append(row)
+    ranking_metrics = {
+        "inflammatory": "inflammatory_percentage",
+        "neoplastic": "neoplastic_percentage",
+        "connective_stromal": "connective_percentage",
+        "epithelial": "epithelial_percentage",
+        "tumour_immune_interaction": "tumour_immune_pairs_per_100_cells",
+        "cell_density": "cell_count",
+    }
+    return {
+        name: sorted(enriched, key=lambda row: (row[metric], row["cell_count"]), reverse=True)
+        for name, metric in ranking_metrics.items()
+    }
+
+
+def tool_rank_kongnet_regions(
+    regions_json_path: str,
+    output_json_path: str,
+    output_txt_path: Optional[str] = None,
+    top_k: int = 5,
+) -> str:
+    """Rank local ROIs by cell composition and tumour-immune interaction."""
+    if not os.path.exists(regions_json_path):
+        raise FileNotFoundError(f"Regions JSON not found: {regions_json_path}")
+    if top_k < 1:
+        raise ValueError("top_k must be at least 1.")
+    with open(regions_json_path, "r", encoding="utf-8") as file:
+        region_data = json.load(file)
+    regions = region_data.get("regions", [])
+    if not regions:
+        raise ValueError("Regions JSON contains no ROI records.")
+    rankings = _rank_kongnet_regions(regions)
+    payload = {
+        "regions_json_path": regions_json_path,
+        "region_count": len(regions),
+        "top_k": min(top_k, len(regions)),
+        "score_definitions": {
+            "inflammatory": "Percentage of predicted inflammatory nuclei in the ROI.",
+            "neoplastic": "Percentage of predicted neoplastic nuclei in the ROI.",
+            "connective_stromal": "Percentage of predicted connective nuclei in the ROI.",
+            "epithelial": "Percentage of predicted epithelial nuclei in the ROI.",
+            "tumour_immune_interaction": "Immune-neoplastic neighbour pairs within the configured radius per 100 ROI cells; for CoNIC outputs without a neoplastic class, immune-epithelial pairs are used.",
+        },
+        "rankings": {name: rows[:top_k] for name, rows in rankings.items()},
+        "clinical_warning": "Rankings describe model-derived spatial patterns, not diagnoses.",
+    }
+    _write_json(output_json_path, payload)
+
+    titles = {
+        "inflammatory": "Top inflammatory regions",
+        "neoplastic": "Top neoplastic regions",
+        "connective_stromal": "Top connective/stromal regions",
+        "epithelial": "Top epithelial regions",
+        "tumour_immune_interaction": "Top tumour-immune interaction regions",
+        "cell_density": "Highest cell-density regions",
+    }
+    value_keys = {
+        "inflammatory": "inflammatory_percentage",
+        "neoplastic": "neoplastic_percentage",
+        "connective_stromal": "connective_percentage",
+        "epithelial": "epithelial_percentage",
+        "tumour_immune_interaction": "tumour_immune_pairs_per_100_cells",
+        "cell_density": "cell_count",
+    }
+    lines = ["KongNet Region Rankings", "=======================", ""]
+    for name, rows in payload["rankings"].items():
+        lines.extend([titles[name], "-" * len(titles[name])])
+        for index, row in enumerate(rows, start=1):
+            value = row[value_keys[name]]
+            suffix = "%" if name in {"inflammatory", "neoplastic", "connective_stromal", "epithelial"} else (
+                " pairs per 100 cells" if name == "tumour_immune_interaction" else " cells"
+            )
+            lines.append(f"{index}. {row['region_id']} - {value:.2f}{suffix} ({row['region_label']})")
+        lines.append("")
+    lines.append("These rankings are model-derived research outputs and are not clinical diagnoses.")
+    ranking_text = "\n".join(lines)
+    if output_txt_path:
+        root, extension = os.path.splitext(output_txt_path)
+        output_txt_path = output_txt_path if extension.lower() == ".txt" else f"{root if extension else output_txt_path}.txt"
+        ensure_parent_dir(output_txt_path)
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write(ranking_text)
+    return ranking_text
+
+
+def tool_answer_kongnet_spatial_question(
+    question: str,
+    regions_json_path: str,
+    output_txt_path: Optional[str] = None,
+    top_k: int = 5,
+) -> str:
+    """Answer common spatial-pathology questions using transparent ROI rankings."""
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be non-empty.")
+    if not os.path.exists(regions_json_path):
+        raise FileNotFoundError(f"Regions JSON not found: {regions_json_path}")
+    with open(regions_json_path, "r", encoding="utf-8") as file:
+        regions = json.load(file).get("regions", [])
+    if not regions:
+        raise ValueError("Regions JSON contains no ROI records.")
+    rankings = _rank_kongnet_regions(regions)
+    query = question.casefold()
+    if any(term in query for term in ("tumour-immune", "tumor-immune", "tumour immune", "tumor immune", "interaction")):
+        category, metric, descriptor = "tumour_immune_interaction", "tumour_immune_pairs_per_100_cells", "tumour-immune interaction"
+        unit = " inflammatory-neoplastic pairs per 100 cells"
+    elif any(term in query for term in ("inflamm", "immune")):
+        category, metric, descriptor = "inflammatory", "inflammatory_percentage", "inflammatory infiltration"
+        unit = "% inflammatory cells"
+    elif any(term in query for term in ("neoplast", "tumour", "tumor")):
+        category, metric, descriptor = "neoplastic", "neoplastic_percentage", "neoplastic composition"
+        unit = "% neoplastic cells"
+    elif any(term in query for term in ("strom", "connective")):
+        category, metric, descriptor = "connective_stromal", "connective_percentage", "connective/stromal composition"
+        unit = "% connective cells"
+    elif "epithelial" in query:
+        category, metric, descriptor = "epithelial", "epithelial_percentage", "epithelial composition"
+        unit = "% epithelial cells"
+    elif any(term in query for term in ("dense", "density", "cell-rich")):
+        category, metric, descriptor = "cell_density", "cell_count", "cell abundance"
+        unit = " cells"
+    else:
+        category, metric, descriptor = "tumour_immune_interaction", "tumour_immune_pairs_per_100_cells", "tumour-immune interaction"
+        unit = " inflammatory-neoplastic pairs per 100 cells"
+
+    ranked = rankings[category]
+    selected = ranked[:min(top_k, len(ranked))]
+    maximum = ranked[0][metric] if ranked else 0.0
+    lines = [
+        f"Question: {question.strip()}",
+        f"Answer: regions ranked by {descriptor}",
+        "",
+    ]
+    for index, row in enumerate(selected, start=1):
+        relative = row[metric] / maximum if maximum else 0.0
+        strength = "High" if relative >= 0.67 else "Moderate" if relative >= 0.33 else "Low"
+        lines.append(
+            f"{index}. {row['region_id']}: {strength} {descriptor} - "
+            f"{row[metric]:.2f}{unit}; {row['region_label']}."
+        )
+    derivation = (
+        "fixed-ROI inflammatory-neoplastic neighbour pairs were normalized per 100 cells and ranked."
+        if category == "tumour_immune_interaction"
+        else f"fixed-ROI model-predicted {descriptor} measurements were ranked."
+    )
+    lines.extend([
+        "",
+        f"How this was derived: {derivation}",
+        "Caution: this is an explainable query over model predictions, not a pathological diagnosis or proof of cellular interaction.",
+    ])
+    answer = "\n".join(lines)
+    if output_txt_path:
+        root, extension = os.path.splitext(output_txt_path)
+        output_txt_path = output_txt_path if extension.lower() == ".txt" else f"{root if extension else output_txt_path}.txt"
+        ensure_parent_dir(output_txt_path)
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write(answer)
+    return answer
+
+
+def tool_generate_kongnet_slide_summary(
+    nuclei_csv_path: str,
+    regions_json_path: str,
+    output_txt_path: str,
+    output_json_path: Optional[str] = None,
+) -> str:
+    """Create a concise examiner-friendly whole-slide spatial summary."""
+    if not os.path.exists(nuclei_csv_path):
+        raise FileNotFoundError(f"Nuclei CSV not found: {nuclei_csv_path}")
+    if not os.path.exists(regions_json_path):
+        raise FileNotFoundError(f"Regions JSON not found: {regions_json_path}")
+    with open(nuclei_csv_path, "r", encoding="utf-8", newline="") as file:
+        nuclei = list(csv.DictReader(file))
+    with open(regions_json_path, "r", encoding="utf-8") as file:
+        regions = json.load(file).get("regions", [])
+    if not nuclei or not regions:
+        raise ValueError("Slide summary requires nuclei and at least one ROI.")
+    counts = Counter(row.get("type") or "Unknown" for row in nuclei)
+    rankings = _rank_kongnet_regions(regions)
+    total = len(nuclei)
+    most_inflammatory = rankings["inflammatory"][0]
+    most_neoplastic = rankings["neoplastic"][0]
+    most_interactive = rankings["tumour_immune_interaction"][0]
+    summary = {
+        "total_nuclei": total,
+        "class_counts": dict(counts),
+        "class_percentages": {name: count / total * 100 for name, count in counts.items()},
+        "region_count": len(regions),
+        "most_inflammatory_region": most_inflammatory,
+        "most_neoplastic_region": most_neoplastic,
+        "most_tumour_immune_interactive_region": most_interactive,
+        "clinical_warning": "Model-derived research summary; not a clinical diagnosis.",
+    }
+    lines = [
+        "KongNet Slide Summary",
+        "=====================",
+        "",
+        f"Total nuclei: {total:,}",
+        f"Analysed ROIs: {len(regions)}",
+        "",
+        "Predicted cell composition",
+        "--------------------------",
+    ]
+    preferred_order = ["Neoplastic", "Inflammatory", "Connective", "Dead", "Epithelial"]
+    for name in preferred_order + sorted(set(counts) - set(preferred_order)):
+        count = counts.get(name, 0)
+        lines.append(f"- {name}: {count:,} ({count / total * 100:.2f}%)")
+    lines += [
+        "",
+        "Regional highlights",
+        "-------------------",
+        f"- Most inflammatory region: {most_inflammatory['region_id']} "
+        f"({most_inflammatory['inflammatory_percentage']:.2f}% inflammatory cells)",
+        f"- Most tumour-rich region: {most_neoplastic['region_id']} "
+        f"({most_neoplastic['neoplastic_percentage']:.2f}% neoplastic cells)",
+        f"- Strongest tumour-immune interaction region: {most_interactive['region_id']} "
+        f"({most_interactive['tumour_immune_pairs_per_100_cells']:.2f} inflammatory-neoplastic pairs per 100 cells)",
+        "",
+        "Interpretation",
+        "--------------",
+        "These highlights identify where model-predicted cell composition and local proximity patterns are strongest on this slide.",
+        "They should be verified against the histology and nucleus/ROI overlays and must not be interpreted as a clinical diagnosis.",
+    ]
+    text_summary = "\n".join(lines)
+    root, extension = os.path.splitext(output_txt_path)
+    output_txt_path = output_txt_path if extension.lower() == ".txt" else f"{root if extension else output_txt_path}.txt"
+    ensure_parent_dir(output_txt_path)
+    with open(output_txt_path, "w", encoding="utf-8") as file:
+        file.write(text_summary)
+    _write_json(output_json_path, summary)
+    return text_summary
+
+
 def tool_generate_kongnet_ai_report(
     nuclei_csv_path: str,
     cooccurrence_json_path: Optional[str] = None,
     neighbourhood_json_path: Optional[str] = None,
     nearest_neighbour_json_path: Optional[str] = None,
+    regions_json_path: Optional[str] = None,
+    communities_json_path: Optional[str] = None,
+    rankings_json_path: Optional[str] = None,
+    slide_summary_json_path: Optional[str] = None,
     output_report_path: Optional[str] = None,
 ) -> str:
     """Generate a research-oriented interpretability report for KongNet outputs."""
@@ -3626,8 +5621,13 @@ def tool_generate_kongnet_ai_report(
     cooccurrence = load_optional(cooccurrence_json_path, "Co-occurrence JSON")
     neighbourhood = load_optional(neighbourhood_json_path, "Neighbourhood JSON")
     nearest = load_optional(nearest_neighbour_json_path, "Nearest-neighbour JSON")
+    regions_data = load_optional(regions_json_path, "Regions JSON")
+    communities_data = load_optional(communities_json_path, "Communities JSON")
+    rankings_data = load_optional(rankings_json_path, "Region rankings JSON")
+    slide_summary_data = load_optional(slide_summary_json_path, "Slide summary JSON")
 
     counts = Counter(row.get("type", "Unknown") or "Unknown" for row in nuclei)
+    inferred_model_name = _infer_kongnet_model_name_from_counts(counts)
     probabilities = []
     for row in nuclei:
         try:
@@ -3666,6 +5666,22 @@ def tool_generate_kongnet_ai_report(
                 f"The most frequently observed nearest-neighbour relationship was "
                 f"{strongest[0].replace('->', ' to ')} ({strongest[1].get('count', 0):,} observations)."
             )
+    if regions_data:
+        key_findings.append(
+            f"Local ROI analysis retained {regions_data.get('region_count', 0):,} regions, allowing findings to be compared across the slide rather than reported globally only."
+        )
+    if communities_data:
+        key_findings.append(
+            f"Per-cell neighbourhood profiles formed {communities_data.get('community_count', 0)} model-derived spatial communities."
+        )
+    if rankings_data:
+        interaction_rows = rankings_data.get("rankings", {}).get("tumour_immune_interaction", [])
+        if interaction_rows:
+            row = interaction_rows[0]
+            key_findings.append(
+                f"{row.get('region_id')} ranked highest for immune-to-epithelial/tumour proximity "
+                f"({row.get('tumour_immune_pairs_per_100_cells', 0):.2f} pairs per 100 cells)."
+            )
 
     lines = [
         "KongNet AI Interpretability Report",
@@ -3678,12 +5694,12 @@ def tool_generate_kongnet_ai_report(
         "",
         "2. System Overview",
         "------------------",
-        "This report summarises nucleus detection, nucleus-type classification, confidence, and available spatial analyses from KongNet_PanNuke_1.",
+        f"This report summarises nucleus detection, nucleus-type classification, confidence, and available spatial analyses from {inferred_model_name}.",
         "It describes model-derived patterns and does not establish tissue diagnosis, prognosis, or treatment guidance.",
         "",
         "3. Detection Summary",
         "--------------------",
-        "- Model: KongNet_PanNuke_1",
+        f"- Model: {inferred_model_name}",
         f"- Detected nuclei: {total}",
         f"- Dominant predicted cell type: {dominant_type} ({dominant_count / total * 100:.2f}%)",
         f"- Detection source: {nuclei_csv_path}",
@@ -3742,21 +5758,95 @@ def tool_generate_kongnet_ai_report(
     else:
         lines.append("- Nearest-neighbour analysis was not supplied.")
 
+    lines += ["", "7. Local ROI Findings", "---------------------"]
+    if regions_data and regions_data.get("regions"):
+        regions = sorted(regions_data["regions"], key=lambda row: row.get("cell_count", 0), reverse=True)
+        lines.append(
+            f"The slide was divided into {regions_data.get('region_count', len(regions))} retained "
+            f"{regions_data.get('region_size', 'unknown')} {regions_data.get('distance_units', '')} ROIs."
+        )
+        for region in regions[:10]:
+            dominant = max(region.get("class_percentages", {}).items(), key=lambda item: item[1], default=("unknown", 0))
+            lines.append(
+                f"- {region.get('region_id')}: {region.get('region_label')}; {region.get('cell_count', 0):,} cells; "
+                f"dominant type {dominant[0]} ({dominant[1]:.1f}%); "
+                f"{region.get('pairs_within_radius', 0):,} local pairs."
+            )
+        if len(regions) > 10:
+            lines.append(f"- The 10 most populated regions are shown above; {len(regions) - 10} additional regions are available in the ROI files.")
+        lines.append("Interpretation: differences between ROIs reveal local heterogeneity that a single whole-slide total can hide.")
+    else:
+        lines.append("- Local ROI analysis was not supplied.")
+
+    lines += ["", "8. Per-Cell Neighbourhood Communities", "-------------------------------------"]
+    if communities_data and communities_data.get("communities"):
+        lines.append(
+            f"Every cell was characterised within {communities_data.get('radius', 'the selected')} "
+            f"{communities_data.get('distance_units', '')}, then grouped by neighbour composition."
+        )
+        for community in sorted(communities_data["communities"], key=lambda row: row.get("cell_count", 0), reverse=True):
+            means = community.get("mean_neighbour_counts", {})
+            dominant_neighbour = max(means.items(), key=lambda item: item[1], default=("unknown", 0))
+            lines.append(
+                f"- {community.get('community_id')}: {community.get('community_label')}; "
+                f"{community.get('cell_count', 0):,} cells; mean {community.get('mean_total_neighbours', 0):.1f} neighbours; "
+                f"largest mean neighbour group {dominant_neighbour[0]} ({dominant_neighbour[1]:.1f} per cell)."
+            )
+        lines.append("Interpretation: these communities summarize recurring local microenvironments; they are exploratory clusters, not validated biological classes.")
+    else:
+        lines.append("- Per-cell neighbourhood community analysis was not supplied.")
+
+    lines += ["", "9. Ranked Regional Findings", "----------------------------"]
+    if rankings_data:
+        ranking_specs = [
+            ("inflammatory", "inflammatory_percentage", "% inflammatory", "Most inflammatory"),
+            ("neoplastic", "neoplastic_percentage", "% neoplastic", "Most neoplastic"),
+            ("tumour_immune_interaction", "tumour_immune_pairs_per_100_cells", "pairs per 100 cells", "Strongest tumour-immune interaction"),
+        ]
+        for category, metric, unit, title in ranking_specs:
+            rows = rankings_data.get("rankings", {}).get(category, [])
+            if rows:
+                lines.append(f"- {title}: " + ", ".join(
+                    f"{row.get('region_id')} ({row.get(metric, 0):.2f} {unit})" for row in rows[:5]
+                ))
+        lines.append("Interpretation: rankings use normalized regional measurements so large ROIs do not automatically dominate interaction results.")
+    else:
+        lines.append("- Region rankings were not supplied.")
+
+    lines += ["", "10. Slide-Level Pathology Summary", "---------------------------------"]
+    if slide_summary_data:
+        inflammatory = slide_summary_data.get("most_inflammatory_region", {})
+        neoplastic = slide_summary_data.get("most_neoplastic_region", {})
+        interactive = slide_summary_data.get("most_tumour_immune_interactive_region", {})
+        lines += [
+            f"- Total model-detected nuclei: {slide_summary_data.get('total_nuclei', total):,}",
+            f"- Analysed local ROIs: {slide_summary_data.get('region_count', 'unknown')}",
+            f"- Most inflammatory ROI: {inflammatory.get('region_id', 'unknown')}",
+            f"- Most neoplastic ROI: {neoplastic.get('region_id', 'unknown')}",
+            f"- Strongest tumour-immune interaction ROI: {interactive.get('region_id', 'unknown')}",
+        ]
+    else:
+        lines.append("- A separate slide-level summary was not supplied.")
+
     lines += [
         "",
-        "7. Interpretation Guidance",
+        "11. Interpretation Guidance",
         "--------------------------",
         "Cell proportions describe the analysed region and are sensitive to tissue sampling, detection errors, class confusion, probability filtering, and slide quality.",
         "Spatial counts and distances describe proximity, not biological interaction or causality. Comparisons across slides require consistent magnification, physical scaling, regions, filters, and analysis parameters.",
         "",
-        "8. Recommended Supporting Outputs",
+        "12. Recommended Supporting Outputs",
         "---------------------------------",
         "- TIAViz nucleus overlay / AnnotationStore for visual verification",
         "- KongNet nuclei CSV for detection-level audit",
         "- Cell-type co-occurrence matrix",
         "- Radius-neighbourhood and nearest-neighbour tables",
+        "- Local ROI CSV/JSON with region-specific composition and spatial features",
+        "- Per-cell neighbourhood CSV and spatial-community JSON",
+        "- Ranked-region text/JSON outputs",
+        "- Density, inflammatory, and tumour-immune TIAViz heatmap AnnotationStores",
         "",
-        "9. Overall Conclusion",
+        "13. Overall Conclusion",
         "---------------------",
         f"KongNet detected {total} nuclei, with {dominant_type} as the most frequent predicted type. The supplied spatial analyses should be interpreted alongside the overlay and detection-level data.",
         "Final caution: all findings are model-derived research outputs and are not clinical diagnoses.",
@@ -3766,3 +5856,300 @@ def tool_generate_kongnet_ai_report(
     with open(output_report_path, "w", encoding="utf-8") as file:
         file.write(report)
     return report
+
+
+def tool_generate_nucleus_instance_segmentation_report(
+    annotationstore_path: str,
+    output_report_path: Optional[str] = None,
+    min_probability: float = 0.0,
+) -> str:
+    """Generate a plain-text interpretability report for nucleus instance segmentation outputs."""
+    instances = _load_nucleus_instance_segmentation_instances(annotationstore_path, min_probability)
+    if not instances:
+        raise ValueError("The nucleus instance segmentation output contains no retained instances.")
+
+    if not output_report_path:
+        output_report_path = os.path.join(
+            os.path.dirname(os.path.abspath(annotationstore_path)),
+            "nucleus_instance_segmentation_report.txt",
+        )
+    else:
+        report_root, report_extension = os.path.splitext(output_report_path)
+        if report_extension.lower() != ".txt":
+            output_report_path = f"{report_root if report_extension else output_report_path}.txt"
+
+    counts = Counter(instance.get("type", "Unknown") or "Unknown" for instance in instances)
+    inferred_model_name = _infer_nucleus_instance_segmentation_model_name_from_counts(counts)
+    total = len(instances)
+    dominant_type, dominant_count = counts.most_common(1)[0]
+    probabilities = [
+        float(instance["probability"])
+        for instance in instances
+        if isinstance(instance.get("probability"), (int, float))
+    ]
+    areas = [
+        float(instance["area"])
+        for instance in instances
+        if isinstance(instance.get("area"), (int, float)) and float(instance["area"]) >= 0
+    ]
+
+    lines = [
+        "Nucleus Instance Segmentation Report",
+        "====================================",
+        "",
+        "1. Executive Summary",
+        "--------------------",
+        f"- Analysed output: {annotationstore_path}",
+        f"- Inferred model/output family: {inferred_model_name}",
+        f"- Total segmented nucleus instances: {total:,}",
+        f"- Dominant predicted class: {dominant_type} ({dominant_count / total * 100:.2f}%)",
+        "- These findings are model-derived research outputs and are not a clinical diagnosis.",
+        "",
+        "2. Output Context",
+        "-----------------",
+        "- Task: nucleus instance segmentation.",
+        "- Meaning: the model predicts individual nucleus objects/boundaries and, where supported, class labels.",
+        f"- Minimum probability filter: {float(min_probability):.2f}",
+        "",
+        "3. Predicted Instance-Class Composition",
+        "---------------------------------------",
+    ]
+    for cell_type, count in counts.most_common():
+        lines.append(f"- {cell_type}: {count:,} ({count / total * 100:.2f}%)")
+
+    lines += ["", "4. Confidence Summary", "---------------------"]
+    if probabilities:
+        low_confidence = sum(value < 0.5 for value in probabilities)
+        mean_probability = sum(probabilities) / len(probabilities)
+        lines += [
+            f"- Instances with probability values: {len(probabilities):,} of {total:,}",
+            f"- Mean predicted probability: {mean_probability:.4f}",
+            f"- Minimum / maximum probability: {min(probabilities):.4f} / {max(probabilities):.4f}",
+            f"- Probability below 0.50: {low_confidence:,} ({low_confidence / len(probabilities) * 100:.2f}%)",
+            "Interpretation: probabilities reflect model confidence, not confirmed correctness.",
+        ]
+    else:
+        lines.append("- No usable probability values were present; confidence could not be summarised.")
+
+    lines += ["", "5. Instance Geometry Summary", "----------------------------"]
+    if areas:
+        mean_area = sum(areas) / len(areas)
+        lines += [
+            f"- Instances with measurable geometry area: {len(areas):,} of {total:,}",
+            f"- Mean instance area in AnnotationStore coordinate units: {mean_area:.2f}",
+            f"- Minimum / maximum area: {min(areas):.2f} / {max(areas):.2f}",
+            "Interpretation: area values are useful for quality control but depend on coordinate units and output geometry.",
+        ]
+    else:
+        lines.append("- No usable instance geometry areas were available.")
+
+    lines += [
+        "",
+        "6. Interpretation Guidance",
+        "--------------------------",
+        "- Class names can overlap across model families, so model selection should use task type, model name, tissue context, and full class set.",
+        "- Instance segmentation boundaries should be visually checked in TIAViz against the original histology.",
+        "- Counts and percentages describe model predictions in the analysed output, not ground-truth biology.",
+        "- This report does not provide diagnosis, grading, prognosis, or treatment advice.",
+        "",
+        "7. Files",
+        "--------",
+        f"- Source output: {annotationstore_path}",
+        f"- Saved report: {output_report_path}",
+    ]
+
+    report_text = "\n".join(lines)
+    ensure_parent_dir(output_report_path)
+    with open(output_report_path, "w", encoding="utf-8") as file:
+        file.write(report_text)
+    return report_text
+
+
+def tool_run_kongnet_spatial_workflow(
+    annotationstore_path: str,
+    output_dir: str,
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    min_probability: float = 0.0,
+    neighbourhood_radius: float = 50.0,
+    region_size: float = 500.0,
+    min_cells_per_region: int = 10,
+    community_count: int = 4,
+    pathology_question: Optional[str] = None,
+    overwrite: bool = True,
+) -> str:
+    """Run the complete KongNet spatial interpretability workflow."""
+    if not isinstance(output_dir, str) or not output_dir.strip():
+        raise ValueError("output_dir must be a non-empty path.")
+    if not os.path.exists(annotationstore_path):
+        raise FileNotFoundError(f"KongNet AnnotationStore or nuclei CSV not found: {annotationstore_path}")
+    if not 0.0 <= float(min_probability) <= 1.0:
+        raise ValueError("min_probability must be between 0 and 1.")
+    if neighbourhood_radius <= 0 or region_size <= 0:
+        raise ValueError("neighbourhood_radius and region_size must be greater than 0.")
+    if min_cells_per_region < 1 or community_count < 1:
+        raise ValueError("min_cells_per_region and community_count must be at least 1.")
+
+    os.makedirs(output_dir, exist_ok=True)
+    paths = {
+        "nuclei_csv": os.path.join(output_dir, "kongnet_nuclei.csv"),
+        "neighbourhood_csv": os.path.join(output_dir, "radius_neighbourhoods.csv"),
+        "neighbourhood_json": os.path.join(output_dir, "radius_neighbourhoods.json"),
+        "cooccurrence_csv": os.path.join(output_dir, "cell_type_cooccurrence.csv"),
+        "cooccurrence_json": os.path.join(output_dir, "cell_type_cooccurrence.json"),
+        "nearest_csv": os.path.join(output_dir, "nearest_neighbours.csv"),
+        "nearest_json": os.path.join(output_dir, "nearest_neighbours.json"),
+        "regions_csv": os.path.join(output_dir, "kongnet_regions.csv"),
+        "regions_json": os.path.join(output_dir, "kongnet_regions.json"),
+        "regions_db": os.path.join(output_dir, "kongnet_region_boundaries.db"),
+        "cell_neighbourhoods_csv": os.path.join(output_dir, "kongnet_cell_neighbourhoods.csv"),
+        "communities_json": os.path.join(output_dir, "kongnet_spatial_communities.json"),
+        "rankings_json": os.path.join(output_dir, "kongnet_region_rankings.json"),
+        "rankings_txt": os.path.join(output_dir, "kongnet_region_rankings.txt"),
+        "slide_summary_json": os.path.join(output_dir, "kongnet_slide_summary.json"),
+        "slide_summary_txt": os.path.join(output_dir, "kongnet_slide_summary.txt"),
+        "heatmaps_manifest_json": os.path.join(output_dir, "kongnet_heatmaps_manifest.json"),
+        "density_heatmap_db": os.path.join(output_dir, "kongnet_density_heatmap.db"),
+        "inflammatory_heatmap_db": os.path.join(output_dir, "kongnet_inflammatory_heatmap.db"),
+        "interaction_heatmap_db": os.path.join(output_dir, "kongnet_tumour_immune_interaction_heatmap.db"),
+        "question_answer_txt": os.path.join(output_dir, "kongnet_spatial_question_answer.txt"),
+        "report_txt": os.path.join(output_dir, "kongnet_ai_interpretability_report.txt"),
+        "manifest_json": os.path.join(output_dir, "kongnet_spatial_workflow_manifest.json"),
+    }
+    if not overwrite:
+        existing = [path for path in paths.values() if os.path.exists(path)]
+        if existing:
+            raise FileExistsError("Workflow outputs already exist: " + ", ".join(existing))
+
+    spatial_kwargs = {"wsi_path": wsi_path, "mpp": mpp}
+    step_results = {}
+    step_results["export_nuclei"] = tool_export_kongnet_nuclei_to_csv(
+        annotationstore_path=annotationstore_path,
+        output_csv_path=paths["nuclei_csv"],
+        min_probability=min_probability,
+        **spatial_kwargs,
+    )
+    step_results["radius_neighbourhoods"] = tool_find_cells_within_radius(
+        annotationstore_path=annotationstore_path,
+        output_csv_path=paths["neighbourhood_csv"],
+        output_json_path=paths["neighbourhood_json"],
+        radius=neighbourhood_radius,
+        min_probability=min_probability,
+        **spatial_kwargs,
+    )
+    step_results["cooccurrence"] = tool_compute_cell_type_cooccurrence(
+        annotationstore_path=annotationstore_path,
+        output_json_path=paths["cooccurrence_json"],
+        output_csv_path=paths["cooccurrence_csv"],
+        radius=neighbourhood_radius,
+        min_probability=min_probability,
+        **spatial_kwargs,
+    )
+    step_results["nearest_neighbours"] = tool_compute_nearest_neighbour_features(
+        annotationstore_path=annotationstore_path,
+        output_csv_path=paths["nearest_csv"],
+        output_json_path=paths["nearest_json"],
+        min_probability=min_probability,
+        **spatial_kwargs,
+    )
+    step_results["roi_analysis"] = tool_analyze_kongnet_regions(
+        annotationstore_path=annotationstore_path,
+        output_json_path=paths["regions_json"],
+        output_csv_path=paths["regions_csv"],
+        region_size=region_size,
+        neighbourhood_radius=neighbourhood_radius,
+        min_cells_per_region=min_cells_per_region,
+        min_probability=min_probability,
+        **spatial_kwargs,
+    )
+    step_results["roi_overlay"] = tool_export_kongnet_regions_to_annotationstore(
+        regions_json_path=paths["regions_json"],
+        output_db_path=paths["regions_db"],
+        wsi_path=wsi_path,
+        mpp=mpp,
+        overwrite=overwrite,
+    )
+    step_results["region_rankings"] = tool_rank_kongnet_regions(
+        regions_json_path=paths["regions_json"],
+        output_json_path=paths["rankings_json"],
+        output_txt_path=paths["rankings_txt"],
+        top_k=5,
+    )
+    step_results["region_heatmaps"] = tool_generate_kongnet_region_heatmaps(
+        regions_json_path=paths["regions_json"],
+        output_dir=output_dir,
+        wsi_path=wsi_path,
+        mpp=mpp,
+        overwrite=overwrite,
+    )
+    step_results["cell_neighbourhood_communities"] = tool_characterize_kongnet_cell_neighbourhoods(
+        annotationstore_path=annotationstore_path,
+        output_csv_path=paths["cell_neighbourhoods_csv"],
+        output_json_path=paths["communities_json"],
+        radius=neighbourhood_radius,
+        min_probability=min_probability,
+        community_count=community_count,
+        **spatial_kwargs,
+    )
+    step_results["slide_summary"] = tool_generate_kongnet_slide_summary(
+        nuclei_csv_path=paths["nuclei_csv"],
+        regions_json_path=paths["regions_json"],
+        output_txt_path=paths["slide_summary_txt"],
+        output_json_path=paths["slide_summary_json"],
+    )
+    if pathology_question and pathology_question.strip():
+        step_results["pathology_question_answer"] = tool_answer_kongnet_spatial_question(
+            question=pathology_question,
+            regions_json_path=paths["regions_json"],
+            output_txt_path=paths["question_answer_txt"],
+            top_k=5,
+        )
+    else:
+        paths.pop("question_answer_txt")
+    report = tool_generate_kongnet_ai_report(
+        nuclei_csv_path=paths["nuclei_csv"],
+        cooccurrence_json_path=paths["cooccurrence_json"],
+        neighbourhood_json_path=paths["neighbourhood_json"],
+        nearest_neighbour_json_path=paths["nearest_json"],
+        regions_json_path=paths["regions_json"],
+        communities_json_path=paths["communities_json"],
+        rankings_json_path=paths["rankings_json"],
+        slide_summary_json_path=paths["slide_summary_json"],
+        output_report_path=paths["report_txt"],
+    )
+    step_results["interpretability_report"] = f"Saved plain-text report ({len(report)} characters)."
+
+    manifest = {
+        "workflow": "full_kongnet_spatial_workflow",
+        "status": "completed",
+        "annotationstore_path": annotationstore_path,
+        "wsi_path": wsi_path,
+        "parameters": {
+            "mpp": mpp,
+            "min_probability": min_probability,
+            "neighbourhood_radius": neighbourhood_radius,
+            "region_size": region_size,
+            "min_cells_per_region": min_cells_per_region,
+            "community_count": community_count,
+            "pathology_question": pathology_question,
+        },
+        "outputs": paths,
+        "completed_steps": list(step_results),
+        "clinical_warning": "Model-derived research outputs; not a clinical diagnosis.",
+    }
+    _write_json(paths["manifest_json"], manifest)
+
+    slides_dir = os.path.dirname(os.path.abspath(wsi_path)) if wsi_path else "<SLIDES_DIRECTORY>"
+    tiaviz_command = f'tiatoolbox visualize --slides "{slides_dir}" --overlays "{os.path.abspath(output_dir)}"'
+    return "\n".join([
+        "Full KongNet spatial workflow completed successfully.",
+        f"Completed steps: {len(step_results)}",
+        f"Output directory: {os.path.abspath(output_dir)}",
+        f"Text report: {paths['report_txt']}",
+        f"ROI overlay: {paths['regions_db']}",
+        f"Workflow manifest: {paths['manifest_json']}",
+        "",
+        "Open the generated ROI overlay in TIAViz with:",
+        tiaviz_command,
+        "Place or copy the nucleus AnnotationStore into the same output directory to view both overlay layers together.",
+    ])
