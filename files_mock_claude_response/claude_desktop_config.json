@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "tiapathology": {
+      "command": "C:\\Users\\Rohit Kumar\\Desktop\\health_mcpserver\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-u",
+        "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\tiatoolbox_mcpserver.py"
+      ]
+    }
+  },
+  "coworkUserFilesPath": "C:\\Users\\Rohit Kumar\\Claude",
+  "preferences": {
+    "launchPreviewPersistedWorkspaces": [],
+    "launchPr9yMnTm4NSzvG9rrwjM2ec8xZgh1cafXH8": [],
+    "coworkScheduledTasksEnabled": true,
+    "coworkHipaaRestricted": false,
+    "ccdScheduledTasksEnabled": true,
+    "sidebarMode": "chat",
+    "bypassPermissionsGateByAccount": {
+      "368ceece-c6b7-489d-8797-a3abe9996e24": false
+    },
+    "coworkWebSearchEnabled": true,
+    "coworkModelAutoFallbackByAccount": {
+      "368ceece-c6b7-489d-8797-a3abe9996e24": true
+    },
+    "remoteToolsDeviceName": "laptop-dmru30ub",
+    "epitaxyPrefs": {
+      "starred-local-code-sessions": [],
+      "starred-cowork-spaces": [],
+      "starred-session-groups": [],
+      "dframe-local-slice": {
+        "pinnedOrder": [],
+        "customGroupAssignments": {},
+        "customGroupOrder": {}
+      },
+      "ccd-sessions-filter": {
+        "state": {
+          "selectedProjects": []
+        },
+        "version": 0
+      },
+      "desktop-frame.paneStore.v1": {
+        "state": {
+          "extraPanesByMode": {},
+          "colWeightsByMode": {},
+          "rowSplit": 0.5,
+          "draftNonce": 0
+        },
+        "version": 4
+      },
+      "cc-landing-worktree-enabled": false
+    }
+  }
+}
