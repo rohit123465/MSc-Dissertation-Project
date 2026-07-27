@@ -14,6 +14,7 @@ from tia_tools import (
     tool_echo,
     tool_list_files,
     tool_wsi_metadata,
+    tool_validate_qupath_roi_pair,
     tool_wsi_thumbnail,
     tool_tissue_mask,
     tool_extract_patches,
@@ -29,6 +30,7 @@ from tia_tools import (
     tool_compute_cell_type_cooccurrence,
     tool_compute_nearest_neighbour_features,
     tool_analyze_kongnet_regions,
+    tool_compute_kongnet_point_pattern_statistics,
     tool_export_kongnet_regions_to_annotationstore,
     tool_characterize_kongnet_cell_neighbourhoods,
     tool_aggregate_kather_metrics,
@@ -44,6 +46,7 @@ from tia_tools import (
     tool_rank_kongnet_regions,
     tool_answer_kongnet_spatial_question,
     tool_generate_kongnet_region_heatmaps,
+    tool_generate_kongnet_point_pattern_overlays,
     tool_generate_kongnet_slide_summary,
     PATCH_PREDICTION_MODEL_CATALOG,
     _patch_prediction_model_summary,
@@ -60,6 +63,7 @@ from tia_tools import (
 PROTOCOL_VERSION = "2025-06-18"
 
 PENDING_PLANS: Dict[str, Dict[str, Any]] = {}
+APPROVED_PLANS: Dict[str, Dict[str, Any]] = {}
 
 
 def utc_now_iso() -> str:
@@ -455,6 +459,65 @@ def infer_task_type(user_prompt: str) -> str:
     request = user_prompt.lower()
 
     if any(k in request for k in [
+        "validate roi pair",
+        "validate the roi pair",
+        "validate qupath roi",
+        "roi-pair validation",
+        "roi pair validation",
+        "check roi geojson",
+        "verify roi geojson",
+    ]):
+        return "roi_pair_validation"
+
+    metadata_requested = any(k in request for k in [
+        "metadata",
+        "image dimensions",
+        "level 0 dimensions",
+        "microns-per-pixel",
+        "microns per pixel",
+        "mpp",
+        "pyramid levels",
+        "objective information",
+        "objective power",
+    ])
+    execution_prohibited = any(k in request for k in [
+        "do not start prediction",
+        "do not run prediction",
+        "do not predict",
+        "no prediction",
+        "metadata only",
+        "only the metadata",
+        "read only the metadata",
+    ])
+    analysis_requested = any(k in request for k in [
+        "run prediction",
+        "start prediction",
+        "predict using",
+        "run segmentation",
+        "start segmentation",
+        "extract patches",
+        "run spatial",
+    ])
+    if metadata_requested and (execution_prohibited or not analysis_requested):
+        return "metadata_only"
+
+    requests_individual_spatial_tools = any(k in request for k in [
+        "individual tools",
+        "individual spatial tools",
+        "per-tool route",
+        "separate radii",
+        "different radii",
+        "exact radii",
+    ])
+    requests_multiple_spatial_operations = (
+        any(k in request for k in ["co-occurrence", "cooccurrence"])
+        and any(k in request for k in ["within radius", "within 25", "radius based", "radius-based"])
+        and any(k in request for k in ["cell density", "density"])
+    )
+    if requests_individual_spatial_tools or requests_multiple_spatial_operations:
+        return "custom_nucleus_spatial_analysis"
+
+    if any(k in request for k in [
         "show me tumour-immune",
         "show me tumor-immune",
         "top inflammatory region",
@@ -497,6 +560,22 @@ def infer_task_type(user_prompt: str) -> str:
         "region heatmap",
         "interaction heatmap",
         "density heatmap",
+        "pointpats",
+        "point pattern",
+        "ripley",
+        "ripley's",
+        "quadrat",
+        "clustered-cell roi overlay",
+        "clustered cell roi overlay",
+        "nni heatmap",
+        "quadrat vmr heatmap",
+        "ripley clustering",
+        "point-pattern overlay",
+        "point pattern overlay",
+        "spatial randomness",
+        "nearest-neighbour index",
+        "nearest-neighbor index",
+        "csr",
         "slide summary",
         "spatial workflow",
         "full kongnet workflow",
@@ -661,13 +740,52 @@ def infer_task_type(user_prompt: str) -> str:
     return "general_wsi_analysis"
 
 
-def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, Any]:
+def build_plan(
+    user_prompt: str,
+    wsi_path: str,
+    output_dir: str,
+    geojson_path: str = "",
+) -> Dict[str, Any]:
     task_type = infer_task_type(user_prompt)
-    approval_token = str(uuid.uuid4())
+    plan_id = str(uuid.uuid4())
+    slide_stem = os.path.splitext(os.path.basename(wsi_path))[0] if wsi_path else ""
+    slide_prefix = f"{slide_stem}_" if slide_stem else ""
 
-    ensure_output_dir(output_dir)
+    if task_type == "roi_pair_validation":
+        plan = {
+            "task_type": task_type,
+            "goal": "Validate that a QuPath GeoJSON annotation and exported ROI image form a consistent pair.",
+            "steps": [
+                "Read the exported ROI image metadata.",
+                "Read and validate the selected Polygon or MultiPolygon annotation from the GeoJSON.",
+                "Compare the GeoJSON bounding box with the image dimensions and infer the crop downsample.",
+                "Calculate the original-WSI origin, crop-local polygon bounds, ROI fraction, and physical area.",
+                "Save a JSON validation manifest; do not run prediction or spatial analysis."
+            ],
+            "suggested_tools_after_approval": [
+                "validate_qupath_roi_pair"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "qupath_roi_pair_validation.json")
+            ]
+        }
 
-    if task_type == "thumbnail_only":
+    elif task_type == "metadata_only":
+        plan = {
+            "task_type": task_type,
+            "goal": "Read and report WSI metadata without running analysis or prediction.",
+            "steps": [
+                "Open the image in read-only mode.",
+                "Report dimensions, microns-per-pixel, pyramid levels, channels, and objective information.",
+                "Do not run prediction, segmentation, masking, patch extraction, or report generation."
+            ],
+            "suggested_tools_after_approval": [
+                "wsi_metadata"
+            ],
+            "expected_outputs": []
+        }
+
+    elif task_type == "thumbnail_only":
         plan = {
             "task_type": task_type,
             "goal": "Generate a thumbnail overview of the WSI.",
@@ -776,6 +894,47 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
             "clinical_warning": "Answers query model-derived ROI evidence and are not clinical diagnoses."
         }
 
+    elif task_type == "custom_nucleus_spatial_analysis":
+        plan = {
+            "task_type": task_type,
+            "goal": "Run individually parameterised KongNet ROI spatial analyses without rerunning inference.",
+            "steps": [
+                "Validate the QuPath OME-TIFF and GeoJSON ROI pair.",
+                "Export filtered KongNet nucleus identifiers, coordinates, classes, and probabilities.",
+                "Compute cell-type co-occurrence using the user-requested co-occurrence radius.",
+                "Count selected target cell types around each requested source population using the independently requested radius.",
+                "Divide the ROI into local regions and calculate cell composition and density.",
+                "Save separate CSV and JSON outputs for each operation."
+            ],
+            "suggested_tools_after_approval": [
+                "validate_qupath_roi_pair",
+                "export_kongnet_nuclei_to_csv",
+                "compute_cell_type_cooccurrence",
+                "find_cells_within_radius",
+                "analyze_kongnet_regions"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "qupath_roi_pair_validation.json"),
+                os.path.join(output_dir, "roi_nuclei.csv"),
+                os.path.join(output_dir, "cell_type_cooccurrence_100um.csv"),
+                os.path.join(output_dir, "cell_type_cooccurrence_100um.json"),
+                os.path.join(output_dir, "neoplastic_neighbours_25um.csv"),
+                os.path.join(output_dir, "neoplastic_neighbours_25um.json"),
+                os.path.join(output_dir, "roi_cell_density.csv"),
+                os.path.join(output_dir, "roi_cell_density.json")
+            ],
+            "default_parameters": {
+                "distance_units": "microns",
+                "cooccurrence_radius": 100.0,
+                "neighbourhood_radius": 25.0,
+                "neighbourhood_target_types": ["Neoplastic"],
+                "min_probability": 0.0
+            },
+            "clinical_warning": (
+                "These are model-derived ROI spatial research features, not a clinical diagnosis."
+            )
+        }
+
     elif task_type == "nucleus_spatial_analysis":
         plan = {
             "task_type": task_type,
@@ -787,6 +946,8 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 "Compute the cell-type co-occurrence matrix and inflammatory cell ratios.",
                 "Compute nearest-neighbour distances by source and target cell type.",
                 "Divide the slide into local ROIs and compute composition and spatial features per region.",
+                "Compute point-pattern statistics including nearest-neighbour index, quadrat heterogeneity, Ripley-style clustering, and tumour/epithelial-immune proximity.",
+                "Export point-pattern visual overlays for clustered-cell ROIs, NNI, quadrat VMR, and Ripley clustering strength.",
                 "Export ROI rectangles as a TIAViz-compatible AnnotationStore for true WSI overlay.",
                 "Characterise every cell by neighbour type and cluster the profiles into spatial communities.",
                 "Include region and community findings in the text interpretability report."
@@ -801,18 +962,26 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
                 os.path.join(output_dir, "cell_type_cooccurrence.json"),
                 os.path.join(output_dir, "nearest_neighbours.csv"),
                 os.path.join(output_dir, "kongnet_regions.json"),
-                os.path.join(output_dir, "kongnet_region_boundaries.db"),
+                os.path.join(output_dir, "kongnet_point_pattern_statistics.json"),
+                os.path.join(output_dir, "kongnet_point_pattern_statistics.txt"),
+                os.path.join(output_dir, f"{slide_prefix}kongnet_point_pattern_clustered_cell_roi.db"),
+                os.path.join(output_dir, f"{slide_prefix}kongnet_point_pattern_nni_heatmap.db"),
+                os.path.join(output_dir, f"{slide_prefix}kongnet_point_pattern_quadrat_vmr_heatmap.db"),
+                os.path.join(output_dir, f"{slide_prefix}kongnet_point_pattern_ripley_clustering_strength.db"),
+                os.path.join(output_dir, f"{slide_prefix}kongnet_region_boundaries.db"),
                 os.path.join(output_dir, "kongnet_cell_neighbourhoods.csv"),
                 os.path.join(output_dir, "kongnet_spatial_communities.json"),
                 os.path.join(output_dir, "kongnet_region_rankings.txt"),
-                os.path.join(output_dir, "kongnet_density_heatmap.db"),
-                os.path.join(output_dir, "kongnet_inflammatory_heatmap.db"),
-                os.path.join(output_dir, "kongnet_tumour_immune_interaction_heatmap.db"),
+                os.path.join(output_dir, f"{slide_prefix}kongnet_density_heatmap.db"),
+                os.path.join(output_dir, f"{slide_prefix}kongnet_inflammatory_heatmap.db"),
+                os.path.join(output_dir, f"{slide_prefix}kongnet_tumour_immune_interaction_heatmap.db"),
                 os.path.join(output_dir, "kongnet_slide_summary.txt"),
                 os.path.join(output_dir, "kongnet_ai_interpretability_report.txt")
             ],
             "default_parameters": {
                 "radius": 50.0,
+                "region_size": 100.0,
+                "min_cells_per_region": 5,
                 "distance_units": "microns",
                 "min_probability": 0.0
             },
@@ -1040,28 +1209,64 @@ def build_plan(user_prompt: str, wsi_path: str, output_dir: str) -> Dict[str, An
         }
 
     plan["wsi_path"] = wsi_path
+    if geojson_path:
+        plan["geojson_path"] = geojson_path
     plan["output_dir"] = output_dir
-    plan["approval_token"] = approval_token
+    plan["plan_id"] = plan_id
+    plan["status"] = "pending_user_approval"
     plan["instruction"] = (
-        "Show this plan to the user and wait for explicit approval before calling execution tools. "
-        "After approval, call only the relevant MCP tools listed in suggested_tools_after_approval."
+        "Show this plan to the user and stop. Do not call approve_pathology_plan yourself "
+        "until the user explicitly approves this exact plan in a later message. After the "
+        "user approves, call approve_pathology_plan to obtain a separate execution token. "
+        "Only then call tools listed in suggested_tools_after_approval."
     )
 
-    PENDING_PLANS[approval_token] = plan
+    PENDING_PLANS[plan_id] = plan
     return plan
 
 
-def require_plan(args: Dict[str, Any]) -> str:
+def approve_plan(plan_id: str, confirmation: str) -> Dict[str, Any]:
+    if confirmation != "I approve this plan":
+        raise RuntimeError('Exact confirmation required: "I approve this plan".')
+    if plan_id not in PENDING_PLANS:
+        raise RuntimeError("Invalid, expired, or already-approved plan_id.")
+
+    plan = PENDING_PLANS.pop(plan_id)
+    approval_token = str(uuid.uuid4())
+    plan["status"] = "approved"
+    plan["approved_at"] = utc_now_iso()
+    plan["approval_token"] = approval_token
+    APPROVED_PLANS[approval_token] = plan
+    return {
+        "plan_id": plan_id,
+        "status": "approved",
+        "approval_token": approval_token,
+        "approved_tools": plan.get("suggested_tools_after_approval", []),
+        "instruction": "Execution may now begin, limited to approved_tools."
+    }
+
+
+def require_plan(args: Dict[str, Any], tool_name: str) -> str:
     token = args.get("approval_token")
 
     if not isinstance(token, str) or not token.strip():
         raise RuntimeError(
-            "Execution requires approval_token from propose_pathology_plan. "
-            "First call propose_pathology_plan, show the plan to the user, and wait for approval."
+            "Execution requires an approval_token from approve_pathology_plan. "
+            "First propose a plan, show it to the user, wait for explicit approval, "
+            "and then approve that plan."
         )
 
-    if token not in PENDING_PLANS:
-        raise RuntimeError("Invalid or expired approval_token. Generate a fresh plan first.")
+    if token not in APPROVED_PLANS:
+        raise RuntimeError(
+            "Invalid or unapproved approval_token. A pending plan cannot authorize execution."
+        )
+
+    approved_tools = APPROVED_PLANS[token].get("suggested_tools_after_approval", [])
+    if tool_name not in approved_tools:
+        raise RuntimeError(
+            f'Tool "{tool_name}" is outside the approved plan. '
+            f"Approved tools: {approved_tools}."
+        )
 
     return token
 
@@ -1095,15 +1300,33 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
         {
             "name": "propose_pathology_plan",
             "title": "Propose Pathology Plan",
-            "description": "Required first step for every pathology request.",
+            "description": "Required first step for every pathology request. Returns a non-executable pending plan. Show it to the user and stop until the user explicitly approves it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "user_prompt": {"type": "string"},
                     "wsi_path": {"type": "string"},
+                    "geojson_path": {"type": "string"},
                     "output_dir": {"type": "string"}
                 },
                 "required": ["user_prompt", "wsi_path", "output_dir"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "approve_pathology_plan",
+            "title": "Approve Pathology Plan",
+            "description": "Call only after the user explicitly approves the exact pending plan in a later message. Converts a pending plan into an approved plan and returns the execution token.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "plan_id": {"type": "string"},
+                    "confirmation": {
+                        "type": "string",
+                        "enum": ["I approve this plan"]
+                    }
+                },
+                "required": ["plan_id", "confirmation"],
                 "additionalProperties": False
             }
         },
@@ -1149,6 +1372,29 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "path": {"type": "string"}
                 },
                 "required": ["approval_token", "path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "validate_qupath_roi_pair",
+            "title": "Validate QuPath ROI Pair",
+            "description": "Validates that an exported ROI image and a QuPath GeoJSON polygon are a consistent pair. Reports geometry validity, dimension agreement, WSI origin, inferred downsample, crop-local bounds, ROI fraction, and physical area. Does not run prediction.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "image_path": {"type": "string"},
+                    "geojson_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "feature_id": {"type": "string"},
+                    "dimension_tolerance_pixels": {"type": "number"}
+                },
+                "required": [
+                    "approval_token",
+                    "image_path",
+                    "geojson_path",
+                    "output_json_path"
+                ],
                 "additionalProperties": False
             }
         },
@@ -1437,7 +1683,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
         {
             "name": "run_kongnet_spatial_workflow",
             "title": "Run Full KongNet Spatial Workflow",
-            "description": "Runs the complete single-WSI KongNet interpretability workflow: nuclei export, radius neighbourhoods, co-occurrence, nearest neighbours, local ROIs, TIAViz ROI overlay, per-cell communities, and a plain-text report.",
+            "description": "Runs the complete single-WSI KongNet interpretability workflow: nuclei export, radius neighbourhoods, co-occurrence, nearest neighbours, local ROIs, point-pattern statistics, point-pattern TIAViz overlays, ROI overlay, per-cell communities, and a plain-text report.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -1507,6 +1753,24 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "overwrite": {"type": "boolean"}
                 },
                 "required": ["approval_token", "regions_json_path", "output_dir"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "generate_kongnet_point_pattern_overlays",
+            "title": "Generate KongNet Point-Pattern Overlays",
+            "description": "Generates four TIAViz-compatible AnnotationStore overlays from point-pattern statistics: clustered-cell ROI overlay, NNI heatmap, quadrat VMR heatmap, and Ripley clustering-strength overlay.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "point_pattern_json_path": {"type": "string"},
+                    "output_dir": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "overwrite": {"type": "boolean"}
+                },
+                "required": ["approval_token", "point_pattern_json_path", "output_dir"],
                 "additionalProperties": False
             }
         },
@@ -1611,6 +1875,30 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "wsi_path": {"type": "string"},
                     "mpp": {"type": "number"},
                     "min_cells_per_region": {"type": "integer"},
+                    "min_probability": {"type": "number"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_kongnet_point_pattern_statistics",
+            "title": "Compute KongNet Point-Pattern Statistics",
+            "description": "Computes point-pattern spatial statistics from KongNet nuclei: nearest-neighbour index, quadrat heterogeneity, Ripley-style multi-radius clustering, and tumour/epithelial-immune proximity. Uses pointpats when available and transparent NumPy/SciPy equivalents otherwise.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "radii": {"type": "array", "items": {"type": "number"}},
+                    "quadrat_grid_size": {"type": "integer"},
+                    "min_points_per_pattern": {"type": "integer"},
                     "min_probability": {"type": "number"}
                 },
                 "required": ["approval_token", "annotationstore_path", "output_json_path"],
@@ -1796,6 +2084,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "communities_json_path": {"type": "string"},
                     "rankings_json_path": {"type": "string"},
                     "slide_summary_json_path": {"type": "string"},
+                    "point_pattern_json_path": {"type": "string"},
                     "output_report_path": {
                         "type": "string",
                         "description": "Destination text file. A .txt suffix is enforced even if another extension is supplied."
@@ -1859,6 +2148,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
         if name == "propose_pathology_plan":
             user_prompt = args.get("user_prompt")
             wsi_path = args.get("wsi_path")
+            geojson_path = args.get("geojson_path", "")
             output_dir = args.get("output_dir")
 
             if not isinstance(user_prompt, str) or not user_prompt.strip():
@@ -1878,7 +2168,23 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                 build_plan(
                     user_prompt=user_prompt.strip(),
                     wsi_path=wsi_path.strip(),
-                    output_dir=output_dir.strip()
+                    output_dir=output_dir.strip(),
+                    geojson_path=geojson_path.strip() if isinstance(geojson_path, str) else ""
+                )
+            )
+            return
+
+        if name == "approve_pathology_plan":
+            plan_id = args.get("plan_id")
+            confirmation = args.get("confirmation")
+            if not isinstance(plan_id, str) or not plan_id.strip():
+                tool_error(req_id, 'approve_pathology_plan requires "plan_id".')
+                return
+            tool_result(
+                req_id,
+                approve_plan(
+                    plan_id=plan_id.strip(),
+                    confirmation=str(confirmation or "")
                 )
             )
             return
@@ -1902,12 +2208,28 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "wsi_metadata":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(req_id, tool_wsi_metadata(args.get("path", "")))
             return
 
+        if name == "validate_qupath_roi_pair":
+            require_plan(args, name)
+            tool_result(
+                req_id,
+                tool_validate_qupath_roi_pair(
+                    image_path=args.get("image_path", ""),
+                    geojson_path=args.get("geojson_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    feature_id=args.get("feature_id"),
+                    dimension_tolerance_pixels=float(
+                        args.get("dimension_tolerance_pixels", 2.0)
+                    ),
+                )
+            )
+            return
+
         if name == "wsi_thumbnail":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_wsi_thumbnail(
@@ -1920,7 +2242,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "tissue_mask":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_tissue_mask(
@@ -1934,7 +2256,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "extract_patches":
-            require_plan(args)
+            require_plan(args, name)
 
             stride = args.get("stride")
 
@@ -1954,7 +2276,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "analyze_patch_statistics":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_analyze_patch_statistics(
@@ -1965,7 +2287,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name in {"predict_patch_model", "predict_kather_resnet18"}:
-            require_plan(args)
+            require_plan(args, name)
 
             run_async = bool_arg(args.get("run_async"), True)
             wait = bool_arg(args.get("wait"), False)
@@ -1995,7 +2317,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "predict_kongnet_nucleus_detection":
-            require_plan(args)
+            require_plan(args, name)
 
             run_async = bool_arg(args.get("run_async"), True)
             wait = bool_arg(args.get("wait"), False)
@@ -2025,7 +2347,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "predict_nucleus_instance_segmentation":
-            require_plan(args)
+            require_plan(args, name)
 
             run_async = bool_arg(args.get("run_async"), True)
             wait = bool_arg(args.get("wait"), False)
@@ -2055,7 +2377,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "predict_multi_task_segmentation":
-            require_plan(args)
+            require_plan(args, name)
 
             run_async = bool_arg(args.get("run_async"), True)
             wait = bool_arg(args.get("wait"), False)
@@ -2085,7 +2407,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "predict_semantic_segmentation":
-            require_plan(args)
+            require_plan(args, name)
 
             run_async = bool_arg(args.get("run_async"), True)
             wait = bool_arg(args.get("wait"), False)
@@ -2115,7 +2437,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "check_prediction_job":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 load_prediction_job_status(
@@ -2127,7 +2449,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "export_kongnet_nuclei_to_csv":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2143,7 +2465,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "run_kongnet_spatial_workflow":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2154,8 +2476,8 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     mpp=float(mpp) if mpp is not None else None,
                     min_probability=float(args.get("min_probability", 0.0)),
                     neighbourhood_radius=float(args.get("neighbourhood_radius", 50.0)),
-                    region_size=float(args.get("region_size", 500.0)),
-                    min_cells_per_region=int(args.get("min_cells_per_region", 10)),
+                    region_size=float(args.get("region_size", 100.0)),
+                    min_cells_per_region=int(args.get("min_cells_per_region", 5)),
                     community_count=int(args.get("community_count", 4)),
                     pathology_question=args.get("pathology_question"),
                     overwrite=bool_arg(args.get("overwrite"), True),
@@ -2164,7 +2486,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "rank_kongnet_regions":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_rank_kongnet_regions(
@@ -2177,7 +2499,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "answer_kongnet_spatial_question":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_answer_kongnet_spatial_question(
@@ -2190,7 +2512,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "generate_kongnet_region_heatmaps":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2204,8 +2526,23 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             )
             return
 
+        if name == "generate_kongnet_point_pattern_overlays":
+            require_plan(args, name)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_generate_kongnet_point_pattern_overlays(
+                    point_pattern_json_path=args.get("point_pattern_json_path", ""),
+                    output_dir=args.get("output_dir", ""),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    overwrite=bool_arg(args.get("overwrite"), True),
+                )
+            )
+            return
+
         if name == "generate_kongnet_slide_summary":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_generate_kongnet_slide_summary(
@@ -2218,7 +2555,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "find_cells_within_radius":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2238,7 +2575,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "compute_cell_type_cooccurrence":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2257,7 +2594,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "compute_nearest_neighbour_features":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2276,7 +2613,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "analyze_kongnet_regions":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2284,19 +2621,40 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     annotationstore_path=args.get("annotationstore_path", ""),
                     output_json_path=args.get("output_json_path", ""),
                     output_csv_path=args.get("output_csv_path"),
-                    region_size=float(args.get("region_size", 500.0)),
+                    region_size=float(args.get("region_size", 100.0)),
                     neighbourhood_radius=float(args.get("neighbourhood_radius", 50.0)),
                     distance_units=str(args.get("distance_units", "microns")),
                     wsi_path=args.get("wsi_path"),
                     mpp=float(mpp) if mpp is not None else None,
-                    min_cells_per_region=int(args.get("min_cells_per_region", 10)),
+                    min_cells_per_region=int(args.get("min_cells_per_region", 5)),
+                    min_probability=float(args.get("min_probability", 0.0)),
+                )
+            )
+            return
+
+        if name == "compute_kongnet_point_pattern_statistics":
+            require_plan(args, name)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_compute_kongnet_point_pattern_statistics(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_txt_path=args.get("output_txt_path"),
+                    regions_json_path=args.get("regions_json_path"),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
+                    radii=args.get("radii"),
+                    quadrat_grid_size=int(args.get("quadrat_grid_size", 4)),
+                    min_points_per_pattern=int(args.get("min_points_per_pattern", 10)),
                     min_probability=float(args.get("min_probability", 0.0)),
                 )
             )
             return
 
         if name == "characterize_kongnet_cell_neighbourhoods":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2315,7 +2673,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "export_kongnet_regions_to_annotationstore":
-            require_plan(args)
+            require_plan(args, name)
             mpp = args.get("mpp")
             tool_result(
                 req_id,
@@ -2330,7 +2688,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "aggregate_kather_metrics":
-            require_plan(args)
+            require_plan(args, name)
             cluster_distance = args.get("cluster_distance")
 
             tool_result(
@@ -2346,7 +2704,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
 
         if name == "summarize_kather_results":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_summarize_kather_results(
@@ -2359,7 +2717,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "generate_confidence_histogram":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_generate_confidence_histogram(
@@ -2372,7 +2730,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
 
         if name == "compare_masked_vs_unmasked_runs":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_compare_masked_vs_unmasked_runs(
@@ -2385,7 +2743,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
 
 
         if name == "threshold_sensitivity_analysis":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_threshold_sensitivity_analysis(
@@ -2399,7 +2757,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "extract_top_abnormal_patches":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_extract_top_abnormal_patches(
@@ -2413,7 +2771,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "generate_final_ai_report":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_generate_final_ai_report(
@@ -2427,7 +2785,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "generate_kongnet_ai_report":
-            require_plan(args)
+            require_plan(args, name)
             tool_result(
                 req_id,
                 tool_generate_kongnet_ai_report(
@@ -2439,13 +2797,14 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     communities_json_path=args.get("communities_json_path"),
                     rankings_json_path=args.get("rankings_json_path"),
                     slide_summary_json_path=args.get("slide_summary_json_path"),
+                    point_pattern_json_path=args.get("point_pattern_json_path"),
                     output_report_path=args.get("output_report_path"),
                 )
             )
             return
 
         if name == "generate_nucleus_instance_segmentation_report":
-            require_plan(args)
+            require_plan(args, name)
             min_probability = args.get("min_probability", 0.0)
             tool_result(
                 req_id,
@@ -2460,7 +2819,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
         
 
         if name == "save_run_report":
-            require_plan(args)
+            require_plan(args, name)
 
             output_path = args.get("output_path")
             report = args.get("report")
