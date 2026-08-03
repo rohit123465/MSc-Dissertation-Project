@@ -2677,8 +2677,6 @@ def tool_predict_semantic_segmentation(
 ) -> str:
     """Run semantic segmentation and save TIAViz-compatible outputs where supported."""
     import multiprocessing
-    from pathlib import Path
-
     os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 
     SemanticSegmentor = _load_semantic_segmentor()
@@ -2731,7 +2729,9 @@ def tool_predict_semantic_segmentation(
     )
 
     output = segmentor.run(
-        images=[Path(wsi_path)],
+        # TIAToolbox 2.1.x WSIPatchDataset accepts a string path or WSIReader.
+        # pathlib.Path passes our existence check but is rejected by that dataset.
+        images=[os.path.abspath(wsi_path)],
         masks=None,
         input_resolutions=input_resolutions,
         patch_input_shape=model_meta.get("patch_shape"),
@@ -2899,10 +2899,72 @@ def _slide_stem_prefix(wsi_path: Optional[str]) -> str:
     return f"{Path(wsi_path).stem}_" if wsi_path else ""
 
 
+def _resolve_dynamic_region_size(
+    requested_region_size: Optional[float],
+    nuclei_count: int,
+    min_cells_per_region: int,
+    image_bounds: Optional[Dict[str, float]],
+    coords: Any,
+    units: str,
+) -> tuple[float, Dict[str, Any]]:
+    """Resolve an explicit or data-adaptive square grid-cell size."""
+    import numpy as np
+
+    if requested_region_size is not None:
+        resolved = float(requested_region_size)
+        if resolved <= 0:
+            raise ValueError("region_size must be greater than 0 or omitted for automatic sizing.")
+        return resolved, {
+            "mode": "explicit",
+            "requested_region_size": resolved,
+            "resolved_region_size": resolved,
+        }
+
+    if image_bounds:
+        width = float(image_bounds["x_max"] - image_bounds["x_min"])
+        height = float(image_bounds["y_max"] - image_bounds["y_min"])
+    else:
+        width = float(np.ptp(coords[:, 0]))
+        height = float(np.ptp(coords[:, 1]))
+    if width <= 0 or height <= 0:
+        raise ValueError("Cannot infer an automatic region size from zero-area spatial bounds.")
+
+    target_cells = max(20, int(min_cells_per_region) * 3)
+    target_regions = min(36, max(4, int(math.ceil(nuclei_count / target_cells))))
+    raw_size = math.sqrt((width * height) / target_regions)
+
+    if units == "microns":
+        rounding_step = 25.0
+        minimum_size = min(25.0, min(width, height))
+        maximum_size = min(250.0, min(width, height) / 2.0)
+    else:
+        rounding_step = 32.0
+        minimum_size = min(32.0, min(width, height))
+        maximum_size = min(1024.0, min(width, height) / 2.0)
+    maximum_size = max(minimum_size, maximum_size)
+    clamped_size = min(max(raw_size, minimum_size), maximum_size)
+    rounded_size = round(clamped_size / rounding_step) * rounding_step
+    resolved = min(max(rounded_size, minimum_size), maximum_size)
+
+    return float(resolved), {
+        "mode": "automatic",
+        "requested_region_size": None,
+        "resolved_region_size": float(resolved),
+        "spatial_width": width,
+        "spatial_height": height,
+        "nuclei_count": int(nuclei_count),
+        "target_cells_per_region": target_cells,
+        "target_candidate_regions": target_regions,
+        "unrounded_region_size": raw_size,
+        "rounding_step": rounding_step,
+        "constraint": "4-36 candidate regions, at least two cells across the shorter image dimension",
+    }
+
+
 def _load_kongnet_nuclei(
     annotationstore_path: str,
     cell_types: Optional[List[str]] = None,
-    min_probability: float = 0.0,
+    min_probability: float = 0.0, #means nucleus with low confidence predictions are also selected. 
 ) -> List[Dict[str, Any]]:
     if not isinstance(annotationstore_path, str) or not os.path.exists(annotationstore_path):
         raise FileNotFoundError(f"KongNet AnnotationStore or nuclei CSV not found: {annotationstore_path}")
@@ -3375,20 +3437,20 @@ def tool_analyze_kongnet_regions(
     annotationstore_path: str,
     output_json_path: str,
     output_csv_path: Optional[str] = None,
-    region_size: float = 100.0,
+    region_size: Optional[float] = 100.0,
     neighbourhood_radius: float = 50.0,
     distance_units: str = "microns",
     wsi_path: Optional[str] = None,
     mpp: Optional[float] = None,
-    min_cells_per_region: int = 5,
+    min_cells_per_region: int = 1,
     min_probability: float = 0.0,
 ) -> str:
     """Compute composition and spatial features independently in fixed local ROIs."""
     import numpy as np
     from scipy.spatial import cKDTree
 
-    if region_size <= 0 or neighbourhood_radius <= 0:
-        raise ValueError("region_size and neighbourhood_radius must be greater than 0.")
+    if neighbourhood_radius <= 0:
+        raise ValueError("neighbourhood_radius must be greater than 0.")
     if min_cells_per_region < 1:
         raise ValueError("min_cells_per_region must be at least 1.")
     scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
@@ -3397,13 +3459,21 @@ def tool_analyze_kongnet_regions(
         raise RuntimeError("No nuclei matched the requested probability threshold.")
     coords = _nucleus_coordinates(nuclei, scale)
     image_bounds = _spatial_image_bounds(wsi_path, scale)
+    resolved_region_size, region_size_strategy = _resolve_dynamic_region_size(
+        region_size,
+        len(nuclei),
+        min_cells_per_region,
+        image_bounds,
+        coords,
+        scale["units"],
+    )
     origin = np.array(
         [image_bounds["x_min"], image_bounds["y_min"]]
         if image_bounds
         else coords.min(axis=0),
         dtype=float,
     )
-    bins = np.floor((coords - origin) / float(region_size)).astype(int)
+    bins = np.floor((coords - origin) / resolved_region_size).astype(int)
     grouped: Dict[tuple, List[int]] = {}
     for index, cell_bin in enumerate(bins):
         grouped.setdefault((int(cell_bin[0]), int(cell_bin[1])), []).append(index)
@@ -3427,10 +3497,10 @@ def tool_analyze_kongnet_regions(
             mean_nearest = float(np.mean(nearest_distances))
         else:
             mean_nearest = None
-        x_min = float(origin[0] + grid_x * region_size)
-        y_min = float(origin[1] + grid_y * region_size)
-        x_max = x_min + float(region_size)
-        y_max = y_min + float(region_size)
+        x_min = float(origin[0] + grid_x * resolved_region_size)
+        y_min = float(origin[1] + grid_y * resolved_region_size)
+        x_max = x_min + resolved_region_size
+        y_max = y_min + resolved_region_size
         if image_bounds:
             x_min = max(x_min, image_bounds["x_min"])
             y_min = max(y_min, image_bounds["y_min"])
@@ -3450,8 +3520,8 @@ def tool_analyze_kongnet_regions(
             "y_max": y_max,
             "area_square_units": area,
             "is_boundary_region": (
-                (x_max - x_min) < float(region_size)
-                or (y_max - y_min) < float(region_size)
+                (x_max - x_min) < resolved_region_size
+                or (y_max - y_min) < resolved_region_size
             ),
             "distance_units": scale["units"],
             "cell_count": len(region_cells),
@@ -3466,8 +3536,9 @@ def tool_analyze_kongnet_regions(
 
     summary = {
         "annotationstore_path": annotationstore_path,
-        "method": "fixed non-overlapping grid ROIs",
-        "region_size": float(region_size),
+        "method": "adaptive non-overlapping grid ROIs" if region_size is None else "fixed non-overlapping grid ROIs",
+        "region_size": resolved_region_size,
+        "region_size_strategy": region_size_strategy,
         "neighbourhood_radius": float(neighbourhood_radius),
         "distance_units": scale["units"],
         "scale": scale,
@@ -3500,7 +3571,7 @@ def tool_analyze_kongnet_regions(
     return "\n".join([
         "KongNet ROI analysis completed.",
         f"Regions retained: {len(regions)}",
-        f"Region size: {region_size} {scale['units']}",
+        f"Region size: {resolved_region_size:g} {scale['units']} ({region_size_strategy['mode']})",
         f"Local pair radius: {neighbourhood_radius} {scale['units']}",
         f"JSON: {output_json_path}",
         f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
@@ -3558,6 +3629,978 @@ def _safe_float(value: Any) -> Optional[float]:
     if math.isnan(number) or math.isinf(number):
         return None
     return number
+
+
+def _roi_moran_feature_value(region: Dict[str, Any], metric_name: str) -> Optional[float]:
+    """Extract a numeric ROI-level variable for Moran's I analysis."""
+    metric = str(metric_name or "").strip()
+    if not metric:
+        return None
+
+    direct_metrics = {
+        "cell_count",
+        "pairs_within_radius",
+        "mean_nearest_neighbour_distance",
+        "area_square_units",
+    }
+    if metric in direct_metrics:
+        return _safe_float(region.get(metric))
+    if metric.endswith("_percentage"):
+        class_name = metric[: -len("_percentage")]
+        return _safe_float((region.get("class_percentages") or {}).get(class_name))
+    if metric.endswith("_count"):
+        class_name = metric[: -len("_count")]
+        return _safe_float((region.get("class_counts") or {}).get(class_name))
+    if metric == "cell_density":
+        return _safe_float(region.get("cell_density_per_square_unit"))
+    if metric == "interaction_strength":
+        cell_count = _safe_float(region.get("cell_count")) or 0.0
+        if cell_count <= 0:
+            return None
+        pair_counts = region.get("pair_counts") or {}
+        interaction_pairs = 0.0
+        for pair_name, count in pair_counts.items():
+            parts = set(str(pair_name).split("--"))
+            is_immune = bool(parts & set(KONGNET_IMMUNE_CELL_TYPES))
+            is_tumour_or_epithelial = bool(parts & {"Neoplastic", "Epithelial", "Tumour_Cell", "Tumor_Cell"})
+            if is_immune and is_tumour_or_epithelial:
+                interaction_pairs += float(count or 0)
+        return interaction_pairs / cell_count * 100.0
+
+    return _safe_float(region.get(metric))
+
+
+def _default_moran_roi_metrics(regions: List[Dict[str, Any]]) -> List[str]:
+    class_names = []
+    for region in regions:
+        for name in (region.get("class_counts") or {}).keys():
+            if name not in class_names:
+                class_names.append(str(name))
+
+    metrics = ["cell_count", "cell_density", "pairs_within_radius", "interaction_strength"]
+    for name in class_names:
+        metrics.append(f"{name}_percentage")
+    return metrics
+
+
+def _build_roi_pysal_weights(
+    regions: List[Dict[str, Any]],
+    weights_method: str,
+    k_neighbours: int,
+    distance_threshold: Optional[float],
+):
+    """Build ROI neighbour weights using libpysal."""
+    import numpy as np
+    from libpysal.weights import DistanceBand, KNN, W
+
+    method = str(weights_method or "queen").strip().lower()
+    centroids = np.asarray(
+        [
+            [
+                (float(region["x_min"]) + float(region["x_max"])) / 2.0,
+                (float(region["y_min"]) + float(region["y_max"])) / 2.0,
+            ]
+            for region in regions
+        ],
+        dtype=float,
+    )
+    ids = [str(region.get("region_id") or index) for index, region in enumerate(regions)]
+
+    if method == "knn":
+        k = min(max(1, int(k_neighbours)), max(1, len(regions) - 1))
+        weights = KNN.from_array(centroids, k=k, ids=ids)
+        return weights, {"method": "libpysal.weights.KNN.from_array", "k_neighbours": k}
+
+    if method == "distance":
+        if distance_threshold is None:
+            widths = [float(region["x_max"]) - float(region["x_min"]) for region in regions]
+            heights = [float(region["y_max"]) - float(region["y_min"]) for region in regions]
+            typical_size = max(float(np.median(widths + heights)), 1e-9)
+            distance_threshold = typical_size * 1.01
+        weights = DistanceBand.from_array(
+            centroids,
+            threshold=float(distance_threshold),
+            binary=True,
+            silence_warnings=True,
+            ids=ids,
+        )
+        return weights, {
+            "method": "libpysal.weights.DistanceBand.from_array",
+            "distance_threshold": float(distance_threshold),
+        }
+
+    if method not in {"queen", "rook"}:
+        raise ValueError("weights_method must be one of: queen, rook, distance, knn.")
+
+    neighbours: Dict[str, List[str]] = {region_id: [] for region_id in ids}
+    weights_by_id: Dict[str, List[float]] = {region_id: [] for region_id in ids}
+    for i, region_i in enumerate(regions):
+        gx_i = region_i.get("grid_x")
+        gy_i = region_i.get("grid_y")
+        if gx_i is None or gy_i is None:
+            raise ValueError(
+                "queen/rook weights require grid_x and grid_y in the regions JSON. "
+                "Use weights_method='distance' or 'knn' for non-grid regions."
+            )
+        for j, region_j in enumerate(regions):
+            if i == j:
+                continue
+            dx = abs(int(region_j.get("grid_x")) - int(gx_i))
+            dy = abs(int(region_j.get("grid_y")) - int(gy_i))
+            is_neighbour = (dx + dy == 1) if method == "rook" else (max(dx, dy) == 1)
+            if is_neighbour:
+                neighbours[ids[i]].append(ids[j])
+                weights_by_id[ids[i]].append(1.0)
+
+    weights = W(neighbours, weights_by_id, ids=ids, silence_warnings=True)
+    return weights, {"method": "libpysal.weights.W", "contiguity": method}
+
+
+def _moran_interpretation(moran_i: Optional[float], p_value: Optional[float], alpha: float) -> str:
+    if moran_i is None or p_value is None:
+        return "Moran's I could not be computed for this variable."
+    if p_value >= alpha:
+        return "No strong evidence of ROI-level spatial autocorrelation."
+    if moran_i > 0:
+        return "Significant positive spatial autocorrelation: similar ROI values cluster together as hotspots/coldspots."
+    if moran_i < 0:
+        return "Significant negative spatial autocorrelation: high-value ROIs tend to neighbour low-value ROIs."
+    return "Statistically significant but near-zero spatial autocorrelation."
+
+
+def _entropy_label(value: Optional[float], low_threshold: float, high_threshold: float) -> str:
+    if value is None:
+        return "unavailable"
+    if value < low_threshold:
+        return "low diversity / homogeneous"
+    if value < high_threshold:
+        return "moderate diversity"
+    return "high diversity / mixed microenvironment"
+
+
+def _dominant_region_class(class_counts: Dict[str, Any]) -> Optional[str]:
+    numeric_counts = {
+        str(name): float(count or 0)
+        for name, count in (class_counts or {}).items()
+        if _safe_float(count) is not None
+    }
+    if not numeric_counts:
+        return None
+    return max(numeric_counts, key=numeric_counts.get)
+
+
+def _compute_shannon_entropy_from_counts(
+    class_counts: Dict[str, Any],
+    normalize: bool = True,
+    entropy_base: float = math.e,
+) -> tuple[Optional[float], Optional[float], int, int]:
+    counts = [
+        float(count)
+        for count in (class_counts or {}).values()
+        if _safe_float(count) is not None and float(count) > 0
+    ]
+    total = sum(counts)
+    if total <= 0:
+        return None, None, 0, 0
+
+    proportions = [count / total for count in counts]
+    raw_entropy = -sum(p * math.log(p, entropy_base) for p in proportions if p > 0)
+    present_class_count = len(proportions)
+    if not normalize:
+        return float(raw_entropy), None, present_class_count, int(total)
+    if present_class_count <= 1:
+        return 0.0, float(raw_entropy), present_class_count, int(total)
+    max_entropy = math.log(present_class_count, entropy_base)
+    normalized_entropy = raw_entropy / max_entropy if max_entropy > 0 else 0.0
+    return float(normalized_entropy), float(raw_entropy), present_class_count, int(total)
+
+
+def tool_compute_kongnet_spatial_entropy(
+    regions_json_path: str,
+    output_json_path: str,
+    output_txt_path: Optional[str] = None,
+    output_csv_path: Optional[str] = None,
+    normalize: bool = True,
+    entropy_base: float = math.e,
+    low_threshold: float = 0.40,
+    high_threshold: float = 0.70,
+    cell_types: Optional[List[str]] = None,
+) -> str:
+    """Compute Shannon spatial entropy for each KongNet ROI.
+
+    Entropy is computed from the model-predicted class composition inside each
+    ROI. Low entropy means one cell class dominates the region. High entropy
+    means the ROI contains a more mixed local microenvironment.
+    """
+    import numpy as np
+
+    if not isinstance(regions_json_path, str) or not regions_json_path.strip():
+        raise ValueError('compute_kongnet_spatial_entropy requires a non-empty "regions_json_path".')
+    if not os.path.exists(regions_json_path):
+        raise FileNotFoundError(f"Regions JSON not found: {regions_json_path}")
+    if not isinstance(output_json_path, str) or not output_json_path.strip():
+        raise ValueError('compute_kongnet_spatial_entropy requires a non-empty "output_json_path".')
+    if float(entropy_base) <= 0.0 or math.isclose(float(entropy_base), 1.0):
+        raise ValueError("entropy_base must be positive and not equal to 1.")
+    if not 0.0 <= float(low_threshold) <= float(high_threshold) <= 1.0:
+        raise ValueError("Thresholds must satisfy 0 <= low_threshold <= high_threshold <= 1.")
+
+    with open(regions_json_path, "r", encoding="utf-8") as file:
+        regions_payload = json.load(file)
+    regions = list(regions_payload.get("regions") or [])
+    if not regions:
+        raise ValueError("No regions found in the regions JSON.")
+
+    available_cell_types = list((regions[0].get("class_counts") or {}).keys())
+    selected_cell_types = (
+        [name for name in _normalise_kongnet_cell_types(cell_types) if name in available_cell_types]
+        if cell_types
+        else None
+    )
+    if cell_types and not selected_cell_types:
+        raise ValueError("cell_types did not contain any recognized KongNet cell classes.")
+
+    entropy_rows = []
+    for region in regions:
+        all_class_counts = region.get("class_counts") or {}
+        class_counts = (
+            {name: all_class_counts.get(name, 0) for name in selected_cell_types}
+            if selected_cell_types
+            else all_class_counts
+        )
+        entropy, raw_entropy, present_class_count, total_cells = _compute_shannon_entropy_from_counts(
+            class_counts,
+            normalize=bool(normalize),
+            entropy_base=float(entropy_base),
+        )
+        dominant_class = _dominant_region_class(class_counts)
+        dominant_count = _safe_float(class_counts.get(dominant_class)) if dominant_class else None
+        dominant_percentage = (
+            dominant_count / total_cells * 100.0
+            if dominant_count is not None and total_cells > 0
+            else None
+        )
+        entropy_rows.append({
+            "region_id": region.get("region_id"),
+            "region_label": region.get("region_label"),
+            "grid_x": region.get("grid_x"),
+            "grid_y": region.get("grid_y"),
+            "x_min": region.get("x_min"),
+            "y_min": region.get("y_min"),
+            "x_max": region.get("x_max"),
+            "y_max": region.get("y_max"),
+            "cell_count": int(total_cells),
+            "dominant_class": dominant_class,
+            "dominant_percentage": dominant_percentage,
+            "present_class_count": int(present_class_count),
+            "shannon_entropy": entropy,
+            "raw_shannon_entropy": raw_entropy,
+            "entropy_label": _entropy_label(entropy, float(low_threshold), float(high_threshold)),
+            "class_counts": class_counts,
+            "class_percentages": region.get("class_percentages") or {},
+        })
+
+    computed_values = [
+        row["shannon_entropy"]
+        for row in entropy_rows
+        if row.get("shannon_entropy") is not None
+    ]
+    highest_entropy = sorted(
+        [row for row in entropy_rows if row.get("shannon_entropy") is not None],
+        key=lambda row: row["shannon_entropy"],
+        reverse=True,
+    )
+    lowest_entropy = sorted(
+        [row for row in entropy_rows if row.get("shannon_entropy") is not None],
+        key=lambda row: row["shannon_entropy"],
+    )
+    payload = {
+        "analysis": "kongnet_spatial_entropy",
+        "regions_json_path": regions_json_path,
+        "method": {
+            "metric": "Shannon entropy",
+            "formula": "H = -sum(p_i * log(p_i))",
+            "normalization": "H / log(number of present cell classes)" if normalize else "raw Shannon entropy",
+            "meaning": (
+                "Low entropy indicates that one predicted cell type dominates an ROI. "
+                "High entropy indicates a compositionally mixed ROI, such as a potential "
+                "tumour-immune-stromal microenvironment."
+            ),
+        },
+        "parameters": {
+            "normalize": bool(normalize),
+            "entropy_base": float(entropy_base),
+            "low_threshold": float(low_threshold),
+            "high_threshold": float(high_threshold),
+            "cell_types": selected_cell_types or available_cell_types,
+        },
+        "region_count": len(regions),
+        "computed_region_count": len(computed_values),
+        "summary": {
+            "mean_entropy": float(np.mean(computed_values)) if computed_values else None,
+            "median_entropy": float(np.median(computed_values)) if computed_values else None,
+            "minimum_entropy": float(np.min(computed_values)) if computed_values else None,
+            "maximum_entropy": float(np.max(computed_values)) if computed_values else None,
+            "highest_entropy_regions": highest_entropy[:5],
+            "lowest_entropy_regions": lowest_entropy[:5],
+        },
+        "regions": entropy_rows,
+        "interpretation_warning": (
+            "Spatial entropy describes ROI composition only. It does not prove cell-cell interaction, "
+            "validate model predictions, or provide a clinical diagnosis."
+        ),
+    }
+    _write_json(output_json_path, payload)
+
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        fields = [
+            "region_id",
+            "region_label",
+            "grid_x",
+            "grid_y",
+            "cell_count",
+            "dominant_class",
+            "dominant_percentage",
+            "present_class_count",
+            "shannon_entropy",
+            "raw_shannon_entropy",
+            "entropy_label",
+            "x_min",
+            "y_min",
+            "x_max",
+            "y_max",
+        ]
+        with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=fields)
+            writer.writeheader()
+            for row in entropy_rows:
+                writer.writerow({field: row.get(field) for field in fields})
+
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        lines = [
+            "KongNet ROI Spatial Entropy Report",
+            "==================================",
+            "",
+            f"Regions analysed: {len(regions)}",
+            f"Entropy metric: {'normalized Shannon entropy' if normalize else 'raw Shannon entropy'}",
+            f"Interpretation thresholds: low < {float(low_threshold):.2f}; moderate {float(low_threshold):.2f}-{float(high_threshold):.2f}; high >= {float(high_threshold):.2f}",
+            "",
+            "What this measures",
+            "------------------",
+            "Spatial entropy measures how mixed the predicted cell-type composition is inside each ROI.",
+            "Low entropy means one cell type dominates the ROI. High entropy means several cell types are present in a more balanced mixture.",
+            "",
+            "Summary",
+            "-------",
+        ]
+        if computed_values:
+            lines.extend([
+                f"Mean entropy: {payload['summary']['mean_entropy']:.3f}",
+                f"Median entropy: {payload['summary']['median_entropy']:.3f}",
+                f"Minimum entropy: {payload['summary']['minimum_entropy']:.3f}",
+                f"Maximum entropy: {payload['summary']['maximum_entropy']:.3f}",
+            ])
+        else:
+            lines.append("No entropy values could be computed.")
+
+        lines.extend(["", "Highest entropy regions (most mixed)", "------------------------------------"])
+        for index, row in enumerate(highest_entropy[:5], start=1):
+            lines.append(
+                f"{index}. {row.get('region_id')}: entropy {row.get('shannon_entropy'):.3f}; "
+                f"{row.get('entropy_label')}; dominant class {row.get('dominant_class')} "
+                f"({(row.get('dominant_percentage') or 0):.1f}%)."
+            )
+
+        lines.extend(["", "Lowest entropy regions (most homogeneous)", "------------------------------------------"])
+        for index, row in enumerate(lowest_entropy[:5], start=1):
+            lines.append(
+                f"{index}. {row.get('region_id')}: entropy {row.get('shannon_entropy'):.3f}; "
+                f"{row.get('entropy_label')}; dominant class {row.get('dominant_class')} "
+                f"({(row.get('dominant_percentage') or 0):.1f}%)."
+            )
+
+        lines.extend([
+            "",
+            "Interpretation note",
+            "-------------------",
+            payload["interpretation_warning"],
+        ])
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write("\n".join(lines) + "\n")
+
+    return "\n".join([
+        "KongNet spatial entropy analysis completed.",
+        f"Regions analysed: {len(regions)}",
+        f"Entropy values computed: {len(computed_values)}",
+        f"JSON: {output_json_path}",
+        f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
+        f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
+    ])
+
+
+def _default_cross_g_types(class_names: List[str]) -> tuple[List[str], List[str], str]:
+    source_groups = [
+        ["Neoplastic"],
+        ["Tumour_Cell"],
+        ["Tumor_Cell"],
+        ["Epithelial"],
+        ["Epithelial_Cell"],
+        ["Non-Neoplastic Epithelial"],
+    ]
+    source_types = []
+    for group in source_groups:
+        source_types = [name for name in group if name in class_names]
+        if source_types:
+            break
+    if not source_types and class_names:
+        source_types = [class_names[0]]
+    target_types = [name for name in KONGNET_IMMUNE_CELL_TYPES if name in class_names]
+    note = (
+        "Default source uses neoplastic/tumour classes when available, otherwise epithelial classes. "
+        "Default target uses immune/inflammatory classes present in the selected KongNet output."
+    )
+    return source_types, target_types, note
+
+
+def _cross_g_curve(
+    source_coords,
+    source_ids: List[str],
+    target_coords,
+    target_ids: List[str],
+    observation_area: float,
+    radii: List[float],
+) -> Dict[str, Any]:
+    import numpy as np
+    from scipy.spatial import cKDTree
+
+    source_count = int(len(source_coords))
+    target_count = int(len(target_coords))
+    if source_count < 1 or target_count < 1:
+        return {
+            "status": "skipped",
+            "reason": "At least one source and one target cell are required.",
+            "source_count": source_count,
+            "target_count": target_count,
+        }
+
+    tree = cKDTree(target_coords)
+    k = min(target_count, 2 if set(source_ids) & set(target_ids) else 1)
+    distances_raw, indices_raw = tree.query(source_coords, k=k)
+    distances_2d = np.atleast_2d(distances_raw)
+    indices_2d = np.atleast_2d(indices_raw)
+    if distances_2d.shape[0] != source_count:
+        distances_2d = distances_2d.T
+        indices_2d = indices_2d.T
+
+    nearest_distances = []
+    for row_distances, row_indices, source_id in zip(distances_2d, indices_2d, source_ids, strict=False):
+        selected_distance = None
+        for distance, target_index in zip(row_distances, row_indices, strict=False):
+            if int(target_index) >= target_count:
+                continue
+            if target_ids[int(target_index)] == source_id:
+                continue
+            selected_distance = float(distance)
+            break
+        if selected_distance is not None:
+            nearest_distances.append(selected_distance)
+
+    if not nearest_distances:
+        return {
+            "status": "skipped",
+            "reason": "No non-self source-to-target nearest-neighbour distances could be computed.",
+            "source_count": source_count,
+            "target_count": target_count,
+        }
+
+    nearest = np.asarray(nearest_distances, dtype=float)
+    area = float(max(observation_area, 1e-9))
+    target_density = target_count / area
+    curve = []
+    for radius in radii:
+        empirical = float(np.mean(nearest <= float(radius)))
+        theoretical = float(1.0 - math.exp(-target_density * math.pi * float(radius) ** 2))
+        curve.append({
+            "radius": float(radius),
+            "empirical_cross_g": empirical,
+            "csr_poisson_expected": theoretical,
+            "difference_from_expected": empirical - theoretical,
+            "interpretation": (
+                "above random expectation / spatial proximity"
+                if empirical > theoretical
+                else "below random expectation / spatial separation"
+                if empirical < theoretical
+                else "near random expectation"
+            ),
+        })
+
+    return {
+        "status": "computed",
+        "source_count": source_count,
+        "target_count": target_count,
+        "source_count_with_target_distance": int(len(nearest)),
+        "target_density_per_square_unit": float(target_density),
+        "mean_nearest_target_distance": float(np.mean(nearest)),
+        "median_nearest_target_distance": float(np.median(nearest)),
+        "minimum_nearest_target_distance": float(np.min(nearest)),
+        "maximum_nearest_target_distance": float(np.max(nearest)),
+        "curve": curve,
+    }
+
+
+def tool_compute_kongnet_cross_g_function(
+    annotationstore_path: str,
+    output_json_path: str,
+    output_txt_path: Optional[str] = None,
+    output_csv_path: Optional[str] = None,
+    regions_json_path: Optional[str] = None,
+    source_types: Optional[List[str]] = None,
+    target_types: Optional[List[str]] = None,
+    radii: Optional[List[float]] = None,
+    distance_units: str = "microns",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    min_probability: float = 0.0,
+) -> str:
+    """Compute empirical cross-G functions between KongNet cell classes.
+
+    Cross-G reports the probability that a source cell has at least one target
+    cell within radius r. This is useful for tumour-immune proximity and
+    immune-exclusion style questions.
+    """
+    import numpy as np
+
+    if not isinstance(annotationstore_path, str) or not annotationstore_path.strip():
+        raise ValueError('compute_kongnet_cross_g_function requires a non-empty "annotationstore_path".')
+    if not isinstance(output_json_path, str) or not output_json_path.strip():
+        raise ValueError('compute_kongnet_cross_g_function requires a non-empty "output_json_path".')
+    radii = [float(value) for value in (radii or [25.0, 50.0, 100.0]) if float(value) > 0]
+    if not radii:
+        raise ValueError("At least one positive radius is required.")
+
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
+    if not nuclei:
+        raise RuntimeError("No nuclei matched the requested probability threshold.")
+
+    coords = _nucleus_coordinates(nuclei, scale)
+    classes = np.asarray([cell["type"] for cell in nuclei], dtype=object)
+    class_names = _ordered_kongnet_class_names(nuclei)
+    default_source_types, default_target_types, default_note = _default_cross_g_types(class_names)
+    resolved_source_types = _normalise_kongnet_cell_types(source_types) if source_types else default_source_types
+    resolved_target_types = _normalise_kongnet_cell_types(target_types) if target_types else default_target_types
+    if not resolved_source_types:
+        raise ValueError("No source_types were available. Provide explicit source_types.")
+    if not resolved_target_types:
+        raise ValueError("No target_types were available. Provide explicit target_types.")
+
+    source_mask = np.isin(classes, resolved_source_types)
+    target_mask = np.isin(classes, resolved_target_types)
+    min_xy = coords.min(axis=0)
+    max_xy = coords.max(axis=0)
+    slide_area = float(max((max_xy[0] - min_xy[0]) * (max_xy[1] - min_xy[1]), 1e-9))
+    source_ids = [nuclei[index]["annotation_id"] for index in np.where(source_mask)[0]]
+    target_ids = [nuclei[index]["annotation_id"] for index in np.where(target_mask)[0]]
+    whole_slide = _cross_g_curve(
+        coords[source_mask],
+        source_ids,
+        coords[target_mask],
+        target_ids,
+        slide_area,
+        radii,
+    )
+
+    per_region = []
+    if regions_json_path:
+        if not os.path.exists(regions_json_path):
+            raise FileNotFoundError(f"regions_json_path not found: {regions_json_path}")
+        with open(regions_json_path, "r", encoding="utf-8") as file:
+            regions_payload = json.load(file)
+        for region in regions_payload.get("regions", []):
+            indices = _region_indices_for_bounds(coords, region)
+            if not indices:
+                continue
+            region_coords = coords[indices]
+            region_classes = classes[indices]
+            region_cells = [nuclei[index] for index in indices]
+            region_source_mask = np.isin(region_classes, resolved_source_types)
+            region_target_mask = np.isin(region_classes, resolved_target_types)
+            region_area = float(max((float(region["x_max"]) - float(region["x_min"])) * (float(region["y_max"]) - float(region["y_min"])), 1e-9))
+            region_source_ids = [
+                cell["annotation_id"]
+                for cell, keep in zip(region_cells, region_source_mask, strict=False)
+                if keep
+            ]
+            region_target_ids = [
+                cell["annotation_id"]
+                for cell, keep in zip(region_cells, region_target_mask, strict=False)
+                if keep
+            ]
+            per_region.append({
+                "region_id": region.get("region_id"),
+                "region_label": region.get("region_label"),
+                "cell_count": len(indices),
+                "x_min": region.get("x_min"),
+                "y_min": region.get("y_min"),
+                "x_max": region.get("x_max"),
+                "y_max": region.get("y_max"),
+                "cross_g": _cross_g_curve(
+                    region_coords[region_source_mask],
+                    region_source_ids,
+                    region_coords[region_target_mask],
+                    region_target_ids,
+                    region_area,
+                    radii,
+                ),
+            })
+
+    payload = {
+        "analysis": "kongnet_cross_g_function",
+        "annotationstore_path": annotationstore_path,
+        "regions_json_path": regions_json_path,
+        "method": {
+            "metric": "empirical cross-G function",
+            "formula": "G_ij(r) = P(nearest target cell of type j is within distance r from a source cell of type i)",
+            "csr_reference": "1 - exp(-lambda_j * pi * r^2), using target-cell density in the observation window",
+            "meaning": (
+                "A higher empirical cross-G at small radii means source cells tend to have target cells nearby. "
+                "Values above the CSR reference suggest spatial proximity/enrichment; values below suggest separation."
+            ),
+            "default_type_note": default_note,
+        },
+        "parameters": {
+            "source_types": resolved_source_types,
+            "target_types": resolved_target_types,
+            "distance_units": scale["units"],
+            "scale": scale,
+            "radii": radii,
+            "min_probability": float(min_probability),
+        },
+        "total_nuclei": len(nuclei),
+        "class_counts": dict(Counter(classes)),
+        "slide_extent": {
+            "x_min": float(min_xy[0]),
+            "y_min": float(min_xy[1]),
+            "x_max": float(max_xy[0]),
+            "y_max": float(max_xy[1]),
+            "area": slide_area,
+        },
+        "whole_slide": whole_slide,
+        "per_region": per_region,
+        "interpretation_warning": (
+            "Cross-G is an exploratory distance-based spatial statistic. It does not prove biological interaction, "
+            "validate model predictions, or provide a clinical diagnosis. The CSR reference is not edge-corrected."
+        ),
+    }
+    _write_json(output_json_path, payload)
+
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        fields = [
+            "scope",
+            "region_id",
+            "region_label",
+            "source_types",
+            "target_types",
+            "source_count",
+            "target_count",
+            "radius",
+            "empirical_cross_g",
+            "csr_poisson_expected",
+            "difference_from_expected",
+            "interpretation",
+            "mean_nearest_target_distance",
+            "median_nearest_target_distance",
+        ]
+        with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=fields)
+            writer.writeheader()
+
+            def write_curve(scope: str, region_id: str, region_label: str, stats: Dict[str, Any]) -> None:
+                if stats.get("status") != "computed":
+                    return
+                for row in stats.get("curve", []):
+                    writer.writerow({
+                        "scope": scope,
+                        "region_id": region_id,
+                        "region_label": region_label,
+                        "source_types": ";".join(resolved_source_types),
+                        "target_types": ";".join(resolved_target_types),
+                        "source_count": stats.get("source_count"),
+                        "target_count": stats.get("target_count"),
+                        "radius": row.get("radius"),
+                        "empirical_cross_g": row.get("empirical_cross_g"),
+                        "csr_poisson_expected": row.get("csr_poisson_expected"),
+                        "difference_from_expected": row.get("difference_from_expected"),
+                        "interpretation": row.get("interpretation"),
+                        "mean_nearest_target_distance": stats.get("mean_nearest_target_distance"),
+                        "median_nearest_target_distance": stats.get("median_nearest_target_distance"),
+                    })
+
+            write_curve("whole_slide", "", "", whole_slide)
+            for region in per_region:
+                write_curve("region", str(region.get("region_id") or ""), str(region.get("region_label") or ""), region.get("cross_g") or {})
+
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        lines = [
+            "KongNet Cross-G Tumour-Immune Proximity Report",
+            "==============================================",
+            "",
+            f"Source cell types: {', '.join(resolved_source_types)}",
+            f"Target cell types: {', '.join(resolved_target_types)}",
+            f"Radii: {', '.join(str(radius) for radius in radii)} {scale['units']}",
+            "",
+            "What this measures",
+            "------------------",
+            "Cross-G measures the probability that a source cell has at least one target cell within a given radius.",
+            "For tumour-immune analysis, this answers: what fraction of tumour/epithelial cells have an immune cell nearby?",
+            "",
+            "Whole-slide result",
+            "------------------",
+        ]
+        if whole_slide.get("status") == "computed":
+            lines.append(
+                f"Source cells: {whole_slide.get('source_count'):,}; target cells: {whole_slide.get('target_count'):,}; "
+                f"mean nearest target distance: {whole_slide.get('mean_nearest_target_distance'):.2f} {scale['units']}."
+            )
+            for row in whole_slide.get("curve", []):
+                lines.append(
+                    f"- {row['radius']:g} {scale['units']}: G={row['empirical_cross_g']:.3f}; "
+                    f"CSR expected={row['csr_poisson_expected']:.3f}; "
+                    f"difference={row['difference_from_expected']:.3f} ({row['interpretation']})."
+                )
+        else:
+            lines.append(f"Skipped: {whole_slide.get('reason')}")
+
+        computed_regions = [
+            region for region in per_region
+            if (region.get("cross_g") or {}).get("status") == "computed"
+            and int((region.get("cross_g") or {}).get("source_count") or 0) >= 10
+            and int((region.get("cross_g") or {}).get("target_count") or 0) >= 1
+        ]
+        if computed_regions:
+            ranking_radius = max(radii)
+            def region_score(region: Dict[str, Any]) -> float:
+                for curve_row in (region.get("cross_g") or {}).get("curve", []):
+                    if math.isclose(float(curve_row.get("radius")), ranking_radius):
+                        return float(curve_row.get("empirical_cross_g", 0.0))
+                return 0.0
+
+            top_regions = sorted(computed_regions, key=region_score, reverse=True)[:5]
+            lines.extend(["", f"Top regions by cross-G at {ranking_radius:g} {scale['units']}", "----------------------------------------"])
+            for index, region in enumerate(top_regions, start=1):
+                stats = region.get("cross_g") or {}
+                lines.append(
+                    f"{index}. {region.get('region_id')}: G={region_score(region):.3f}; "
+                    f"{region.get('region_label')}; source cells={stats.get('source_count')}; target cells={stats.get('target_count')}."
+                )
+
+        lines.extend([
+            "",
+            "Interpretation note",
+            "-------------------",
+            payload["interpretation_warning"],
+        ])
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write("\n".join(lines) + "\n")
+
+    return "\n".join([
+        "KongNet cross-G function analysis completed.",
+        f"Source types: {resolved_source_types}",
+        f"Target types: {resolved_target_types}",
+        f"Radii: {radii} {scale['units']}",
+        f"JSON: {output_json_path}",
+        f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
+        f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
+    ])
+
+
+def tool_compute_kongnet_morans_i(
+    regions_json_path: str,
+    output_json_path: str,
+    output_txt_path: Optional[str] = None,
+    metrics: Optional[List[str]] = None,
+    weights_method: str = "queen",
+    k_neighbours: int = 4,
+    distance_threshold: Optional[float] = None,
+    permutations: int = 999,
+    alpha: float = 0.05,
+) -> str:
+    """Compute ROI-level Moran's I using PySAL/libpysal/esda.
+
+    Moran's I complements point-level clustering metrics by asking whether
+    ROI-level values, such as inflammatory percentage or tumour-immune
+    interaction strength, are spatially autocorrelated across neighbouring ROIs.
+    """
+    import numpy as np
+    from esda.moran import Moran
+
+    if not isinstance(regions_json_path, str) or not regions_json_path.strip():
+        raise ValueError('compute_kongnet_morans_i requires a non-empty "regions_json_path".')
+    if not os.path.exists(regions_json_path):
+        raise FileNotFoundError(f"Regions JSON not found: {regions_json_path}")
+    if not isinstance(output_json_path, str) or not output_json_path.strip():
+        raise ValueError('compute_kongnet_morans_i requires a non-empty "output_json_path".')
+    if int(permutations) < 0:
+        raise ValueError("permutations must be non-negative.")
+    if not 0.0 < float(alpha) < 1.0:
+        raise ValueError("alpha must be between 0 and 1.")
+
+    with open(regions_json_path, "r", encoding="utf-8") as file:
+        regions_payload = json.load(file)
+    regions = list(regions_payload.get("regions") or [])
+    if len(regions) < 3:
+        raise ValueError("Moran's I requires at least 3 retained ROIs.")
+
+    requested_metrics = metrics or _default_moran_roi_metrics(regions)
+    weights, weights_details = _build_roi_pysal_weights(
+        regions,
+        weights_method=weights_method,
+        k_neighbours=k_neighbours,
+        distance_threshold=distance_threshold,
+    )
+    weights.transform = "R"
+
+    results = {}
+    for metric in requested_metrics:
+        values = [_roi_moran_feature_value(region, metric) for region in regions]
+        valid_pairs = [
+            (region, value)
+            for region, value in zip(regions, values)
+            if value is not None
+        ]
+        if len(valid_pairs) < 3:
+            results[metric] = {
+                "status": "skipped",
+                "reason": "Fewer than 3 ROIs had a numeric value for this metric.",
+            }
+            continue
+
+        valid_region_ids = {str(region.get("region_id") or index) for index, (region, _) in enumerate(valid_pairs)}
+        if len(valid_pairs) != len(regions):
+            sub_weights = weights.subset(list(valid_region_ids))
+        else:
+            sub_weights = weights
+        if any(len(sub_weights.neighbors.get(region_id, [])) == 0 for region_id in sub_weights.id_order):
+            results[metric] = {
+                "status": "skipped",
+                "reason": "At least one ROI had no spatial neighbours under the selected weight rule.",
+            }
+            continue
+
+        y = np.asarray([value for _, value in valid_pairs], dtype=float)
+        if float(np.var(y)) <= 0.0:
+            results[metric] = {
+                "status": "skipped",
+                "reason": "Metric has zero variance across ROIs.",
+                "roi_count": int(len(y)),
+            }
+            continue
+
+        moran = Moran(y, sub_weights, permutations=int(permutations))
+        p_value = _safe_float(getattr(moran, "p_sim", None))
+        if p_value is None:
+            p_value = _safe_float(getattr(moran, "p_norm", None))
+        moran_i = _safe_float(getattr(moran, "I", None))
+        results[metric] = {
+            "status": "computed",
+            "source": "esda.moran.Moran",
+            "roi_count": int(len(y)),
+            "moran_i": moran_i,
+            "expected_i": _safe_float(getattr(moran, "EI", None)),
+            "z_score": _safe_float(getattr(moran, "z_sim", None)) or _safe_float(getattr(moran, "z_norm", None)),
+            "p_value": p_value,
+            "p_value_source": "permutation p-value (p_sim)" if int(permutations) > 0 else "normal approximation (p_norm)",
+            "permutations": int(permutations),
+            "mean": float(np.mean(y)),
+            "standard_deviation": float(np.std(y)),
+            "minimum": float(np.min(y)),
+            "maximum": float(np.max(y)),
+            "interpretation": _moran_interpretation(moran_i, p_value, float(alpha)),
+        }
+
+    payload = {
+        "analysis": "kongnet_roi_morans_i",
+        "regions_json_path": regions_json_path,
+        "method": {
+            "library": "PySAL ecosystem",
+            "weights": weights_details,
+            "statistic": "esda.moran.Moran",
+            "meaning": (
+                "Moran's I measures whether similar ROI-level values occur near each other. "
+                "Positive significant values indicate hotspot/coldspot organisation; negative significant "
+                "values indicate neighbouring dissimilarity."
+            ),
+        },
+        "parameters": {
+            "metrics": requested_metrics,
+            "weights_method": str(weights_method),
+            "k_neighbours": int(k_neighbours),
+            "distance_threshold": distance_threshold,
+            "permutations": int(permutations),
+            "alpha": float(alpha),
+        },
+        "region_count": len(regions),
+        "results": results,
+        "interpretation_warning": (
+            "Moran's I is an exploratory ROI-level spatial autocorrelation statistic. "
+            "It does not validate model predictions or prove biological causality."
+        ),
+    }
+    _write_json(output_json_path, payload)
+
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        lines = [
+            "KongNet ROI Moran's I Spatial Autocorrelation",
+            "=============================================",
+            "",
+            f"Regions analysed: {len(regions)}",
+            f"Statistic: esda.moran.Moran",
+            f"Weights: {weights_details}",
+            f"Permutations: {int(permutations)}",
+            f"Significance threshold: p < {float(alpha):g}",
+            "",
+            "Interpretation guide",
+            "--------------------",
+            "- Moran's I > 0 with significant p-value: high-value ROIs cluster near high-value ROIs and low-value ROIs cluster near low-value ROIs.",
+            "- Moran's I < 0 with significant p-value: high-value ROIs tend to sit beside low-value ROIs.",
+            "- Non-significant p-value: no strong evidence of ROI-level spatial autocorrelation.",
+            "",
+            "Results",
+            "-------",
+        ]
+        for metric, result in results.items():
+            if result.get("status") != "computed":
+                lines.append(f"- {metric}: skipped ({result.get('reason')})")
+                continue
+            p_value = result.get("p_value")
+            p_text = "unavailable" if p_value is None else ("<0.001" if p_value < 0.001 else f"{p_value:.4f}")
+            lines.append(
+                f"- {metric}: Moran's I {result.get('moran_i'):.3f}; "
+                f"p {p_text}; {result.get('interpretation')}"
+            )
+        lines.extend([
+            "",
+            "Important note",
+            "--------------",
+            payload["interpretation_warning"],
+        ])
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write("\n".join(lines) + "\n")
+
+    computed = sum(1 for result in results.values() if result.get("status") == "computed")
+    return "\n".join([
+        "KongNet ROI Moran's I analysis completed.",
+        f"Regions analysed: {len(regions)}",
+        f"Metrics computed: {computed}/{len(results)}",
+        f"Weights method: {weights_details}",
+        f"JSON: {output_json_path}",
+        f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
+    ])
 
 
 def _pointpats_standard_point_pattern_metrics(
@@ -3862,8 +4905,11 @@ def tool_compute_kongnet_point_pattern_statistics(
     distance_units: str = "microns",
     radii: Optional[List[float]] = None,
     quadrat_grid_size: int = 4,
-    min_points_per_pattern: int = 10,
+    min_points_per_pattern: int = 1,
     min_probability: float = 0.0,
+    cell_types: Optional[List[str]] = None,
+    source_types: Optional[List[str]] = None,
+    target_types: Optional[List[str]] = None,
 ) -> str:
     """Compute point-pattern statistics for KongNet nucleus coordinates.
 
@@ -3875,8 +4921,8 @@ def tool_compute_kongnet_point_pattern_statistics(
 
     if quadrat_grid_size < 1:
         raise ValueError("quadrat_grid_size must be at least 1.")
-    if min_points_per_pattern < 2:
-        raise ValueError("min_points_per_pattern must be at least 2.")
+    if min_points_per_pattern < 1:
+        raise ValueError("min_points_per_pattern must be at least 1.")
 
     radii = [float(value) for value in (radii or [25.0, 50.0, 100.0]) if float(value) > 0]
     if not radii:
@@ -3891,7 +4937,14 @@ def tool_compute_kongnet_point_pattern_statistics(
     min_xy = coords.min(axis=0)
     max_xy = coords.max(axis=0)
     slide_area = float(max((max_xy[0] - min_xy[0]) * (max_xy[1] - min_xy[1]), 1e-9))
-    class_names = _ordered_kongnet_class_names(nuclei)
+    available_class_names = _ordered_kongnet_class_names(nuclei)
+    class_names = (
+        [name for name in _normalise_kongnet_cell_types(cell_types) if name in available_class_names]
+        if cell_types
+        else available_class_names
+    )
+    if not class_names:
+        raise ValueError("No valid cell_types were selected for point-pattern statistics.")
     classes = np.asarray([cell["type"] for cell in nuclei], dtype=object)
 
     whole_slide_by_class = {}
@@ -3905,10 +4958,20 @@ def tool_compute_kongnet_point_pattern_statistics(
             min_points_per_pattern,
         )
 
-    immune_types = [name for name in KONGNET_IMMUNE_CELL_TYPES if name in class_names]
-    tumour_source_types = [name for name in ["Neoplastic"] if name in class_names]
-    if not tumour_source_types and "Epithelial" in class_names:
+    immune_types = (
+        [name for name in _normalise_kongnet_cell_types(target_types) if name in available_class_names]
+        if target_types
+        else [name for name in KONGNET_IMMUNE_CELL_TYPES if name in available_class_names]
+    )
+    tumour_source_types = (
+        [name for name in _normalise_kongnet_cell_types(source_types) if name in available_class_names]
+        if source_types
+        else [name for name in ["Neoplastic"] if name in available_class_names]
+    )
+    if not source_types and not tumour_source_types and "Epithelial" in available_class_names:
         tumour_source_types = ["Epithelial"]
+    if not tumour_source_types or not immune_types:
+        raise ValueError("Point-pattern source_types and target_types must resolve to valid KongNet cell classes.")
     source_mask = np.isin(classes, tumour_source_types)
     target_mask = np.isin(classes, immune_types)
     cross_type_summary = {
@@ -3980,6 +5043,9 @@ def tool_compute_kongnet_point_pattern_statistics(
             "quadrat_grid_size": int(quadrat_grid_size),
             "min_points_per_pattern": int(min_points_per_pattern),
             "min_probability": float(min_probability),
+            "cell_types": class_names,
+            "source_types": tumour_source_types,
+            "target_types": immune_types,
         },
         "slide_extent": {
             "x_min": float(min_xy[0]),
@@ -7173,8 +8239,15 @@ def tool_run_kongnet_spatial_workflow(
     mpp: Optional[float] = None,
     min_probability: float = 0.0,
     neighbourhood_radius: float = 50.0,
-    region_size: float = 100.0,
-    min_cells_per_region: int = 5,
+    point_pattern_radii: Optional[List[float]] = None,
+    cooccurrence_cell_types: Optional[List[str]] = None,
+    neighbourhood_source_types: Optional[List[str]] = None,
+    neighbourhood_target_types: Optional[List[str]] = None,
+    point_pattern_cell_types: Optional[List[str]] = None,
+    point_pattern_source_types: Optional[List[str]] = None,
+    point_pattern_target_types: Optional[List[str]] = None,
+    region_size: Optional[float] = 100.0,
+    min_cells_per_region: int = 1,
     community_count: int = 4,
     pathology_question: Optional[str] = None,
     overwrite: bool = True,
@@ -7186,8 +8259,15 @@ def tool_run_kongnet_spatial_workflow(
         raise FileNotFoundError(f"KongNet AnnotationStore or nuclei CSV not found: {annotationstore_path}")
     if not 0.0 <= float(min_probability) <= 1.0:
         raise ValueError("min_probability must be between 0 and 1.")
-    if neighbourhood_radius <= 0 or region_size <= 0:
-        raise ValueError("neighbourhood_radius and region_size must be greater than 0.")
+    if neighbourhood_radius <= 0:
+        raise ValueError("neighbourhood_radius must be greater than 0.")
+    if point_pattern_radii is None:
+        point_pattern_radii = [25.0, neighbourhood_radius, neighbourhood_radius * 2.0]
+    point_pattern_radii = [float(radius) for radius in point_pattern_radii]
+    if not point_pattern_radii or any(radius <= 0 for radius in point_pattern_radii):
+        raise ValueError("point_pattern_radii must contain at least one positive radius.")
+    if region_size is not None and float(region_size) <= 0:
+        raise ValueError("region_size must be greater than 0 or omitted for automatic sizing.")
     if min_cells_per_region < 1 or community_count < 1:
         raise ValueError("min_cells_per_region and community_count must be at least 1.")
 
@@ -7244,6 +8324,8 @@ def tool_run_kongnet_spatial_workflow(
         output_json_path=paths["neighbourhood_json"],
         radius=neighbourhood_radius,
         min_probability=min_probability,
+        source_types=neighbourhood_source_types,
+        target_types=neighbourhood_target_types,
         **spatial_kwargs,
     )
     step_results["cooccurrence"] = tool_compute_cell_type_cooccurrence(
@@ -7252,6 +8334,7 @@ def tool_run_kongnet_spatial_workflow(
         output_csv_path=paths["cooccurrence_csv"],
         radius=neighbourhood_radius,
         min_probability=min_probability,
+        cell_types=cooccurrence_cell_types,
         **spatial_kwargs,
     )
     step_results["nearest_neighbours"] = tool_compute_nearest_neighbour_features(
@@ -7259,6 +8342,8 @@ def tool_run_kongnet_spatial_workflow(
         output_csv_path=paths["nearest_csv"],
         output_json_path=paths["nearest_json"],
         min_probability=min_probability,
+        source_types=neighbourhood_source_types,
+        target_types=neighbourhood_target_types,
         **spatial_kwargs,
     )
     step_results["roi_analysis"] = tool_analyze_kongnet_regions(
@@ -7276,8 +8361,11 @@ def tool_run_kongnet_spatial_workflow(
         output_json_path=paths["point_pattern_json"],
         output_txt_path=paths["point_pattern_txt"],
         regions_json_path=paths["regions_json"],
-        radii=[25.0, neighbourhood_radius, neighbourhood_radius * 2.0],
+        radii=point_pattern_radii,
         min_probability=min_probability,
+        cell_types=point_pattern_cell_types,
+        source_types=point_pattern_source_types,
+        target_types=point_pattern_target_types,
         **spatial_kwargs,
     )
     step_results["roi_overlay"] = tool_export_kongnet_regions_to_annotationstore(
@@ -7345,6 +8433,8 @@ def tool_run_kongnet_spatial_workflow(
     )
     step_results["interpretability_report"] = f"Saved plain-text report ({len(report)} characters)."
 
+    with open(paths["regions_json"], "r", encoding="utf-8") as regions_file:
+        resolved_regions = json.load(regions_file)
     manifest = {
         "workflow": "full_kongnet_spatial_workflow",
         "status": "completed",
@@ -7354,7 +8444,16 @@ def tool_run_kongnet_spatial_workflow(
             "mpp": mpp,
             "min_probability": min_probability,
             "neighbourhood_radius": neighbourhood_radius,
-            "region_size": region_size,
+            "point_pattern_radii": point_pattern_radii,
+            "cooccurrence_cell_types": cooccurrence_cell_types,
+            "neighbourhood_source_types": neighbourhood_source_types,
+            "neighbourhood_target_types": neighbourhood_target_types,
+            "point_pattern_cell_types": point_pattern_cell_types,
+            "point_pattern_source_types": point_pattern_source_types,
+            "point_pattern_target_types": point_pattern_target_types,
+            "region_size_requested": region_size if region_size is not None else "auto",
+            "region_size_resolved": resolved_regions.get("region_size"),
+            "region_size_strategy": resolved_regions.get("region_size_strategy"),
             "min_cells_per_region": min_cells_per_region,
             "community_count": community_count,
             "pathology_question": pathology_question,
