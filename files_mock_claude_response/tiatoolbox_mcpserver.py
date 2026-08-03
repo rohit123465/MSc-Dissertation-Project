@@ -5,7 +5,7 @@ import os
 import uuid
 import subprocess
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 os.environ.setdefault("NO_ALBUMENTATIONS_UPDATE", "1")
 
@@ -31,6 +31,9 @@ from tia_tools import (
     tool_compute_nearest_neighbour_features,
     tool_analyze_kongnet_regions,
     tool_compute_kongnet_point_pattern_statistics,
+    tool_compute_kongnet_morans_i,
+    tool_compute_kongnet_spatial_entropy,
+    tool_compute_kongnet_cross_g_function,
     tool_export_kongnet_regions_to_annotationstore,
     tool_characterize_kongnet_cell_neighbourhoods,
     tool_aggregate_kather_metrics,
@@ -518,6 +521,53 @@ def infer_task_type(user_prompt: str) -> str:
         return "custom_nucleus_spatial_analysis"
 
     if any(k in request for k in [
+        "moran",
+        "moran's i",
+        "morans i",
+        "moran’s i",
+        "spatial autocorrelation",
+        "roi autocorrelation",
+        "hotspot/coldspot",
+        "hotspot coldspot",
+        "coldspot",
+    ]):
+        return "kongnet_morans_i_analysis"
+
+    if any(k in request for k in [
+        "spatial entropy",
+        "shannon entropy",
+        "entropy",
+        "composition entropy",
+        "compositional entropy",
+        "roi diversity",
+        "cell diversity",
+        "mixed microenvironment",
+        "homogeneous region",
+        "homogeneous roi",
+        "heterogeneous roi",
+        "heterogeneous region",
+    ]):
+        return "kongnet_spatial_entropy_analysis"
+
+    if any(k in request for k in [
+        "cross-g",
+        "cross g",
+        "cross-g function",
+        "cross g function",
+        "g-function",
+        "g function",
+        "gij",
+        "g_i_j",
+        "nearest target probability",
+        "probability of immune cell nearby",
+        "immune cell nearby",
+        "immune exclusion",
+        "immune-excluded",
+        "source target proximity",
+    ]):
+        return "kongnet_cross_g_analysis"
+
+    if any(k in request for k in [
         "show me tumour-immune",
         "show me tumor-immune",
         "top inflammatory region",
@@ -745,11 +795,70 @@ def build_plan(
     wsi_path: str,
     output_dir: str,
     geojson_path: str = "",
+    threshold_parameters: Optional[Dict[str, Any]] = None,
+    feature_parameters: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     task_type = infer_task_type(user_prompt)
     plan_id = str(uuid.uuid4())
     slide_stem = os.path.splitext(os.path.basename(wsi_path))[0] if wsi_path else ""
     slide_prefix = f"{slide_stem}_" if slide_stem else ""
+
+    # Spatial statistics are sensitive to user-defined distance, confidence,
+    # classification, and significance thresholds.  Defaults may be useful as
+    # suggestions, but they must not silently become analysis choices.  The
+    # questions below are attached to the draft plan so the client LLM asks the
+    # user to confirm them before requesting approval.
+    spatial_threshold_questions = {
+        "custom_nucleus_spatial_analysis": [
+            ("cooccurrence_radius", "What co-occurrence distance threshold should be used?"),
+            ("neighbourhood_radius", "What neighbourhood distance threshold should be used?"),
+            ("distance_units", "Which distance units should be used: microns or pixels?"),
+            ("min_probability", "What minimum nucleus-class probability threshold should be used?"),
+        ],
+        "kongnet_morans_i_analysis": [
+            ("alpha", "What statistical-significance threshold (alpha) should be used for Moran's I?"),
+        ],
+        "kongnet_spatial_entropy_analysis": [
+            ("low_threshold", "What upper threshold should define low normalized spatial entropy?"),
+            ("high_threshold", "What lower threshold should define high normalized spatial entropy?"),
+        ],
+        "kongnet_cross_g_analysis": [
+            ("radii", "At which distance threshold(s) should the cross-G statistic be evaluated?"),
+            ("distance_units", "Which distance units should be used: microns or pixels?"),
+            ("min_probability", "What minimum nucleus-class probability threshold should be used?"),
+        ],
+        "nucleus_spatial_analysis": [
+            ("neighbourhood_radius", "What cell-neighbourhood/co-occurrence distance threshold should be used?"),
+            ("point_pattern_radii", "At which radii should the point-pattern statistics be evaluated (in microns)?"),
+            ("min_probability", "What minimum nucleus-class probability threshold should be used?"),
+            ("min_cells_per_region", "What minimum number of cells should an ROI contain before its spatial statistics are computed?"),
+        ],
+    }
+    spatial_feature_questions = {
+        "custom_nucleus_spatial_analysis": [
+            ("cooccurrence_cell_types", "Which cell types should be included in the co-occurrence statistic?"),
+            ("neighbourhood_source_types", "Which cell type(s) should be the focal/source population for neighbourhood counts?"),
+            ("neighbourhood_target_types", "Which cell type(s) should be counted as the target population?"),
+        ],
+        "kongnet_morans_i_analysis": [
+            ("metrics", "Which numeric ROI features should Moran's I analyse?"),
+        ],
+        "kongnet_spatial_entropy_analysis": [
+            ("cell_types", "Which cell-type composition features should contribute to spatial entropy?"),
+        ],
+        "kongnet_cross_g_analysis": [
+            ("source_types", "Which cell type(s) should be the source population for cross-G?"),
+            ("target_types", "Which cell type(s) should be the target population for cross-G?"),
+        ],
+        "nucleus_spatial_analysis": [
+            ("cooccurrence_cell_types", "Which cell types should be included in the co-occurrence statistic?"),
+            ("neighbourhood_source_types", "Which cell type(s) should be the focal/source population for neighbourhood analysis?"),
+            ("neighbourhood_target_types", "Which cell type(s) should be counted as the target population?"),
+            ("point_pattern_cell_types", "Which cell types should receive per-class point-pattern statistics?"),
+            ("point_pattern_source_types", "Which source cell type(s) should be used for cross-type point-pattern proximity?"),
+            ("point_pattern_target_types", "Which target cell type(s) should be used for cross-type point-pattern proximity?"),
+        ],
+    }
 
     if task_type == "roi_pair_validation":
         plan = {
@@ -927,11 +1036,126 @@ def build_plan(
                 "distance_units": "microns",
                 "cooccurrence_radius": 100.0,
                 "neighbourhood_radius": 25.0,
+                "region_size": 100.0,
+                "min_cells_per_region": 1,
                 "neighbourhood_target_types": ["Neoplastic"],
                 "min_probability": 0.0
             },
             "clinical_warning": (
                 "These are model-derived ROI spatial research features, not a clinical diagnosis."
+            )
+        }
+
+    elif task_type == "kongnet_morans_i_analysis":
+        request = user_prompt.lower()
+        if "distance" in request:
+            weights_method = "distance"
+        elif "knn" in request or "k nearest" in request or "k-nearest" in request:
+            weights_method = "knn"
+        else:
+            weights_method = "queen"
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute ROI-level Moran's I spatial autocorrelation from existing KongNet region analysis results without rerunning nucleus detection or the full spatial workflow.",
+            "steps": [
+                "Read the existing KongNet ROI results from kongnet_regions.json.",
+                "Extract one numeric value per ROI for each requested metric, such as neoplastic percentage, inflammatory percentage, cell density, and tumour-immune interaction strength.",
+                "Build ROI spatial weights using PySAL/libpysal.",
+                "Compute Moran's I and permutation p-values using esda.moran.Moran.",
+                "Save the results as a machine-readable JSON file and a readable text report in the same output directory."
+            ],
+            "suggested_tools_after_approval": [
+                "compute_kongnet_morans_i"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_morans_i.json"),
+                os.path.join(output_dir, "kongnet_morans_i.txt")
+            ],
+            "default_parameters": {
+                "regions_json_path": os.path.join(output_dir, "kongnet_regions.json"),
+                "metrics": [
+                    "Neoplastic_percentage",
+                    "Inflammatory_percentage",
+                    "cell_density",
+                    "interaction_strength"
+                ],
+                "weights_method": weights_method,
+                "k_neighbours": 4,
+                "permutations": 999,
+                "alpha": 0.05
+            },
+            "clinical_warning": (
+                "Moran's I reports exploratory ROI-level spatial autocorrelation. "
+                "It does not validate model predictions, prove causality, or provide a clinical diagnosis."
+            )
+        }
+
+    elif task_type == "kongnet_spatial_entropy_analysis":
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute ROI-level spatial entropy from existing KongNet region composition results without rerunning nucleus detection or the full spatial workflow.",
+            "steps": [
+                "Read the existing KongNet ROI results from kongnet_regions.json.",
+                "Extract the predicted cell-type counts for each ROI.",
+                "Compute Shannon entropy from the ROI cell-type proportions.",
+                "Normalize entropy to a 0-1 diversity score so regions are easier to compare.",
+                "Label each ROI as low-diversity/homogeneous, moderate-diversity, or high-diversity/mixed.",
+                "Save JSON, readable TXT, and CSV outputs in the same output directory."
+            ],
+            "suggested_tools_after_approval": [
+                "compute_kongnet_spatial_entropy"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_spatial_entropy.json"),
+                os.path.join(output_dir, "kongnet_spatial_entropy.txt"),
+                os.path.join(output_dir, "kongnet_spatial_entropy.csv")
+            ],
+            "default_parameters": {
+                "regions_json_path": os.path.join(output_dir, "kongnet_regions.json"),
+                "normalize": True,
+                "entropy_base": 2.718281828459045,
+                "low_threshold": 0.40,
+                "high_threshold": 0.70
+            },
+            "clinical_warning": (
+                "Spatial entropy describes ROI-level compositional heterogeneity only. "
+                "It does not prove biological interaction, validate model predictions, or provide a clinical diagnosis."
+            )
+        }
+
+    elif task_type == "kongnet_cross_g_analysis":
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute a formal empirical cross-G function from existing KongNet nucleus detections to quantify source-to-target cell proximity.",
+            "steps": [
+                "Read existing KongNet nucleus coordinates and cell classes from the AnnotationStore.",
+                "Select source cell types, defaulting to neoplastic/tumour cells when available and epithelial cells otherwise.",
+                "Select target cell types, defaulting to immune/inflammatory KongNet classes.",
+                "For each source cell, compute the nearest target-cell distance.",
+                "For each radius, compute the empirical cross-G probability: the fraction of source cells with a target cell within that radius.",
+                "Compare the empirical curve with a CSR/Poisson expectation based on target-cell density.",
+                "Optionally compute the same cross-G curve separately inside existing ROIs from kongnet_regions.json.",
+                "Save JSON, readable TXT, and CSV outputs in the same output directory."
+            ],
+            "suggested_tools_after_approval": [
+                "compute_kongnet_cross_g_function"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_cross_g_function.json"),
+                os.path.join(output_dir, "kongnet_cross_g_function.txt"),
+                os.path.join(output_dir, "kongnet_cross_g_function.csv")
+            ],
+            "default_parameters": {
+                "regions_json_path": os.path.join(output_dir, "kongnet_regions.json"),
+                "radii": [25.0, 50.0, 100.0],
+                "distance_units": "microns",
+                "source_types": None,
+                "target_types": None,
+                "min_probability": 0.0
+            },
+            "clinical_warning": (
+                "Cross-G is an exploratory distance-based spatial statistic. "
+                "It does not prove biological interaction, validate model predictions, or provide a clinical diagnosis."
             )
         }
 
@@ -979,9 +1203,11 @@ def build_plan(
                 os.path.join(output_dir, "kongnet_ai_interpretability_report.txt")
             ],
             "default_parameters": {
-                "radius": 50.0,
+                "neighbourhood_radius": 50.0,
+                "point_pattern_radii": [25.0, 50.0, 100.0],
                 "region_size": 100.0,
-                "min_cells_per_region": 5,
+                "min_cells_per_region": 1,
+                "min_points_per_pattern": 1,
                 "distance_units": "microns",
                 "min_probability": 0.0
             },
@@ -1208,18 +1434,140 @@ def build_plan(
             ]
         }
 
+    # A QuPath image/GeoJSON pair is always validated before any downstream
+    # operation. This is based on supplied inputs, not prompt keyword matching.
+    requires_roi_validation = bool(wsi_path and geojson_path)
+    if requires_roi_validation:
+        validation_output = os.path.join(output_dir, "qupath_roi_pair_validation.json")
+        tools = plan.setdefault("suggested_tools_after_approval", [])
+        if "validate_qupath_roi_pair" in tools:
+            tools.remove("validate_qupath_roi_pair")
+        tools.insert(0, "validate_qupath_roi_pair")
+
+        steps = plan.setdefault("steps", [])
+        validation_step = (
+            "Validate the exact QuPath ROI image/GeoJSON pair and stop all downstream "
+            "execution if validation fails."
+        )
+        steps[:] = [step for step in steps if step != validation_step]
+        steps.insert(0, validation_step)
+
+        outputs = plan.setdefault("expected_outputs", [])
+        if validation_output not in outputs:
+            outputs.insert(0, validation_output)
+
+        plan["requires_roi_validation"] = True
+        plan["roi_validation"] = {
+            "status": "pending",
+            "image_path": os.path.abspath(wsi_path),
+            "geojson_path": os.path.abspath(geojson_path),
+            "output_json_path": os.path.abspath(validation_output),
+        }
+
     plan["wsi_path"] = wsi_path
     if geojson_path:
         plan["geojson_path"] = geojson_path
     plan["output_dir"] = output_dir
     plan["plan_id"] = plan_id
     plan["status"] = "pending_user_approval"
-    plan["instruction"] = (
-        "Show this plan to the user and stop. Do not call approve_pathology_plan yourself "
-        "until the user explicitly approves this exact plan in a later message. After the "
-        "user approves, call approve_pathology_plan to obtain a separate execution token. "
-        "Only then call tools listed in suggested_tools_after_approval."
-    )
+    supplied_thresholds = dict(threshold_parameters or {})
+    threshold_specs = spatial_threshold_questions.get(task_type, [])
+    # Moran's I only needs a distance cut-off when distance weights are selected.
+    if task_type == "kongnet_morans_i_analysis" and plan["default_parameters"]["weights_method"] == "distance":
+        threshold_specs.append(
+            ("distance_threshold", "What neighbour-distance threshold should be used for Moran's I distance weights?")
+        )
+
+    allowed_thresholds = {name for name, _ in threshold_specs}
+    unknown_thresholds = sorted(set(supplied_thresholds) - allowed_thresholds)
+    if unknown_thresholds:
+        raise ValueError(
+            f"Unsupported threshold parameter(s) for {task_type}: {unknown_thresholds}. "
+            f"Allowed parameters: {sorted(allowed_thresholds)}."
+        )
+
+    for name, value in supplied_thresholds.items():
+        if name == "distance_units" and value not in {"microns", "pixels"}:
+            raise ValueError('distance_units must be either "microns" or "pixels".')
+        if name in {"alpha", "min_probability", "low_threshold", "high_threshold"}:
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0.0 <= float(value) <= 1.0:
+                raise ValueError(f"{name} must be a number between 0 and 1.")
+        if name in {"cooccurrence_radius", "neighbourhood_radius", "distance_threshold"}:
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or float(value) <= 0:
+                raise ValueError(f"{name} must be a positive number.")
+        if name in {"radii", "point_pattern_radii"}:
+            if (
+                not isinstance(value, list)
+                or not value
+                or any(not isinstance(v, (int, float)) or isinstance(v, bool) or float(v) <= 0 for v in value)
+            ):
+                raise ValueError(f"{name} must be a non-empty list of positive numbers.")
+        if name == "min_cells_per_region" and (
+            not isinstance(value, int) or isinstance(value, bool) or value < 1
+        ):
+            raise ValueError("min_cells_per_region must be an integer of at least 1.")
+
+    if {"low_threshold", "high_threshold"}.issubset(supplied_thresholds):
+        if float(supplied_thresholds["low_threshold"]) > float(supplied_thresholds["high_threshold"]):
+            raise ValueError("low_threshold must not exceed high_threshold.")
+
+    supplied_features = dict(feature_parameters or {})
+    feature_specs = spatial_feature_questions.get(task_type, [])
+    allowed_features = {name for name, _ in feature_specs}
+    unknown_features = sorted(set(supplied_features) - allowed_features)
+    if unknown_features:
+        raise ValueError(
+            f"Unsupported feature parameter(s) for {task_type}: {unknown_features}. "
+            f"Allowed parameters: {sorted(allowed_features)}."
+        )
+    for name, value in supplied_features.items():
+        if not isinstance(value, list) or not value or any(not isinstance(item, str) or not item.strip() for item in value):
+            raise ValueError(f"{name} must be a non-empty list of feature or cell-type names.")
+
+    missing_features = [name for name, _ in feature_specs if name not in supplied_features]
+    if supplied_features:
+        plan["selected_feature_parameters"] = supplied_features
+        plan["default_parameters"].update(supplied_features)
+
+    missing_thresholds = [name for name, _ in threshold_specs if name not in supplied_thresholds]
+    if supplied_thresholds:
+        plan["selected_threshold_parameters"] = supplied_thresholds
+        plan["default_parameters"].update(supplied_thresholds)
+
+    if missing_thresholds or missing_features:
+        plan["threshold_questions_for_user"] = [
+            {"parameter": name, "question": question}
+            for name, question in threshold_specs
+            if name in missing_thresholds
+        ]
+        plan["threshold_selection_required"] = bool(missing_thresholds)
+        plan["feature_questions_for_user"] = [
+            {"parameter": name, "question": question}
+            for name, question in feature_specs
+            if name in missing_features
+        ]
+        plan["feature_selection_required"] = bool(missing_features)
+        plan["instruction"] = (
+            "Show this draft plan to the user and explicitly ask every question in "
+            "threshold_questions_for_user and feature_questions_for_user. Explain that any listed defaults are suggestions, "
+            "not automatically selected values. Stop and wait for the user's threshold and feature choices "
+            "before asking them to approve the final plan. Do not call approve_pathology_plan "
+            "yourself until the user has answered the threshold questions and explicitly approves "
+            "the resulting exact plan in a later message. After approval, call "
+            "approve_pathology_plan to obtain a separate execution token. Only then call tools "
+            "listed in suggested_tools_after_approval."
+        )
+    else:
+        if threshold_specs:
+            plan["threshold_selection_required"] = False
+        if feature_specs:
+            plan["feature_selection_required"] = False
+        plan["instruction"] = (
+            "Show this plan to the user and stop. Do not call approve_pathology_plan yourself "
+            "until the user explicitly approves this exact plan in a later message. After the "
+            "user approves, call approve_pathology_plan to obtain a separate execution token. "
+            "Only then call tools listed in suggested_tools_after_approval."
+        )
 
     PENDING_PLANS[plan_id] = plan
     return plan
@@ -1231,18 +1579,33 @@ def approve_plan(plan_id: str, confirmation: str) -> Dict[str, Any]:
     if plan_id not in PENDING_PLANS:
         raise RuntimeError("Invalid, expired, or already-approved plan_id.")
 
+    pending_plan = PENDING_PLANS[plan_id]
+    if pending_plan.get("threshold_selection_required") or pending_plan.get("feature_selection_required"):
+        raise RuntimeError(
+            "This spatial plan cannot be approved until the user supplies every value in "
+            "threshold_questions_for_user and feature_questions_for_user. Call "
+            "propose_pathology_plan again with those values in threshold_parameters and "
+            "feature_parameters, show the resulting final plan, and then request approval."
+        )
+
     plan = PENDING_PLANS.pop(plan_id)
     approval_token = str(uuid.uuid4())
     plan["status"] = "approved"
     plan["approved_at"] = utc_now_iso()
     plan["approval_token"] = approval_token
     APPROVED_PLANS[approval_token] = plan
+    instruction = "Execution may now begin, limited to approved_tools."
+    if plan.get("requires_roi_validation"):
+        instruction = (
+            "Run validate_qupath_roi_pair first for the exact approved TIFF/GeoJSON pair. "
+            "All other approved tools remain blocked unless validation passes."
+        )
     return {
         "plan_id": plan_id,
         "status": "approved",
         "approval_token": approval_token,
         "approved_tools": plan.get("suggested_tools_after_approval", []),
-        "instruction": "Execution may now begin, limited to approved_tools."
+        "instruction": instruction,
     }
 
 
@@ -1261,12 +1624,110 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
             "Invalid or unapproved approval_token. A pending plan cannot authorize execution."
         )
 
-    approved_tools = APPROVED_PLANS[token].get("suggested_tools_after_approval", [])
+    plan = APPROVED_PLANS[token]
+    approved_tools = plan.get("suggested_tools_after_approval", [])
     if tool_name not in approved_tools:
         raise RuntimeError(
             f'Tool "{tool_name}" is outside the approved plan. '
             f"Approved tools: {approved_tools}."
         )
+
+    selected = plan.get("selected_threshold_parameters", {})
+    selected_features = plan.get("selected_feature_parameters", {})
+    bindings = {
+        "run_kongnet_spatial_workflow": {
+            "neighbourhood_radius": "neighbourhood_radius",
+            "point_pattern_radii": "point_pattern_radii",
+            "min_probability": "min_probability",
+            "min_cells_per_region": "min_cells_per_region",
+        },
+        "compute_cell_type_cooccurrence": {
+            "radius": "cooccurrence_radius",
+            "distance_units": "distance_units",
+            "min_probability": "min_probability",
+        },
+        "export_kongnet_nuclei_to_csv": {
+            "min_probability": "min_probability",
+        },
+        "analyze_kongnet_regions": {
+            "neighbourhood_radius": "neighbourhood_radius",
+            "distance_units": "distance_units",
+            "min_probability": "min_probability",
+        },
+        "find_cells_within_radius": {
+            "radius": "neighbourhood_radius",
+            "distance_units": "distance_units",
+            "min_probability": "min_probability",
+        },
+        "compute_kongnet_morans_i": {
+            "alpha": "alpha",
+            "distance_threshold": "distance_threshold",
+        },
+        "compute_kongnet_spatial_entropy": {
+            "low_threshold": "low_threshold",
+            "high_threshold": "high_threshold",
+        },
+        "compute_kongnet_cross_g_function": {
+            "radii": "radii",
+            "distance_units": "distance_units",
+            "min_probability": "min_probability",
+        },
+    }
+    for argument_name, selected_name in bindings.get(tool_name, {}).items():
+        if selected_name not in selected:
+            continue
+        selected_value = selected[selected_name]
+        if argument_name in args and args[argument_name] != selected_value:
+            raise RuntimeError(
+                f'Execution parameter "{argument_name}" ({args[argument_name]!r}) does not match '
+                f'the user-approved value ({selected_value!r}). Propose and approve a new plan '
+                "to use a different threshold."
+            )
+        args[argument_name] = selected_value
+
+    feature_bindings = {
+        "run_kongnet_spatial_workflow": {
+            "cooccurrence_cell_types": "cooccurrence_cell_types",
+            "neighbourhood_source_types": "neighbourhood_source_types",
+            "neighbourhood_target_types": "neighbourhood_target_types",
+            "point_pattern_cell_types": "point_pattern_cell_types",
+            "point_pattern_source_types": "point_pattern_source_types",
+            "point_pattern_target_types": "point_pattern_target_types",
+        },
+        "compute_cell_type_cooccurrence": {"cell_types": "cooccurrence_cell_types"},
+        "find_cells_within_radius": {
+            "source_types": "neighbourhood_source_types",
+            "target_types": "neighbourhood_target_types",
+        },
+        "compute_kongnet_morans_i": {"metrics": "metrics"},
+        "compute_kongnet_spatial_entropy": {"cell_types": "cell_types"},
+        "compute_kongnet_cross_g_function": {
+            "source_types": "source_types",
+            "target_types": "target_types",
+        },
+    }
+    for argument_name, selected_name in feature_bindings.get(tool_name, {}).items():
+        if selected_name not in selected_features:
+            continue
+        selected_value = selected_features[selected_name]
+        if argument_name in args and args[argument_name] != selected_value:
+            raise RuntimeError(
+                f'Execution feature "{argument_name}" ({args[argument_name]!r}) does not match '
+                f'the user-approved value ({selected_value!r}). Propose and approve a new plan '
+                "to analyse different features."
+            )
+        args[argument_name] = selected_value
+
+    if plan.get("requires_roi_validation") and tool_name != "validate_qupath_roi_pair":
+        validation = plan.get("roi_validation") or {}
+        status = validation.get("status", "pending")
+        if status not in {"passed", "passed_with_warnings"}:
+            raise RuntimeError(
+                f'Cannot execute "{tool_name}" because mandatory QuPath ROI-pair '
+                f'validation status is "{status}". Run validate_qupath_roi_pair first '
+                "with this approval token. If validation fails, downstream execution "
+                "remains blocked."
+            )
 
     return token
 
@@ -1307,7 +1768,26 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "user_prompt": {"type": "string"},
                     "wsi_path": {"type": "string"},
                     "geojson_path": {"type": "string"},
-                    "output_dir": {"type": "string"}
+                    "output_dir": {"type": "string"},
+                    "threshold_parameters": {
+                        "type": "object",
+                        "description": (
+                            "User-selected spatial-statistic thresholds from the preceding "
+                            "clarification turn. Parameter names must match those returned in "
+                            "threshold_questions_for_user. Never populate this object by silently "
+                            "accepting suggested defaults."
+                        ),
+                        "additionalProperties": True
+                    },
+                    "feature_parameters": {
+                        "type": "object",
+                        "description": (
+                            "User-selected metrics or cell populations from the preceding "
+                            "clarification turn. Parameter names must match those returned in "
+                            "feature_questions_for_user."
+                        ),
+                        "additionalProperties": True
+                    }
                 },
                 "required": ["user_prompt", "wsi_path", "output_dir"],
                 "additionalProperties": False
@@ -1694,7 +2174,24 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "mpp": {"type": "number"},
                     "min_probability": {"type": "number"},
                     "neighbourhood_radius": {"type": "number"},
-                    "region_size": {"type": "number"},
+                    "point_pattern_radii": {
+                        "type": "array",
+                        "items": {"type": "number", "exclusiveMinimum": 0},
+                        "minItems": 1
+                    },
+                    "cooccurrence_cell_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "neighbourhood_source_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "neighbourhood_target_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "point_pattern_cell_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "point_pattern_source_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "point_pattern_target_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "region_size": {
+                        "oneOf": [
+                            {"type": "number", "exclusiveMinimum": 0},
+                            {"type": "string", "enum": ["auto"]}
+                        ],
+                        "description": "Explicit grid-cell size in distance units, or 'auto' to adapt to ROI area and nucleus count."
+                    },
                     "min_cells_per_region": {"type": "integer"},
                     "community_count": {"type": "integer"},
                     "pathology_question": {"type": "string"},
@@ -1869,7 +2366,13 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "annotationstore_path": {"type": "string"},
                     "output_json_path": {"type": "string"},
                     "output_csv_path": {"type": "string"},
-                    "region_size": {"type": "number"},
+                    "region_size": {
+                        "oneOf": [
+                            {"type": "number", "exclusiveMinimum": 0},
+                            {"type": "string", "enum": ["auto"]}
+                        ],
+                        "description": "Explicit grid-cell size in distance units, or 'auto' to adapt to ROI area and nucleus count."
+                    },
                     "neighbourhood_radius": {"type": "number"},
                     "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
                     "wsi_path": {"type": "string"},
@@ -1899,6 +2402,75 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "radii": {"type": "array", "items": {"type": "number"}},
                     "quadrat_grid_size": {"type": "integer"},
                     "min_points_per_pattern": {"type": "integer"},
+                    "min_probability": {"type": "number"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_kongnet_morans_i",
+            "title": "Compute KongNet ROI Moran's I",
+            "description": "Computes ROI-level spatial autocorrelation using PySAL/libpysal/esda. This tests whether high or low regional values such as inflammatory percentage, neoplastic percentage, cell density, or interaction strength cluster near similar ROIs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "metrics": {"type": "array", "items": {"type": "string"}},
+                    "weights_method": {"type": "string", "enum": ["queen", "rook", "distance", "knn"]},
+                    "k_neighbours": {"type": "integer"},
+                    "distance_threshold": {"type": "number"},
+                    "permutations": {"type": "integer"},
+                    "alpha": {"type": "number"}
+                },
+                "required": ["approval_token", "regions_json_path", "output_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_kongnet_spatial_entropy",
+            "title": "Compute KongNet ROI Spatial Entropy",
+            "description": "Computes Shannon entropy from KongNet ROI class composition. This scores each ROI from homogeneous/cell-type-dominant to mixed/high-diversity microenvironment and saves JSON, TXT, and optional CSV outputs.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "normalize": {"type": "boolean"},
+                    "entropy_base": {"type": "number"},
+                    "low_threshold": {"type": "number"},
+                    "high_threshold": {"type": "number"}
+                    ,"cell_types": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+                },
+                "required": ["approval_token", "regions_json_path", "output_json_path"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_kongnet_cross_g_function",
+            "title": "Compute KongNet Cross-G Function",
+            "description": "Computes the empirical cross-G function between source and target KongNet cell classes. This reports the probability that a source cell has at least one target cell within each radius, useful for tumour-immune proximity and immune-exclusion analysis.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "source_types": {"type": "array", "items": {"type": "string"}},
+                    "target_types": {"type": "array", "items": {"type": "string"}},
+                    "radii": {"type": "array", "items": {"type": "number"}},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
                     "min_probability": {"type": "number"}
                 },
                 "required": ["approval_token", "annotationstore_path", "output_json_path"],
@@ -2169,7 +2741,17 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     user_prompt=user_prompt.strip(),
                     wsi_path=wsi_path.strip(),
                     output_dir=output_dir.strip(),
-                    geojson_path=geojson_path.strip() if isinstance(geojson_path, str) else ""
+                    geojson_path=geojson_path.strip() if isinstance(geojson_path, str) else "",
+                    threshold_parameters=(
+                        args.get("threshold_parameters")
+                        if isinstance(args.get("threshold_parameters"), dict)
+                        else None
+                    ),
+                    feature_parameters=(
+                        args.get("feature_parameters")
+                        if isinstance(args.get("feature_parameters"), dict)
+                        else None
+                    ),
                 )
             )
             return
@@ -2213,18 +2795,43 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             return
 
         if name == "validate_qupath_roi_pair":
-            require_plan(args, name)
+            token = require_plan(args, name)
+            plan = APPROVED_PLANS[token]
+            validation = plan.get("roi_validation") or {}
+            image_path = args.get("image_path", "")
+            geojson_path = args.get("geojson_path", "")
+            output_json_path = args.get("output_json_path", "")
+            if plan.get("requires_roi_validation"):
+                expected_image = os.path.normcase(os.path.abspath(validation["image_path"]))
+                expected_geojson = os.path.normcase(os.path.abspath(validation["geojson_path"]))
+                actual_image = os.path.normcase(os.path.abspath(image_path))
+                actual_geojson = os.path.normcase(os.path.abspath(geojson_path))
+                if actual_image != expected_image or actual_geojson != expected_geojson:
+                    raise RuntimeError(
+                        "Validation paths must match the exact TIFF/GeoJSON pair in the "
+                        "approved plan. Propose a new plan to validate a different pair."
+                    )
+                output_json_path = validation["output_json_path"]
+
+            result = tool_validate_qupath_roi_pair(
+                image_path=image_path,
+                geojson_path=geojson_path,
+                output_json_path=output_json_path,
+                feature_id=args.get("feature_id"),
+                dimension_tolerance_pixels=float(
+                    args.get("dimension_tolerance_pixels", 2.0)
+                ),
+            )
+            with open(output_json_path, "r", encoding="utf-8") as validation_file:
+                manifest = json.load(validation_file)
+            validation["status"] = str(manifest.get("status", "failed"))
+            validation["completed_at"] = utc_now_iso()
+            validation["error_count"] = len(manifest.get("errors", []))
+            validation["warning_count"] = len(manifest.get("warnings", []))
+            plan["roi_validation"] = validation
             tool_result(
                 req_id,
-                tool_validate_qupath_roi_pair(
-                    image_path=args.get("image_path", ""),
-                    geojson_path=args.get("geojson_path", ""),
-                    output_json_path=args.get("output_json_path", ""),
-                    feature_id=args.get("feature_id"),
-                    dimension_tolerance_pixels=float(
-                        args.get("dimension_tolerance_pixels", 2.0)
-                    ),
-                )
+                result
             )
             return
 
@@ -2476,8 +3083,19 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     mpp=float(mpp) if mpp is not None else None,
                     min_probability=float(args.get("min_probability", 0.0)),
                     neighbourhood_radius=float(args.get("neighbourhood_radius", 50.0)),
-                    region_size=float(args.get("region_size", 100.0)),
-                    min_cells_per_region=int(args.get("min_cells_per_region", 5)),
+                    point_pattern_radii=args.get("point_pattern_radii"),
+                    cooccurrence_cell_types=args.get("cooccurrence_cell_types"),
+                    neighbourhood_source_types=args.get("neighbourhood_source_types"),
+                    neighbourhood_target_types=args.get("neighbourhood_target_types"),
+                    point_pattern_cell_types=args.get("point_pattern_cell_types"),
+                    point_pattern_source_types=args.get("point_pattern_source_types"),
+                    point_pattern_target_types=args.get("point_pattern_target_types"),
+                    region_size=(
+                        None
+                        if args.get("region_size", 100.0) in (None, "auto")
+                        else float(args.get("region_size", 100.0))
+                    ),
+                    min_cells_per_region=int(args.get("min_cells_per_region", 1)),
                     community_count=int(args.get("community_count", 4)),
                     pathology_question=args.get("pathology_question"),
                     overwrite=bool_arg(args.get("overwrite"), True),
@@ -2621,12 +3239,16 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     annotationstore_path=args.get("annotationstore_path", ""),
                     output_json_path=args.get("output_json_path", ""),
                     output_csv_path=args.get("output_csv_path"),
-                    region_size=float(args.get("region_size", 100.0)),
+                    region_size=(
+                        None
+                        if args.get("region_size", 100.0) in (None, "auto")
+                        else float(args.get("region_size", 100.0))
+                    ),
                     neighbourhood_radius=float(args.get("neighbourhood_radius", 50.0)),
                     distance_units=str(args.get("distance_units", "microns")),
                     wsi_path=args.get("wsi_path"),
                     mpp=float(mpp) if mpp is not None else None,
-                    min_cells_per_region=int(args.get("min_cells_per_region", 5)),
+                    min_cells_per_region=int(args.get("min_cells_per_region", 1)),
                     min_probability=float(args.get("min_probability", 0.0)),
                 )
             )
@@ -2647,7 +3269,69 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     mpp=float(mpp) if mpp is not None else None,
                     radii=args.get("radii"),
                     quadrat_grid_size=int(args.get("quadrat_grid_size", 4)),
-                    min_points_per_pattern=int(args.get("min_points_per_pattern", 10)),
+                    min_points_per_pattern=int(args.get("min_points_per_pattern", 1)),
+                    min_probability=float(args.get("min_probability", 0.0)),
+                )
+            )
+            return
+
+        if name == "compute_kongnet_morans_i":
+            require_plan(args, name)
+            tool_result(
+                req_id,
+                tool_compute_kongnet_morans_i(
+                    regions_json_path=args.get("regions_json_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_txt_path=args.get("output_txt_path"),
+                    metrics=args.get("metrics"),
+                    weights_method=str(args.get("weights_method", "queen")),
+                    k_neighbours=int(args.get("k_neighbours", 4)),
+                    distance_threshold=(
+                        float(args["distance_threshold"])
+                        if args.get("distance_threshold") is not None
+                        else None
+                    ),
+                    permutations=int(args.get("permutations", 999)),
+                    alpha=float(args.get("alpha", 0.05)),
+                )
+            )
+            return
+
+        if name == "compute_kongnet_spatial_entropy":
+            require_plan(args, name)
+            tool_result(
+                req_id,
+                tool_compute_kongnet_spatial_entropy(
+                    regions_json_path=args.get("regions_json_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_txt_path=args.get("output_txt_path"),
+                    output_csv_path=args.get("output_csv_path"),
+                    normalize=bool_arg(args.get("normalize"), True),
+                    entropy_base=float(args.get("entropy_base", 2.718281828459045)),
+                    low_threshold=float(args.get("low_threshold", 0.40)),
+                    high_threshold=float(args.get("high_threshold", 0.70)),
+                    cell_types=args.get("cell_types"),
+                )
+            )
+            return
+
+        if name == "compute_kongnet_cross_g_function":
+            require_plan(args, name)
+            mpp = args.get("mpp")
+            tool_result(
+                req_id,
+                tool_compute_kongnet_cross_g_function(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_txt_path=args.get("output_txt_path"),
+                    output_csv_path=args.get("output_csv_path"),
+                    regions_json_path=args.get("regions_json_path"),
+                    source_types=args.get("source_types"),
+                    target_types=args.get("target_types"),
+                    radii=args.get("radii"),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(mpp) if mpp is not None else None,
                     min_probability=float(args.get("min_probability", 0.0)),
                 )
             )
