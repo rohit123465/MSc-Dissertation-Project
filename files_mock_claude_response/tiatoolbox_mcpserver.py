@@ -32,6 +32,7 @@ from tia_tools import (
     tool_analyze_kongnet_regions,
     tool_compute_kongnet_point_pattern_statistics,
     tool_compute_kongnet_morans_i,
+    tool_compute_kongnet_local_morans_i,
     tool_compute_kongnet_spatial_entropy,
     tool_compute_kongnet_cross_g_function,
     tool_export_kongnet_regions_to_annotationstore,
@@ -51,6 +52,14 @@ from tia_tools import (
     tool_generate_kongnet_region_heatmaps,
     tool_generate_kongnet_point_pattern_overlays,
     tool_generate_kongnet_slide_summary,
+    tool_build_common_spatial_features,
+    tool_validate_spatial_capabilities,
+    tool_compute_common_roi_morans_i,
+    tool_compute_common_roi_entropy,
+    tool_compute_common_point_pattern_statistics,
+    tool_compute_common_cross_g,
+    tool_compute_common_cooccurrence,
+    tool_compute_common_neighbour_distances,
     PATCH_PREDICTION_MODEL_CATALOG,
     _patch_prediction_model_summary,
     KONGNET_MODEL_CATALOG,
@@ -461,6 +470,29 @@ def ensure_output_dir(output_dir: str) -> None:
 def infer_task_type(user_prompt: str) -> str:
     request = user_prompt.lower()
 
+    non_kongnet_spatial_models = [
+        "hovernet", "hover-net", "hovernetplus", "hover-net plus",
+        "bcss", "semantic segmentation", "kather", "pcam", "patch classification",
+    ]
+    requests_spatial_analysis = any(term in request for term in [
+        "spatial analysis", "spatial statistics", "spatial statistic",
+        "analyse spatial", "analyze spatial",
+    ])
+    requests_object_statistics = any(term in request for term in [
+        "point pattern", "point-pattern", "ripley", "cross-g", "cross g",
+        "co-occurrence", "cooccurrence", "nearest neighbour", "nearest-neighbour", "nni",
+    ])
+    if requests_object_statistics and any(model in request for model in non_kongnet_spatial_models + ["common object", "common-object"]):
+        return "common_object_spatial_analysis"
+    if ("common" in request or "cross-model" in request or "cross model" in request) and "moran" in request:
+        return "common_roi_morans_i"
+    if ("common" in request or "cross-model" in request or "cross model" in request) and "entropy" in request:
+        return "common_roi_entropy"
+    if any(term in request for term in ["common spatial format", "common spatial feature", "model-specific adapter", "cross-model spatial", "cross model spatial"]):
+        return "common_spatial_adapter"
+    if requests_spatial_analysis and any(model in request for model in non_kongnet_spatial_models):
+        return "common_spatial_adapter"
+
     if any(k in request for k in [
         "validate roi pair",
         "validate the roi pair",
@@ -519,6 +551,16 @@ def infer_task_type(user_prompt: str) -> str:
     )
     if requests_individual_spatial_tools or requests_multiple_spatial_operations:
         return "custom_nucleus_spatial_analysis"
+
+    if any(k in request for k in [
+        "local moran",
+        "local moran's i",
+        "local morans i",
+        "lisa cluster",
+        "high-high roi",
+        "low-low roi",
+    ]):
+        return "kongnet_local_morans_i_analysis"
 
     if any(k in request for k in [
         "moran",
@@ -797,6 +839,7 @@ def build_plan(
     geojson_path: str = "",
     threshold_parameters: Optional[Dict[str, Any]] = None,
     feature_parameters: Optional[Dict[str, Any]] = None,
+    clarification_plan_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     task_type = infer_task_type(user_prompt)
     plan_id = str(uuid.uuid4())
@@ -809,6 +852,25 @@ def build_plan(
     # questions below are attached to the draft plan so the client LLM asks the
     # user to confirm them before requesting approval.
     spatial_threshold_questions = {
+        "common_object_spatial_analysis": [
+            ("radii", "At which radii should Ripley, point-pattern, and Cross-G statistics be evaluated?"),
+            ("cooccurrence_radius", "What radius should be used for cell-type co-occurrence?"),
+            ("neighbourhood_radius", "What radius should be used for source-to-target neighbourhood counts?"),
+            ("min_probability", "What minimum object-class probability should be retained?"),
+            ("min_points_per_pattern", "What minimum number of points is required per class for point-pattern statistics?"),
+        ],
+        "common_spatial_adapter": [
+            ("region_size", "What common ROI/grid size should be used?"),
+            ("min_probability", "What minimum prediction-probability threshold should be used?"),
+            ("distance_units", "Should coordinates and grid size use pixels or microns?"),
+        ],
+        "common_roi_morans_i": [
+            ("alpha", "What statistical-significance threshold (alpha) should be used for Moran's I?"),
+        ],
+        "common_roi_entropy": [
+            ("low_threshold", "What upper threshold should define low normalized spatial entropy?"),
+            ("high_threshold", "What lower threshold should define high normalized spatial entropy?"),
+        ],
         "custom_nucleus_spatial_analysis": [
             ("cooccurrence_radius", "What co-occurrence distance threshold should be used?"),
             ("neighbourhood_radius", "What neighbourhood distance threshold should be used?"),
@@ -817,6 +879,10 @@ def build_plan(
         ],
         "kongnet_morans_i_analysis": [
             ("alpha", "What statistical-significance threshold (alpha) should be used for Moran's I?"),
+        ],
+        "kongnet_local_morans_i_analysis": [
+            ("distance_threshold", "What ROI-centroid radius should define neighbours for Local Moran's I?"),
+            ("alpha", "What statistical-significance threshold (alpha) should be used for Local Moran's I?"),
         ],
         "kongnet_spatial_entropy_analysis": [
             ("low_threshold", "What upper threshold should define low normalized spatial entropy?"),
@@ -835,6 +901,18 @@ def build_plan(
         ],
     }
     spatial_feature_questions = {
+        "common_object_spatial_analysis": [
+            ("point_pattern_cell_types", "Which classes should receive per-class NNI, quadrat, and Ripley statistics?"),
+            ("source_types", "Which class or classes should be the source population?"),
+            ("target_types", "Which class or classes should be the target population?"),
+            ("cooccurrence_cell_types", "Which classes should be included in co-occurrence analysis?"),
+        ],
+        "common_roi_morans_i": [
+            ("metrics", "Which numeric common ROI feature(s) should Moran's I analyse?"),
+        ],
+        "common_roi_entropy": [
+            ("cell_types", "Which adapted classes should contribute to spatial entropy?"),
+        ],
         "custom_nucleus_spatial_analysis": [
             ("cooccurrence_cell_types", "Which cell types should be included in the co-occurrence statistic?"),
             ("neighbourhood_source_types", "Which cell type(s) should be the focal/source population for neighbourhood counts?"),
@@ -842,6 +920,9 @@ def build_plan(
         ],
         "kongnet_morans_i_analysis": [
             ("metrics", "Which numeric ROI features should Moran's I analyse?"),
+        ],
+        "kongnet_local_morans_i_analysis": [
+            ("metric", "Which single numeric ROI feature should Local Moran's I analyse?"),
         ],
         "kongnet_spatial_entropy_analysis": [
             ("cell_types", "Which cell-type composition features should contribute to spatial entropy?"),
@@ -860,7 +941,68 @@ def build_plan(
         ],
     }
 
-    if task_type == "roi_pair_validation":
+    if task_type == "common_object_spatial_analysis":
+        plan = {
+            "task_type": task_type,
+            "goal": "Run compatible point-level spatial statistics on a standardized common-object representation.",
+            "steps": [
+                "Validate selected classes and common-object coordinates.",
+                "Compute per-class NNI, quadrat statistics, and Ripley-style multi-radius statistics.",
+                "Compute selected source-to-target Cross-G and nearest-neighbour/radius summaries.",
+                "Compute selected-class co-occurrence within the approved radius.",
+            ],
+            "suggested_tools_after_approval": [
+                "validate_spatial_capabilities", "compute_common_point_pattern_statistics",
+                "compute_common_cross_g", "compute_common_cooccurrence", "compute_common_neighbour_distances",
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "common_point_pattern_statistics.json"),
+                os.path.join(output_dir, "common_cross_g.json"),
+                os.path.join(output_dir, "common_cooccurrence.json"),
+                os.path.join(output_dir, "common_neighbour_distances.json"),
+            ],
+            "default_parameters": {"radii": [25.0, 50.0, 100.0], "cooccurrence_radius": 50.0,
+                                   "neighbourhood_radius": 50.0, "min_probability": 0.0,
+                                   "min_points_per_pattern": 10},
+        }
+    elif task_type == "common_spatial_adapter":
+        plan = {
+            "task_type": task_type,
+            "goal": "Convert a model-family output into standardized spatial object and ROI feature tables and validate its statistical capabilities.",
+            "steps": [
+                "Read the selected model output and its geometry/class metadata.",
+                "Convert object outputs to standardized centroids and region outputs to area-weighted grid features.",
+                "Write common object, long-form ROI feature, common JSON, and capability files.",
+                "Validate which spatial statistics are supported by the converted representation.",
+            ],
+            "suggested_tools_after_approval": ["build_common_spatial_features", "validate_spatial_capabilities"],
+            "expected_outputs": [
+                os.path.join(output_dir, "spatial_objects.csv"),
+                os.path.join(output_dir, "spatial_roi_features.csv"),
+                os.path.join(output_dir, "common_spatial_features.json"),
+                os.path.join(output_dir, "spatial_capabilities.json"),
+            ],
+            "default_parameters": {"region_size": 256.0, "min_probability": 0.0, "distance_units": "pixels"},
+        }
+    elif task_type == "common_roi_morans_i":
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute Moran's I from numeric ROI features in a common cross-model spatial representation.",
+            "steps": ["Validate the requested ROI features.", "Build ROI spatial weights.", "Compute Moran's I and permutation p-values for each selected feature."],
+            "suggested_tools_after_approval": ["validate_spatial_capabilities", "compute_common_roi_morans_i"],
+            "expected_outputs": [os.path.join(output_dir, "common_roi_morans_i.json"), os.path.join(output_dir, "common_roi_morans_i.txt")],
+            "default_parameters": {"weights_method": "queen", "permutations": 999, "alpha": 0.05},
+        }
+    elif task_type == "common_roi_entropy":
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute class-composition entropy from a common cross-model spatial representation.",
+            "steps": ["Validate the selected classes.", "Compute and normalize Shannon entropy per ROI.", "Classify and save ROI diversity results."],
+            "suggested_tools_after_approval": ["validate_spatial_capabilities", "compute_common_roi_entropy"],
+            "expected_outputs": [os.path.join(output_dir, "common_roi_entropy.json"), os.path.join(output_dir, "common_roi_entropy.csv"), os.path.join(output_dir, "common_roi_entropy.txt")],
+            "default_parameters": {"normalize": True, "low_threshold": 0.4, "high_threshold": 0.7},
+        }
+    elif task_type == "roi_pair_validation":
         plan = {
             "task_type": task_type,
             "goal": "Validate that a QuPath GeoJSON annotation and exported ROI image form a consistent pair.",
@@ -1043,6 +1185,46 @@ def build_plan(
             },
             "clinical_warning": (
                 "These are model-derived ROI spatial research features, not a clinical diagnosis."
+            )
+        }
+
+    elif task_type == "kongnet_local_morans_i_analysis":
+        plan = {
+            "task_type": task_type,
+            "goal": "Identify individual KongNet ROIs that form significant local clusters or spatial outliers for one selected ROI feature.",
+            "steps": [
+                "Read the existing KongNet ROI results from kongnet_regions.json.",
+                "Extract the selected numeric feature for every ROI.",
+                "Build binary distance-band weights from ROI-centroid distances using the user-selected radius.",
+                "Row-standardize the spatial weights.",
+                "Compute Local Moran's I and conditional permutation p-values for every ROI.",
+                "Classify significant ROIs as high-high, low-low, high-low, or low-high.",
+                "Save JSON, CSV, and TXT results plus a TIAViz-compatible ROI AnnotationStore overlay."
+            ],
+            "suggested_tools_after_approval": [
+                "compute_kongnet_local_morans_i"
+            ],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_local_morans_i.json"),
+                os.path.join(output_dir, "kongnet_local_morans_i.csv"),
+                os.path.join(output_dir, "kongnet_local_morans_i.txt"),
+                os.path.join(output_dir, "kongnet_local_morans_i_overlay.db")
+            ],
+            "default_parameters": {
+                "regions_json_path": (
+                    wsi_path
+                    if str(wsi_path).lower().endswith(".json")
+                    else os.path.join(output_dir, "kongnet_regions.json")
+                ),
+                "weights_method": "distance",
+                "k_neighbours": 4,
+                "permutations": 999,
+                "alpha": 0.05,
+                "seed": 42
+            },
+            "clinical_warning": (
+                "Local Moran's I is exploratory and involves multiple ROI-level tests. "
+                "It does not validate model predictions, prove causality, or provide a clinical diagnosis."
             )
         }
 
@@ -1472,6 +1654,11 @@ def build_plan(
     plan["status"] = "pending_user_approval"
     supplied_thresholds = dict(threshold_parameters or {})
     threshold_specs = spatial_threshold_questions.get(task_type, [])
+    if (
+        task_type == "common_spatial_adapter"
+        and supplied_thresholds.get("distance_units") == "microns"
+    ):
+        threshold_specs.append(("mpp", "What microns-per-pixel (MPP) value should be used?"))
     # Moran's I only needs a distance cut-off when distance weights are selected.
     if task_type == "kongnet_morans_i_analysis" and plan["default_parameters"]["weights_method"] == "distance":
         threshold_specs.append(
@@ -1492,7 +1679,7 @@ def build_plan(
         if name in {"alpha", "min_probability", "low_threshold", "high_threshold"}:
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0.0 <= float(value) <= 1.0:
                 raise ValueError(f"{name} must be a number between 0 and 1.")
-        if name in {"cooccurrence_radius", "neighbourhood_radius", "distance_threshold"}:
+        if name in {"cooccurrence_radius", "neighbourhood_radius", "distance_threshold", "region_size", "mpp"}:
             if not isinstance(value, (int, float)) or isinstance(value, bool) or float(value) <= 0:
                 raise ValueError(f"{name} must be a positive number.")
         if name in {"radii", "point_pattern_radii"}:
@@ -1502,10 +1689,10 @@ def build_plan(
                 or any(not isinstance(v, (int, float)) or isinstance(v, bool) or float(v) <= 0 for v in value)
             ):
                 raise ValueError(f"{name} must be a non-empty list of positive numbers.")
-        if name == "min_cells_per_region" and (
+        if name in {"min_cells_per_region", "min_points_per_pattern"} and (
             not isinstance(value, int) or isinstance(value, bool) or value < 1
         ):
-            raise ValueError("min_cells_per_region must be an integer of at least 1.")
+            raise ValueError(f"{name} must be an integer of at least 1.")
 
     if {"low_threshold", "high_threshold"}.issubset(supplied_thresholds):
         if float(supplied_thresholds["low_threshold"]) > float(supplied_thresholds["high_threshold"]):
@@ -1521,10 +1708,42 @@ def build_plan(
             f"Allowed parameters: {sorted(allowed_features)}."
         )
     for name, value in supplied_features.items():
+        if name == "metric":
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("metric must be a non-empty ROI feature name.")
+            continue
         if not isinstance(value, list) or not value or any(not isinstance(item, str) or not item.strip() for item in value):
             raise ValueError(f"{name} must be a non-empty list of feature or cell-type names.")
 
     missing_features = [name for name, _ in feature_specs if name not in supplied_features]
+
+    # A client LLM must not silently invent feature or threshold selections in
+    # its first planning call. Values are accepted only as answers to a prior
+    # clarification plan for the same task type. This makes the required user
+    # clarification turn enforceable by the server rather than advisory text.
+    supplied_selections = bool(supplied_thresholds or supplied_features)
+    if supplied_selections:
+        if not clarification_plan_id:
+            raise RuntimeError(
+                "Feature/threshold selections cannot be supplied on the first planning call. "
+                "First call propose_pathology_plan without selections, show its questions to "
+                "the user, then call it again with clarification_plan_id and the user's answers."
+            )
+        clarification_plan = PENDING_PLANS.get(str(clarification_plan_id))
+        if not clarification_plan:
+            raise RuntimeError("clarification_plan_id is invalid, expired, or already used.")
+        if clarification_plan.get("task_type") != task_type:
+            raise RuntimeError(
+                "clarification_plan_id belongs to a different task type; feature selections "
+                "must answer the questions from the same analysis plan."
+            )
+        if not (
+            clarification_plan.get("threshold_questions_for_user")
+            or clarification_plan.get("feature_questions_for_user")
+        ):
+            raise RuntimeError("The referenced plan did not request feature or threshold clarification.")
+        PENDING_PLANS.pop(str(clarification_plan_id), None)
+
     if supplied_features:
         plan["selected_feature_parameters"] = supplied_features
         plan["default_parameters"].update(supplied_features)
@@ -1635,6 +1854,23 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
     selected = plan.get("selected_threshold_parameters", {})
     selected_features = plan.get("selected_feature_parameters", {})
     bindings = {
+        "compute_common_point_pattern_statistics": {
+            "radii": "radii", "min_probability": "min_probability", "min_points_per_pattern": "min_points_per_pattern",
+        },
+        "compute_common_cross_g": {"radii": "radii", "min_probability": "min_probability"},
+        "compute_common_cooccurrence": {"radius": "cooccurrence_radius", "min_probability": "min_probability"},
+        "compute_common_neighbour_distances": {"radius": "neighbourhood_radius", "min_probability": "min_probability"},
+        "build_common_spatial_features": {
+            "region_size": "region_size",
+            "min_probability": "min_probability",
+            "distance_units": "distance_units",
+            "mpp": "mpp",
+        },
+        "compute_common_roi_morans_i": {"alpha": "alpha"},
+        "compute_common_roi_entropy": {
+            "low_threshold": "low_threshold",
+            "high_threshold": "high_threshold",
+        },
         "run_kongnet_spatial_workflow": {
             "neighbourhood_radius": "neighbourhood_radius",
             "point_pattern_radii": "point_pattern_radii",
@@ -1663,6 +1899,10 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
             "alpha": "alpha",
             "distance_threshold": "distance_threshold",
         },
+        "compute_kongnet_local_morans_i": {
+            "alpha": "alpha",
+            "distance_threshold": "distance_threshold",
+        },
         "compute_kongnet_spatial_entropy": {
             "low_threshold": "low_threshold",
             "high_threshold": "high_threshold",
@@ -1686,6 +1926,14 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
         args[argument_name] = selected_value
 
     feature_bindings = {
+        "compute_common_point_pattern_statistics": {
+            "cell_types": "point_pattern_cell_types", "source_types": "source_types", "target_types": "target_types",
+        },
+        "compute_common_cross_g": {"source_types": "source_types", "target_types": "target_types"},
+        "compute_common_cooccurrence": {"cell_types": "cooccurrence_cell_types"},
+        "compute_common_neighbour_distances": {"source_types": "source_types", "target_types": "target_types"},
+        "compute_common_roi_morans_i": {"metrics": "metrics"},
+        "compute_common_roi_entropy": {"cell_types": "cell_types"},
         "run_kongnet_spatial_workflow": {
             "cooccurrence_cell_types": "cooccurrence_cell_types",
             "neighbourhood_source_types": "neighbourhood_source_types",
@@ -1700,6 +1948,7 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
             "target_types": "neighbourhood_target_types",
         },
         "compute_kongnet_morans_i": {"metrics": "metrics"},
+        "compute_kongnet_local_morans_i": {"metric": "metric"},
         "compute_kongnet_spatial_entropy": {"cell_types": "cell_types"},
         "compute_kongnet_cross_g_function": {
             "source_types": "source_types",
@@ -1787,6 +2036,10 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                             "feature_questions_for_user."
                         ),
                         "additionalProperties": True
+                    },
+                    "clarification_plan_id": {
+                        "type": "string",
+                        "description": "Plan ID from the immediately preceding clarification plan whose questions the user has answered."
                     }
                 },
                 "required": ["user_prompt", "wsi_path", "output_dir"],
@@ -1809,6 +2062,131 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                 "required": ["plan_id", "confirmation"],
                 "additionalProperties": False
             }
+        },
+        {
+            "name": "build_common_spatial_features",
+            "title": "Build Common Cross-Model Spatial Features",
+            "description": "Adapts KongNet, HoVerNet, HoVerNetPlus, semantic-segmentation, or patch-classification AnnotationStore/CSV output into common object and ROI feature tables.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "source_path": {"type": "string"},
+                    "model_family": {"type": "string", "enum": ["kongnet", "hovernet", "hovernetplus", "semantic_segmentation", "patch_classification"]},
+                    "model_name": {"type": "string"},
+                    "output_dir": {"type": "string"},
+                    "region_size": {"type": "number", "exclusiveMinimum": 0},
+                    "min_probability": {"type": "number", "minimum": 0, "maximum": 1},
+                    "distance_units": {"type": "string", "enum": ["pixels", "microns"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number", "exclusiveMinimum": 0}
+                    ,"min_recommended_rois": {"type": "integer", "minimum": 3}
+                },
+                "required": ["approval_token", "source_path", "model_family", "model_name", "output_dir", "region_size", "min_probability"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "validate_spatial_capabilities",
+            "title": "Validate Spatial Capabilities",
+            "description": "Checks whether adapted model output has the objects, classes, coordinates, and ROI features required by a requested statistic.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "capabilities_json_path": {"type": "string"},
+                    "statistic": {"type": "string"},
+                    "feature_name": {"type": "string"},
+                    "source_types": {"type": "array", "items": {"type": "string"}},
+                    "target_types": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["approval_token", "capabilities_json_path", "statistic"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_common_roi_morans_i",
+            "title": "Compute Cross-Model ROI Moran's I",
+            "description": "Computes Moran's I for selected numeric features from common_spatial_features_v1 output.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"}, "common_spatial_json_path": {"type": "string"},
+                    "output_json_path": {"type": "string"}, "output_txt_path": {"type": "string"},
+                    "metrics": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "weights_method": {"type": "string", "enum": ["queen", "rook", "distance", "knn"]},
+                    "k_neighbours": {"type": "integer"}, "distance_threshold": {"type": "number"},
+                    "permutations": {"type": "integer"}, "alpha": {"type": "number"}
+                    ,"min_rois": {"type": "integer", "minimum": 3}
+                },
+                "required": ["approval_token", "common_spatial_json_path", "output_json_path", "metrics", "alpha"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_common_roi_entropy",
+            "title": "Compute Cross-Model ROI Entropy",
+            "description": "Computes class-composition Shannon entropy for selected classes from common_spatial_features_v1 output.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"}, "common_spatial_json_path": {"type": "string"},
+                    "output_json_path": {"type": "string"}, "output_txt_path": {"type": "string"}, "output_csv_path": {"type": "string"},
+                    "cell_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                    "normalize": {"type": "boolean"}, "entropy_base": {"type": "number"},
+                    "low_threshold": {"type": "number"}, "high_threshold": {"type": "number"}
+                },
+                "required": ["approval_token", "common_spatial_json_path", "output_json_path", "cell_types", "low_threshold", "high_threshold"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_common_point_pattern_statistics",
+            "title": "Compute Common-Object Point-Pattern Statistics",
+            "description": "Computes NNI, quadrat statistics, Ripley-style statistics and optional cross-type proximity from spatial_objects.csv.",
+            "inputSchema": {"type": "object", "properties": {
+                "approval_token": {"type": "string"}, "common_spatial_json_path": {"type": "string"},
+                "output_json_path": {"type": "string"}, "output_txt_path": {"type": "string"},
+                "cell_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "source_types": {"type": "array", "items": {"type": "string"}}, "target_types": {"type": "array", "items": {"type": "string"}},
+                "radii": {"type": "array", "items": {"type": "number", "exclusiveMinimum": 0}, "minItems": 1},
+                "quadrat_grid_size": {"type": "integer", "minimum": 1}, "min_points_per_pattern": {"type": "integer", "minimum": 1},
+                "min_probability": {"type": "number", "minimum": 0, "maximum": 1}
+            }, "required": ["approval_token", "common_spatial_json_path", "output_json_path", "cell_types", "radii"], "additionalProperties": False}
+        },
+        {
+            "name": "compute_common_cross_g",
+            "title": "Compute Common-Object Cross-G",
+            "description": "Computes empirical Cross-G for selected source and target classes from common spatial objects.",
+            "inputSchema": {"type": "object", "properties": {
+                "approval_token": {"type": "string"}, "common_spatial_json_path": {"type": "string"},
+                "output_json_path": {"type": "string"}, "output_csv_path": {"type": "string"},
+                "source_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "target_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "radii": {"type": "array", "items": {"type": "number", "exclusiveMinimum": 0}, "minItems": 1},
+                "min_probability": {"type": "number", "minimum": 0, "maximum": 1}
+            }, "required": ["approval_token", "common_spatial_json_path", "output_json_path", "source_types", "target_types", "radii"], "additionalProperties": False}
+        },
+        {
+            "name": "compute_common_cooccurrence",
+            "title": "Compute Common-Object Co-occurrence",
+            "description": "Counts selected class pairs within a user-approved radius.",
+            "inputSchema": {"type": "object", "properties": {
+                "approval_token": {"type": "string"}, "common_spatial_json_path": {"type": "string"}, "output_json_path": {"type": "string"},
+                "radius": {"type": "number", "exclusiveMinimum": 0}, "cell_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "min_probability": {"type": "number", "minimum": 0, "maximum": 1}
+            }, "required": ["approval_token", "common_spatial_json_path", "output_json_path", "radius", "cell_types"], "additionalProperties": False}
+        },
+        {
+            "name": "compute_common_neighbour_distances",
+            "title": "Compute Common-Object Neighbour Distances",
+            "description": "Computes nearest source-to-target distances and optional within-radius counts.",
+            "inputSchema": {"type": "object", "properties": {
+                "approval_token": {"type": "string"}, "common_spatial_json_path": {"type": "string"}, "output_json_path": {"type": "string"},
+                "source_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "target_types": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "radius": {"type": "number", "exclusiveMinimum": 0}, "min_probability": {"type": "number", "minimum": 0, "maximum": 1}
+            }, "required": ["approval_token", "common_spatial_json_path", "output_json_path", "source_types", "target_types"], "additionalProperties": False}
         },
         {
             "name": "health",
@@ -2431,6 +2809,34 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
             }
         },
         {
+            "name": "compute_kongnet_local_morans_i",
+            "title": "Compute KongNet ROI Local Moran's I",
+            "description": "Computes one Local Moran's I statistic per ROI for a selected numeric ROI feature, identifies significant high-high, low-low, high-low, and low-high patterns, and creates a TIAViz-compatible ROI AnnotationStore overlay.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "regions_json_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "output_annotationstore_path": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "overwrite": {"type": "boolean"},
+                    "metric": {"type": "string"},
+                    "weights_method": {"type": "string", "enum": ["queen", "rook", "distance", "knn"]},
+                    "k_neighbours": {"type": "integer"},
+                    "distance_threshold": {"type": "number"},
+                    "permutations": {"type": "integer"},
+                    "alpha": {"type": "number"},
+                    "seed": {"type": "integer"}
+                },
+                "required": ["approval_token", "regions_json_path", "output_json_path", "metric"],
+                "additionalProperties": False
+            }
+        },
+        {
             "name": "compute_kongnet_spatial_entropy",
             "title": "Compute KongNet ROI Spatial Entropy",
             "description": "Computes Shannon entropy from KongNet ROI class composition. This scores each ROI from homogeneous/cell-type-dominant to mixed/high-diversity microenvironment and saves JSON, TXT, and optional CSV outputs.",
@@ -2752,6 +3158,11 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                         if isinstance(args.get("feature_parameters"), dict)
                         else None
                     ),
+                    clarification_plan_id=(
+                        str(args.get("clarification_plan_id"))
+                        if args.get("clarification_plan_id")
+                        else None
+                    ),
                 )
             )
             return
@@ -2769,6 +3180,88 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     confirmation=str(confirmation or "")
                 )
             )
+            return
+
+        if name == "build_common_spatial_features":
+            require_plan(args, name)
+            mpp = args.get("mpp")
+            tool_result(req_id, tool_build_common_spatial_features(
+                source_path=args.get("source_path", ""), model_family=args.get("model_family", ""),
+                model_name=args.get("model_name", ""), output_dir=args.get("output_dir", ""),
+                region_size=float(args["region_size"]), min_probability=float(args["min_probability"]),
+                distance_units=str(args.get("distance_units", "pixels")), wsi_path=args.get("wsi_path"),
+                mpp=float(mpp) if mpp is not None else None,
+                min_recommended_rois=int(args.get("min_recommended_rois", 9)),
+            ))
+            return
+
+        if name == "validate_spatial_capabilities":
+            require_plan(args, name)
+            tool_result(req_id, tool_validate_spatial_capabilities(
+                capabilities_json_path=args.get("capabilities_json_path", ""), statistic=args.get("statistic", ""),
+                feature_name=args.get("feature_name"), source_types=args.get("source_types"), target_types=args.get("target_types"),
+            ))
+            return
+
+        if name == "compute_common_roi_morans_i":
+            require_plan(args, name)
+            tool_result(req_id, tool_compute_common_roi_morans_i(
+                common_spatial_json_path=args.get("common_spatial_json_path", ""), output_json_path=args.get("output_json_path", ""),
+                output_txt_path=args.get("output_txt_path"), metrics=args.get("metrics"),
+                weights_method=str(args.get("weights_method", "queen")), k_neighbours=int(args.get("k_neighbours", 4)),
+                distance_threshold=float(args["distance_threshold"]) if args.get("distance_threshold") is not None else None,
+                permutations=int(args.get("permutations", 999)), alpha=float(args["alpha"]),
+                min_rois=int(args.get("min_rois", 9)),
+            ))
+            return
+
+        if name == "compute_common_point_pattern_statistics":
+            require_plan(args, name)
+            tool_result(req_id, tool_compute_common_point_pattern_statistics(
+                common_spatial_json_path=args.get("common_spatial_json_path", ""), output_json_path=args.get("output_json_path", ""),
+                output_txt_path=args.get("output_txt_path"), cell_types=args.get("cell_types"),
+                source_types=args.get("source_types"), target_types=args.get("target_types"), radii=args.get("radii"),
+                quadrat_grid_size=int(args.get("quadrat_grid_size", 4)), min_points_per_pattern=int(args.get("min_points_per_pattern", 10)),
+                min_probability=float(args.get("min_probability", 0.0)),
+            ))
+            return
+
+        if name == "compute_common_cross_g":
+            require_plan(args, name)
+            tool_result(req_id, tool_compute_common_cross_g(
+                common_spatial_json_path=args.get("common_spatial_json_path", ""), output_json_path=args.get("output_json_path", ""),
+                output_csv_path=args.get("output_csv_path"), source_types=args.get("source_types"), target_types=args.get("target_types"),
+                radii=args.get("radii"), min_probability=float(args.get("min_probability", 0.0)),
+            ))
+            return
+
+        if name == "compute_common_cooccurrence":
+            require_plan(args, name)
+            tool_result(req_id, tool_compute_common_cooccurrence(
+                common_spatial_json_path=args.get("common_spatial_json_path", ""), output_json_path=args.get("output_json_path", ""),
+                radius=float(args["radius"]), cell_types=args.get("cell_types"), min_probability=float(args.get("min_probability", 0.0)),
+            ))
+            return
+
+        if name == "compute_common_neighbour_distances":
+            require_plan(args, name)
+            tool_result(req_id, tool_compute_common_neighbour_distances(
+                common_spatial_json_path=args.get("common_spatial_json_path", ""), output_json_path=args.get("output_json_path", ""),
+                source_types=args.get("source_types"), target_types=args.get("target_types"),
+                radius=float(args["radius"]) if args.get("radius") is not None else None,
+                min_probability=float(args.get("min_probability", 0.0)),
+            ))
+            return
+
+        if name == "compute_common_roi_entropy":
+            require_plan(args, name)
+            tool_result(req_id, tool_compute_common_roi_entropy(
+                common_spatial_json_path=args.get("common_spatial_json_path", ""), output_json_path=args.get("output_json_path", ""),
+                output_txt_path=args.get("output_txt_path"), output_csv_path=args.get("output_csv_path"),
+                cell_types=args.get("cell_types"), normalize=bool_arg(args.get("normalize"), True),
+                entropy_base=float(args.get("entropy_base", 2.718281828459045)),
+                low_threshold=float(args["low_threshold"]), high_threshold=float(args["high_threshold"]),
+            ))
             return
 
         if name == "health":
@@ -3293,6 +3786,34 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     ),
                     permutations=int(args.get("permutations", 999)),
                     alpha=float(args.get("alpha", 0.05)),
+                )
+            )
+            return
+
+        if name == "compute_kongnet_local_morans_i":
+            require_plan(args, name)
+            tool_result(
+                req_id,
+                tool_compute_kongnet_local_morans_i(
+                    regions_json_path=args.get("regions_json_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_csv_path=args.get("output_csv_path"),
+                    output_txt_path=args.get("output_txt_path"),
+                    output_annotationstore_path=args.get("output_annotationstore_path"),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(args["mpp"]) if args.get("mpp") is not None else None,
+                    overwrite=bool_arg(args.get("overwrite"), True),
+                    metric=str(args.get("metric", "")),
+                    weights_method=str(args.get("weights_method", "distance")),
+                    k_neighbours=int(args.get("k_neighbours", 4)),
+                    distance_threshold=(
+                        float(args["distance_threshold"])
+                        if args.get("distance_threshold") is not None
+                        else None
+                    ),
+                    permutations=int(args.get("permutations", 999)),
+                    alpha=float(args.get("alpha", 0.05)),
+                    seed=int(args.get("seed", 42)),
                 )
             )
             return
