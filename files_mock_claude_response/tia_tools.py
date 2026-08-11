@@ -2458,7 +2458,13 @@ def tool_predict_nucleus_instance_segmentation(
         "overwrite": bool(overwrite),
     }
     if class_dict:
-        run_kwargs["class_dict"] = class_dict
+        # MultiTaskSegmentor.save_predictions expects class dictionaries to be
+        # keyed by task name, even when NucleusInstanceSegmentor has only one
+        # task. Passing the flat {type_id: label} mapping causes a late
+        # KeyError after inference finishes. The engine initializes ``tasks``
+        # lazily during run(), so it may still be empty here; the canonical
+        # task produced by NucleusInstanceSegmentor is nuclei_segmentation.
+        run_kwargs["class_dict"] = {"nuclei_segmentation": class_dict}
     output = segmentor.run(**run_kwargs)
 
     annotationstore_paths = _flatten_annotationstore_paths(output)
@@ -3851,12 +3857,32 @@ def tool_compute_kongnet_spatial_entropy(
     if not regions:
         raise ValueError("No regions found in the regions JSON.")
 
-    available_cell_types = list((regions[0].get("class_counts") or {}).keys())
-    selected_cell_types = (
-        [name for name in _normalise_kongnet_cell_types(cell_types) if name in available_cell_types]
-        if cell_types
-        else None
-    )
+    available_cell_types = []
+    for region in regions:
+        for name in (region.get("class_counts") or {}).keys():
+            if name not in available_cell_types:
+                available_cell_types.append(name)
+    selected_cell_types = None
+    if cell_types:
+        available_lookup = {str(name).casefold(): str(name) for name in available_cell_types}
+        selected_cell_types = []
+        unresolved = []
+        for requested in cell_types:
+            match = available_lookup.get(str(requested).strip().casefold())
+            if match:
+                if match not in selected_cell_types:
+                    selected_cell_types.append(match)
+            else:
+                unresolved.append(requested)
+        if unresolved:
+            try:
+                expanded = _normalise_kongnet_cell_types(unresolved) or []
+            except ValueError:
+                expanded = []
+            selected_cell_types.extend(
+                name for name in expanded
+                if name in available_cell_types and name not in selected_cell_types
+            )
     if cell_types and not selected_cell_types:
         raise ValueError("cell_types did not contain any recognized KongNet cell classes.")
 
@@ -4423,7 +4449,7 @@ def tool_compute_kongnet_morans_i(
     output_json_path: str,
     output_txt_path: Optional[str] = None,
     metrics: Optional[List[str]] = None,
-    weights_method: str = "queen",
+    weights_method: str = "distance",
     k_neighbours: int = 4,
     distance_threshold: Optional[float] = None,
     permutations: int = 999,
@@ -4600,6 +4626,367 @@ def tool_compute_kongnet_morans_i(
         f"Weights method: {weights_details}",
         f"JSON: {output_json_path}",
         f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
+    ])
+
+
+LOCAL_MORAN_CLUSTER_COLOURS = {
+    "high-high": "#D73027",
+    "low-low": "#4575B4",
+    "high-low": "#FDAE61",
+    "low-high": "#74ADD1",
+    "not significant": "#BDBDBD",
+}
+
+
+def _export_local_moran_annotationstore(
+    regions_payload: Dict[str, Any],
+    valid_pairs,
+    rows: List[Dict[str, Any]],
+    output_db_path: str,
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    overwrite: bool = True,
+) -> int:
+    """Write Local Moran ROI rectangles as a TIAViz-compatible AnnotationStore."""
+    from shapely.geometry import box
+    from tiatoolbox.annotation.storage import Annotation, SQLiteStore
+
+    units = str(regions_payload.get("distance_units", "pixels")).lower()
+    stored_scale = regions_payload.get("scale") or {}
+    if units == "pixels":
+        x_scale = y_scale = 1.0
+    elif mpp is not None or wsi_path:
+        resolved = _resolve_spatial_scale("microns", wsi_path=wsi_path, mpp=mpp)
+        x_scale, y_scale = resolved["x_scale"], resolved["y_scale"]
+    elif stored_scale.get("x_scale") and stored_scale.get("y_scale"):
+        x_scale = float(stored_scale["x_scale"])
+        y_scale = float(stored_scale["y_scale"])
+    else:
+        raise ValueError(
+            "Micron-based Local Moran ROI coordinates require wsi_path, mpp, "
+            "or scale metadata in the regions JSON."
+        )
+
+    # AnnotationStore geometries use baseline pixels.  Grid ROIs can extend
+    # past the right/bottom edge when the slide size is not an exact multiple
+    # of the requested ROI size, so clip them to the real image dimensions.
+    slide_bounds = None
+    if wsi_path:
+        try:
+            from tiatoolbox.wsicore.wsireader import WSIReader
+
+            reader = WSIReader.open(wsi_path)
+            width_px, height_px = (
+                int(value) for value in reader.info.slide_dimensions
+            )
+        except Exception:
+            # Reading TIFF metadata directly is a lightweight fallback for
+            # environments where TIAToolbox's optional zarr stack is absent or
+            # incompatible. No pixel data are loaded here.
+            from tifffile import TiffFile
+
+            with TiffFile(wsi_path) as tif:
+                axes = tif.series[0].axes
+                shape = tif.series[0].shape
+                width_px = int(shape[axes.index("X")])
+                height_px = int(shape[axes.index("Y")])
+        slide_bounds = box(0.0, 0.0, float(width_px), float(height_px))
+
+    ensure_parent_dir(output_db_path)
+    if os.path.exists(output_db_path):
+        if not overwrite:
+            raise FileExistsError(f"Output AnnotationStore already exists: {output_db_path}")
+        os.remove(output_db_path)
+
+    annotations, keys = [], []
+    type_ids = {
+        "high-high": 0,
+        "low-low": 1,
+        "high-low": 2,
+        "low-high": 3,
+        "not significant": 4,
+    }
+    for (region, _), row in zip(valid_pairs, rows, strict=True):
+        cluster_label = str(row["cluster_label"])
+        colour = LOCAL_MORAN_CLUSTER_COLOURS.get(cluster_label, "#BDBDBD")
+        geometry = box(
+            float(region["x_min"]) / x_scale,
+            float(region["y_min"]) / y_scale,
+            float(region["x_max"]) / x_scale,
+            float(region["y_max"]) / y_scale,
+        )
+        was_clipped = False
+        if slide_bounds is not None:
+            unclipped_geometry = geometry
+            geometry = geometry.intersection(slide_bounds)
+            was_clipped = not geometry.equals(unclipped_geometry)
+            if geometry.is_empty:
+                continue
+        properties = {
+            "type": cluster_label,
+            "label": cluster_label,
+            "type_id": type_ids.get(cluster_label, type_ids["not significant"]),
+            "region_id": row["region_id"],
+            "region_label": row.get("region_label"),
+            "metric": row["metric"],
+            "feature_value": row["feature_value"],
+            "standardized_feature_value": row["standardized_feature_value"],
+            "spatial_lag": row["spatial_lag"],
+            "local_moran_i": row["local_moran_i"],
+            "p_value": row["p_value"],
+            "quadrant": row["quadrant"],
+            "raw_cluster_label": row["raw_cluster_label"],
+            "cluster_label": cluster_label,
+            "significant": row["significant"],
+            "neighbour_count": row["neighbour_count"],
+            "neighbour_ids": ";".join(row["neighbour_ids"]),
+            "colour": colour,
+            "color": colour,
+            "line_color": colour,
+            "fill_color": colour,
+            "fill_opacity": 0.42 if row["significant"] else 0.12,
+            "is_roi": True,
+            "coordinate_space": "baseline",
+            "clipped_to_slide_bounds": was_clipped,
+            "source": "KongNet Local Moran's I",
+        }
+        annotations.append(Annotation(geometry, properties=properties))
+        keys.append(str(row["region_id"]))
+
+    store = SQLiteStore(output_db_path)
+    try:
+        store.append_many(annotations, keys=keys)
+        store.commit()
+        return len(store)
+    finally:
+        store.close()
+
+
+def tool_compute_kongnet_local_morans_i(
+    regions_json_path: str,
+    output_json_path: str,
+    metric: str,
+    output_csv_path: Optional[str] = None,
+    output_txt_path: Optional[str] = None,
+    output_annotationstore_path: Optional[str] = None,
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    overwrite: bool = True,
+    weights_method: str = "distance",
+    k_neighbours: int = 4,
+    distance_threshold: Optional[float] = None,
+    permutations: int = 999,
+    alpha: float = 0.05,
+    seed: int = 42,
+) -> str:
+    """Identify ROI-level clusters and spatial outliers using Local Moran's I.
+
+    The statistic is calculated for one numeric feature per ROI. Distance weights
+    use ROI-centroid distances, matching the global KongNet Moran's I tool.
+    """
+    import numpy as np
+    from esda.moran import Moran_Local
+    from libpysal.weights import lag_spatial
+
+    if not isinstance(regions_json_path, str) or not regions_json_path.strip():
+        raise ValueError('compute_kongnet_local_morans_i requires a non-empty "regions_json_path".')
+    if not os.path.exists(regions_json_path):
+        raise FileNotFoundError(f"Regions JSON not found: {regions_json_path}")
+    if not isinstance(output_json_path, str) or not output_json_path.strip():
+        raise ValueError('compute_kongnet_local_morans_i requires a non-empty "output_json_path".')
+    if not isinstance(metric, str) or not metric.strip():
+        raise ValueError('compute_kongnet_local_morans_i requires a non-empty "metric".')
+    if int(permutations) < 0:
+        raise ValueError("permutations must be non-negative.")
+    if not 0.0 < float(alpha) < 1.0:
+        raise ValueError("alpha must be between 0 and 1.")
+
+    with open(regions_json_path, "r", encoding="utf-8") as file:
+        regions_payload = json.load(file)
+    all_regions = list(regions_payload.get("regions") or [])
+    valid_pairs = [
+        (region, _roi_moran_feature_value(region, metric))
+        for region in all_regions
+    ]
+    valid_pairs = [(region, value) for region, value in valid_pairs if value is not None]
+    if len(valid_pairs) < 3:
+        raise ValueError("Local Moran's I requires at least 3 ROIs with numeric feature values.")
+
+    regions = [region for region, _ in valid_pairs]
+    values = np.asarray([value for _, value in valid_pairs], dtype=float)
+    if float(np.var(values)) <= 0.0:
+        raise ValueError("Local Moran's I cannot be computed because the selected metric has zero variance.")
+
+    weights, weights_details = _build_roi_pysal_weights(
+        regions,
+        weights_method=weights_method,
+        k_neighbours=k_neighbours,
+        distance_threshold=distance_threshold,
+    )
+    isolated_ids = [
+        region_id
+        for region_id in weights.id_order
+        if len(weights.neighbors.get(region_id, [])) == 0
+    ]
+    if isolated_ids:
+        raise ValueError(
+            "Local Moran's I requires every retained ROI to have at least one neighbour. "
+            f"Isolated ROI IDs: {isolated_ids}"
+        )
+
+    weights.transform = "R"
+    np.random.seed(int(seed))
+    local = Moran_Local(
+        values,
+        weights,
+        permutations=int(permutations),
+        seed=int(seed),
+    )
+
+    standardized_values = np.asarray(local.z, dtype=float)
+    spatial_lags = np.asarray(lag_spatial(weights, standardized_values), dtype=float)
+    quadrant_labels = {
+        1: "high-high",
+        2: "low-high",
+        3: "low-low",
+        4: "high-low",
+    }
+    rows = []
+    for index, (region, feature_value) in enumerate(valid_pairs):
+        region_id = str(region.get("region_id") or index)
+        quadrant = int(local.q[index])
+        p_value = _safe_float(local.p_sim[index]) if int(permutations) > 0 else None
+        significant = p_value is not None and p_value < float(alpha)
+        raw_cluster_label = quadrant_labels.get(quadrant, "unclassified")
+        cluster_label = raw_cluster_label if significant else "not significant"
+        centroid_x = (float(region["x_min"]) + float(region["x_max"])) / 2.0
+        centroid_y = (float(region["y_min"]) + float(region["y_max"])) / 2.0
+        rows.append({
+            "region_id": region_id,
+            "region_label": region.get("region_label"),
+            "metric": metric,
+            "feature_value": float(feature_value),
+            "standardized_feature_value": float(standardized_values[index]),
+            "spatial_lag": float(spatial_lags[index]),
+            "centroid_x": centroid_x,
+            "centroid_y": centroid_y,
+            "local_moran_i": float(local.Is[index]),
+            "p_value": p_value,
+            "p_value_source": "conditional permutation p-value (p_sim)" if int(permutations) > 0 else None,
+            "quadrant": quadrant,
+            "raw_cluster_label": raw_cluster_label,
+            "cluster_label": cluster_label,
+            "significant": bool(significant),
+            "neighbour_count": len(weights.neighbors.get(region_id, [])),
+            "neighbour_ids": list(weights.neighbors.get(region_id, [])),
+        })
+
+    cluster_counts = dict(Counter(row["cluster_label"] for row in rows))
+    significant_positive = [
+        row for row in rows
+        if row["significant"] and row["local_moran_i"] > 0
+        and row["raw_cluster_label"] in {"high-high", "low-low"}
+    ]
+    resolved_annotationstore_path = output_annotationstore_path or (
+        os.path.splitext(output_json_path)[0] + "_overlay.db"
+    )
+    annotation_count = _export_local_moran_annotationstore(
+        regions_payload=regions_payload,
+        valid_pairs=valid_pairs,
+        rows=rows,
+        output_db_path=resolved_annotationstore_path,
+        wsi_path=wsi_path,
+        mpp=mpp,
+        overwrite=overwrite,
+    )
+
+    payload = {
+        "analysis": "kongnet_roi_local_morans_i",
+        "regions_json_path": regions_json_path,
+        "method": {
+            "library": "PySAL ecosystem",
+            "weights": weights_details,
+            "weights_transform": "row-standardized",
+            "statistic": "esda.moran.Moran_Local",
+            "quadrants": quadrant_labels,
+        },
+        "parameters": {
+            "metric": metric,
+            "weights_method": str(weights_method),
+            "k_neighbours": int(k_neighbours),
+            "distance_threshold": distance_threshold,
+            "permutations": int(permutations),
+            "alpha": float(alpha),
+            "seed": int(seed),
+        },
+        "region_count": len(rows),
+        "annotationstore_path": resolved_annotationstore_path,
+        "annotation_count": annotation_count,
+        "visualization_legend": LOCAL_MORAN_CLUSTER_COLOURS,
+        "cluster_counts": cluster_counts,
+        "significant_positive_cluster_roi_ids": [row["region_id"] for row in significant_positive],
+        "regions": rows,
+        "interpretation_warning": (
+            "Local Moran's I is exploratory and involves multiple ROI-level tests. "
+            "Permutation significance does not prove biological causality; consider a multiple-testing correction."
+        ),
+    }
+    _write_json(output_json_path, payload)
+
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        fieldnames = [
+            "region_id", "region_label", "metric", "feature_value",
+            "standardized_feature_value", "spatial_lag", "centroid_x", "centroid_y",
+            "local_moran_i", "p_value", "quadrant", "raw_cluster_label",
+            "cluster_label", "significant", "neighbour_count", "neighbour_ids",
+        ]
+        with open(output_csv_path, "w", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows:
+                output_row = {key: row.get(key) for key in fieldnames}
+                output_row["neighbour_ids"] = ";".join(row["neighbour_ids"])
+                writer.writerow(output_row)
+
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        lines = [
+            "KongNet ROI Local Moran's I",
+            "===========================",
+            "",
+            f"Metric: {metric}",
+            f"Regions analysed: {len(rows)}",
+            f"Weights: {weights_details}",
+            "Weights transform: row-standardized",
+            f"Permutations: {int(permutations)}",
+            f"Significance threshold: p < {float(alpha):g}",
+            "",
+            "Significant positive local clusters",
+            "-----------------------------------",
+        ]
+        if significant_positive:
+            for row in sorted(significant_positive, key=lambda item: item["p_value"]):
+                lines.append(
+                    f"- {row['region_id']}: {row['raw_cluster_label']}; "
+                    f"Local I={row['local_moran_i']:.4f}; p={row['p_value']:.4f}; "
+                    f"{metric}={row['feature_value']:.4f}"
+                )
+        else:
+            lines.append("- None at the selected alpha level.")
+        lines.extend(["", payload["interpretation_warning"]])
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write("\n".join(lines) + "\n")
+
+    return "\n".join([
+        "KongNet ROI Local Moran's I analysis completed.",
+        f"Metric: {metric}",
+        f"Regions analysed: {len(rows)}",
+        f"Significant positive cluster ROIs: {[row['region_id'] for row in significant_positive]}",
+        f"JSON: {output_json_path}",
+        f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
+        f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
+        f"TIAViz AnnotationStore: {resolved_annotationstore_path}",
     ])
 
 
@@ -8478,3 +8865,635 @@ def tool_run_kongnet_spatial_workflow(
         tiaviz_command,
         "Place or copy the nucleus AnnotationStore into the same output directory to view both overlay layers together.",
     ])
+
+
+# -----------------------------------------------------------------------------
+# Cross-model common spatial representation
+# -----------------------------------------------------------------------------
+
+COMMON_SPATIAL_MODEL_FAMILIES = {
+    "kongnet": "object",
+    "hovernet": "object",
+    "hovernetplus": "object_and_region",
+    "semantic_segmentation": "region",
+    "patch_classification": "region",
+}
+
+COMMON_SPATIAL_STATISTIC_ALIASES = {
+    "entropy": "spatial_entropy",
+    "shannon_entropy": "spatial_entropy",
+    "roi_entropy": "spatial_entropy",
+    "moran": "morans_i",
+    "moran_i": "morans_i",
+    "point_pattern": "point_pattern_statistics",
+    "point_pattern_analysis": "point_pattern_statistics",
+    "ripley_k": "ripley",
+    "ripley_l": "ripley",
+    "cross_g_function": "cross_g",
+    "cell_type_cooccurrence": "cooccurrence",
+    "cells_within_radius": "radius_neighbourhood",
+    "neighbourhood": "radius_neighbourhood",
+    "nearest_neighbor": "nearest_neighbour",
+}
+
+COMMON_IMPLEMENTED_STATISTICS = [
+    "morans_i", "spatial_entropy", "nni", "ripley", "quadrat_vmr",
+    "point_pattern_statistics", "cross_g", "nearest_neighbour",
+    "cooccurrence", "radius_neighbourhood",
+]
+
+
+def _common_model_class_dict(model_family: str, model_name: str) -> Dict[int, str]:
+    if model_family == "kongnet":
+        return dict(KONGNET_MODEL_CATALOG.get(model_name, {}).get("class_dict", {}))
+    if model_family == "hovernet":
+        return dict(NUCLEUS_INSTANCE_SEGMENTATION_MODEL_CATALOG.get(model_name, {}).get("class_dict", {}))
+    if model_family == "semantic_segmentation":
+        return dict(SEMANTIC_SEGMENTATION_MODEL_CATALOG.get(model_name, {}).get("class_dict", {}))
+    if model_family == "patch_classification":
+        return dict(PATCH_PREDICTION_MODEL_CATALOG.get(model_name, {}).get("class_dict", {}))
+    if model_family == "hovernetplus":
+        metadata = MULTI_TASK_SEGMENTATION_MODEL_CATALOG.get(model_name, {})
+        return dict(metadata.get("nuclear_class_dict", {}))
+    return {}
+
+
+def _annotation_class_and_probability(properties: Dict[str, Any], class_dict: Dict[int, str]) -> tuple[str, float]:
+    raw_class = properties.get("class_name", properties.get("type", properties.get("label", "Unknown")))
+    class_name = class_dict.get(raw_class, str(raw_class)) if isinstance(raw_class, int) else str(raw_class)
+    try:
+        probability = float(properties.get("probability", properties.get("prob", properties.get("score", 1.0))))
+    except (TypeError, ValueError):
+        probability = 1.0
+    return class_name, probability
+
+
+def tool_build_common_spatial_features(
+    source_path: str,
+    model_family: str,
+    model_name: str,
+    output_dir: str,
+    region_size: float = 256.0,
+    min_probability: float = 0.0,
+    distance_units: str = "pixels",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    min_recommended_rois: int = 9,
+) -> str:
+    """Convert model-specific AnnotationStore/CSV outputs into common spatial tables.
+
+    Object models are aggregated by centroid. Region, semantic, and patch models
+    are aggregated by geometry intersection area when an AnnotationStore is used.
+    The resulting JSON deliberately mirrors the existing KongNet ROI structure so
+    generalized ROI statistics can consume it without model-specific branches.
+    """
+    from collections import defaultdict
+    from shapely.geometry import box
+
+    family = str(model_family or "").strip().lower()
+    if family not in COMMON_SPATIAL_MODEL_FAMILIES:
+        raise ValueError(f"model_family must be one of: {sorted(COMMON_SPATIAL_MODEL_FAMILIES)}")
+    if not os.path.exists(source_path):
+        raise FileNotFoundError(f"Model output not found: {source_path}")
+    if float(region_size) <= 0:
+        raise ValueError("region_size must be positive.")
+    if not 0.0 <= float(min_probability) <= 1.0:
+        raise ValueError("min_probability must be between 0 and 1.")
+    if int(min_recommended_rois) < 3:
+        raise ValueError("min_recommended_rois must be at least 3.")
+
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    class_dict = _common_model_class_dict(family, model_name)
+    os.makedirs(output_dir, exist_ok=True)
+    objects_path = os.path.join(output_dir, "spatial_objects.csv")
+    features_path = os.path.join(output_dir, "spatial_roi_features.csv")
+    common_json_path = os.path.join(output_dir, "common_spatial_features.json")
+    capabilities_path = os.path.join(output_dir, "spatial_capabilities.json")
+
+    records = []
+    is_csv = os.path.splitext(source_path)[1].lower() == ".csv"
+    if is_csv:
+        with open(source_path, "r", encoding="utf-8", newline="") as file:
+            for index, row in enumerate(csv.DictReader(file), start=1):
+                probability = float(row.get("probability") or row.get("prob") or row.get("score") or 1.0)
+                if probability < float(min_probability):
+                    continue
+                x_px = float(row.get("x_px", row.get("x", row.get("centroid_x"))))
+                y_px = float(row.get("y_px", row.get("y", row.get("centroid_y"))))
+                raw_csv_class = row.get("class_name") or row.get("type") or row.get("label") or "Unknown"
+                try:
+                    numeric_csv_class = int(raw_csv_class)
+                except (TypeError, ValueError):
+                    numeric_csv_class = None
+                records.append({
+                    "object_id": str(row.get("object_id") or row.get("annotation_id") or index),
+                    "class_name": class_dict.get(numeric_csv_class, str(raw_csv_class)) if numeric_csv_class is not None else str(raw_csv_class),
+                    "probability": probability,
+                    "x_px": x_px,
+                    "y_px": y_px,
+                    "area_px2": float(row.get("area") or 0.0),
+                    "geometry": None,
+                })
+    else:
+        from tiatoolbox.annotation.storage import SQLiteStore
+        store = SQLiteStore(source_path)
+        try:
+            for annotation_id, annotation in store.items():
+                properties = dict(annotation.properties or {})
+                class_name, probability = _annotation_class_and_probability(properties, class_dict)
+                if probability < float(min_probability) or annotation.geometry is None:
+                    continue
+                centroid = annotation.geometry.centroid
+                records.append({
+                    "object_id": str(annotation_id),
+                    "class_name": class_name,
+                    "probability": probability,
+                    "x_px": float(centroid.x),
+                    "y_px": float(centroid.y),
+                    "area_px2": float(annotation.geometry.area),
+                    "geometry": annotation.geometry,
+                })
+        finally:
+            store.close()
+
+    if not records:
+        raise ValueError("No annotations remained after filtering.")
+
+    for record in records:
+        record["x"] = record["x_px"] * scale["x_scale"]
+        record["y"] = record["y_px"] * scale["y_scale"]
+        record["area"] = record["area_px2"] * scale["x_scale"] * scale["y_scale"]
+
+    min_x = min(record["x"] for record in records)
+    min_y = min(record["y"] for record in records)
+    max_x = max(record["x"] for record in records)
+    max_y = max(record["y"] for record in records)
+    size = float(region_size)
+    aggregation_mode = "centroid_count" if COMMON_SPATIAL_MODEL_FAMILIES[family] == "object" else "geometry_area"
+
+    region_data: Dict[tuple[int, int], Dict[str, Any]] = defaultdict(
+        lambda: {"class_counts": defaultdict(float), "class_areas": defaultdict(float), "probabilities": defaultdict(list)}
+    )
+    for record in records:
+        gx = int(math.floor((record["x"] - min_x) / size))
+        gy = int(math.floor((record["y"] - min_y) / size))
+        if aggregation_mode == "centroid_count" or record["geometry"] is None:
+            bucket = region_data[(gx, gy)]
+            bucket["class_counts"][record["class_name"]] += 1.0
+            bucket["class_areas"][record["class_name"]] += record["area"]
+            bucket["probabilities"][record["class_name"]].append(record["probability"])
+            continue
+
+        geometry = record["geometry"]
+        scaled_bounds = (
+            geometry.bounds[0] * scale["x_scale"], geometry.bounds[1] * scale["y_scale"],
+            geometry.bounds[2] * scale["x_scale"], geometry.bounds[3] * scale["y_scale"],
+        )
+        gx0 = int(math.floor((scaled_bounds[0] - min_x) / size)); gx1 = int(math.floor((scaled_bounds[2] - min_x) / size))
+        gy0 = int(math.floor((scaled_bounds[1] - min_y) / size)); gy1 = int(math.floor((scaled_bounds[3] - min_y) / size))
+        for cell_x in range(gx0, gx1 + 1):
+            for cell_y in range(gy0, gy1 + 1):
+                pixel_box = box(
+                    (min_x + cell_x * size) / scale["x_scale"],
+                    (min_y + cell_y * size) / scale["y_scale"],
+                    (min_x + (cell_x + 1) * size) / scale["x_scale"],
+                    (min_y + (cell_y + 1) * size) / scale["y_scale"],
+                )
+                intersection_area = float(geometry.intersection(pixel_box).area) * scale["x_scale"] * scale["y_scale"]
+                if intersection_area <= 0:
+                    continue
+                bucket = region_data[(cell_x, cell_y)]
+                bucket["class_counts"][record["class_name"]] += 1.0
+                bucket["class_areas"][record["class_name"]] += intersection_area
+                bucket["probabilities"][record["class_name"]].append(record["probability"])
+
+    object_fields = ["object_id", "model_family", "model_name", "class_name", "probability", "x", "y", "area", "distance_units"]
+    with open(objects_path, "w", encoding="utf-8", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=object_fields); writer.writeheader()
+        for record in records:
+            writer.writerow({key: value for key, value in {
+                "object_id": record["object_id"], "model_family": family, "model_name": model_name,
+                "class_name": record["class_name"], "probability": record["probability"],
+                "x": record["x"], "y": record["y"], "area": record["area"], "distance_units": scale["units"],
+            }.items()})
+
+    all_classes = sorted({record["class_name"] for record in records})
+    regions = []
+    long_rows = []
+    for index, ((gx, gy), data) in enumerate(sorted(region_data.items()), start=1):
+        x_min = min_x + gx * size; y_min = min_y + gy * size; area = size * size
+        counts = {name: float(data["class_counts"].get(name, 0.0)) for name in all_classes}
+        areas = {name: float(data["class_areas"].get(name, 0.0)) for name in all_classes}
+        total_count = sum(counts.values()); total_covered_area = sum(areas.values())
+        feature_values = {
+            "object_count": total_count,
+            "object_density": total_count / area,
+            "covered_area": total_covered_area,
+            "covered_area_percentage": total_covered_area / area * 100.0,
+        }
+        class_percentages = {}
+        for class_name in sorted(counts):
+            denominator = total_covered_area if aggregation_mode == "geometry_area" else total_count
+            numerator = areas[class_name] if aggregation_mode == "geometry_area" else counts[class_name]
+            class_percentages[class_name] = numerator / denominator * 100.0 if denominator > 0 else 0.0
+            feature_values[f"{class_name}_count"] = counts[class_name]
+            feature_values[f"{class_name}_percentage"] = class_percentages[class_name]
+            probs = data["probabilities"][class_name]
+            feature_values[f"{class_name}_mean_probability"] = sum(probs) / len(probs) if probs else None
+        region = {
+            "region_id": f"R{index}", "grid_x": gx, "grid_y": gy,
+            "x_min": x_min, "y_min": y_min, "x_max": x_min + size, "y_max": y_min + size,
+            "area_square_units": area, "cell_count": total_count, "cell_density_per_square_unit": total_count / area,
+            "class_counts": counts, "class_percentages": class_percentages, **feature_values,
+        }
+        regions.append(region)
+        for feature_name, feature_value in feature_values.items():
+            long_rows.append({
+                "region_id": region["region_id"], "model_family": family, "model_name": model_name,
+                "grid_x": gx, "grid_y": gy, "x_min": x_min, "y_min": y_min,
+                "x_max": x_min + size, "y_max": y_min + size, "area": area,
+                "feature_name": feature_name, "feature_value": feature_value,
+            })
+
+    with open(features_path, "w", encoding="utf-8", newline="") as file:
+        fields = ["region_id", "model_family", "model_name", "grid_x", "grid_y", "x_min", "y_min", "x_max", "y_max", "area", "feature_name", "feature_value"]
+        writer = csv.DictWriter(file, fieldnames=fields); writer.writeheader(); writer.writerows(long_rows)
+
+    object_statistics = ["nni", "ripley", "quadrat_vmr", "point_pattern_statistics", "cross_g", "nearest_neighbour", "cooccurrence", "radius_neighbourhood"]
+    roi_statistics = ["morans_i", "spatial_entropy", "hotspot_ranking"]
+    data_compatible = (object_statistics if family in {"kongnet", "hovernet", "hovernetplus"} else []) + roi_statistics
+    warnings = []
+    if len(regions) < int(min_recommended_rois):
+        warnings.append(
+            f"Only {len(regions)} ROIs were generated; at least {int(min_recommended_rois)} are recommended for ROI-level spatial inference. Reduce region_size and rebuild."
+        )
+    capabilities = {
+        "model_family": family, "model_name": model_name, "source_path": source_path,
+        "representation": COMMON_SPATIAL_MODEL_FAMILIES[family],
+        "has_individual_objects": family in {"kongnet", "hovernet", "hovernetplus"},
+        "has_object_coordinates": family in {"kongnet", "hovernet", "hovernetplus"},
+        "has_class_labels": any(record["class_name"] != "Unknown" for record in records),
+        "has_roi_features": bool(regions), "has_numeric_roi_features": bool(long_rows),
+        "has_physical_scale": scale["units"] == "microns", "distance_units": scale["units"],
+        "available_classes": sorted({record["class_name"] for record in records}),
+        "available_roi_features": sorted({row["feature_name"] for row in long_rows}),
+        "roi_count": len(regions), "minimum_recommended_rois": int(min_recommended_rois),
+        "warnings": warnings,
+        "data_compatible_statistics": data_compatible,
+        "implemented_statistics": [name for name in data_compatible if name in COMMON_IMPLEMENTED_STATISTICS],
+        "compatible_statistics": data_compatible,
+    }
+    payload = {
+        "format": "common_spatial_features_v1", "source_path": source_path, "model_family": family,
+        "model_name": model_name, "aggregation_mode": aggregation_mode, "region_size": size,
+        "distance_units": scale["units"], "scale": scale, "regions": regions,
+        "outputs": {"objects_csv": objects_path, "roi_features_csv": features_path, "capabilities_json": capabilities_path},
+    }
+    _write_json(common_json_path, payload); _write_json(capabilities_path, capabilities)
+    return "\n".join([
+        "Common spatial feature conversion completed.", f"Model: {model_name} ({family})",
+        f"Annotations: {len(records)}", f"ROIs: {len(regions)}", f"Common JSON: {common_json_path}",
+        f"Objects CSV: {objects_path}", f"ROI features CSV: {features_path}", f"Capabilities: {capabilities_path}",
+    ])
+
+
+def tool_validate_spatial_capabilities(
+    capabilities_json_path: str,
+    statistic: str,
+    feature_name: Optional[str] = None,
+    source_types: Optional[List[str]] = None,
+    target_types: Optional[List[str]] = None,
+) -> str:
+    """Validate that adapted model output can support a requested statistic."""
+    if not os.path.exists(capabilities_json_path):
+        raise FileNotFoundError(f"Capabilities JSON not found: {capabilities_json_path}")
+    with open(capabilities_json_path, "r", encoding="utf-8") as file:
+        capabilities = json.load(file)
+    requested_raw = str(statistic).strip().lower()
+    requested = COMMON_SPATIAL_STATISTIC_ALIASES.get(requested_raw, requested_raw)
+    errors = []
+    if requested not in set(capabilities.get("data_compatible_statistics") or capabilities.get("compatible_statistics") or []):
+        errors.append(f"Statistic '{requested}' is incompatible with this representation.")
+    elif requested not in set(capabilities.get("implemented_statistics") or []):
+        errors.append(f"Statistic '{requested}' is data-compatible but no generalized execution tool is implemented.")
+    if feature_name and feature_name not in set(capabilities.get("available_roi_features") or []):
+        errors.append(f"ROI feature '{feature_name}' is unavailable.")
+    classes = set(capabilities.get("available_classes") or [])
+    for label, values in (("source", source_types), ("target", target_types)):
+        missing = sorted(set(values or []) - classes)
+        if missing:
+            errors.append(f"Unknown {label} classes: {missing}.")
+    result = {
+        "valid": not errors, "requested_statistic": requested_raw, "statistic": requested, "feature_name": feature_name,
+        "errors": errors, "model_family": capabilities.get("model_family"),
+        "model_name": capabilities.get("model_name"),
+    }
+    return json.dumps(result, indent=2)
+
+
+def tool_compute_common_roi_morans_i(
+    common_spatial_json_path: str,
+    output_json_path: str,
+    output_txt_path: Optional[str] = None,
+    metrics: Optional[List[str]] = None,
+    weights_method: str = "queen",
+    k_neighbours: int = 4,
+    distance_threshold: Optional[float] = None,
+    permutations: int = 999,
+    alpha: float = 0.05,
+    min_rois: int = 9,
+) -> str:
+    """Compute Moran's I for any model adapted to common_spatial_features_v1."""
+    import numpy as np
+    if not os.path.exists(common_spatial_json_path):
+        raise FileNotFoundError(f"Common spatial JSON not found: {common_spatial_json_path}")
+    with open(common_spatial_json_path, "r", encoding="utf-8") as file:
+        payload = json.load(file)
+    if payload.get("format") != "common_spatial_features_v1":
+        raise ValueError("Input is not common_spatial_features_v1.")
+    regions = list(payload.get("regions") or [])
+    if len(regions) < int(min_rois):
+        raise ValueError(
+            f"Moran's I requires at least {int(min_rois)} ROIs under the configured safeguard; "
+            f"only {len(regions)} are available. Reduce the common-grid region_size and rebuild."
+        )
+    if not metrics:
+        raise ValueError("At least one numeric ROI metric must be selected.")
+    if not 0 < float(alpha) < 1 or int(permutations) < 0:
+        raise ValueError("alpha must be between 0 and 1 and permutations must be non-negative.")
+
+    coordinates = np.asarray([
+        [(float(r["x_min"]) + float(r["x_max"])) / 2, (float(r["y_min"]) + float(r["y_max"])) / 2]
+        for r in regions
+    ], dtype=float)
+    n = len(regions); weights = np.zeros((n, n), dtype=float); method = str(weights_method).lower()
+    if method in {"queen", "rook"}:
+        for i, left in enumerate(regions):
+            for j, right in enumerate(regions):
+                if i == j: continue
+                dx = abs(int(left["grid_x"]) - int(right["grid_x"])); dy = abs(int(left["grid_y"]) - int(right["grid_y"]))
+                weights[i, j] = float((dx + dy == 1) if method == "rook" else (max(dx, dy) == 1))
+    else:
+        distances = np.sqrt(np.sum((coordinates[:, None, :] - coordinates[None, :, :]) ** 2, axis=2))
+        np.fill_diagonal(distances, np.inf)
+        if method == "knn":
+            k = min(max(1, int(k_neighbours)), n - 1)
+            for i in range(n): weights[i, np.argsort(distances[i])[:k]] = 1.0
+        elif method == "distance":
+            if distance_threshold is None or float(distance_threshold) <= 0:
+                raise ValueError("A positive distance_threshold is required for distance weights.")
+            weights[distances <= float(distance_threshold)] = 1.0
+        else:
+            raise ValueError("weights_method must be queen, rook, knn, or distance.")
+    row_sums = weights.sum(axis=1)
+    if np.any(row_sums == 0):
+        raise ValueError("At least one ROI has no neighbours under the selected spatial weights.")
+    weights = weights / row_sums[:, None]
+
+    def moran_value(values):
+        deviations = values - np.mean(values); denominator = float(np.sum(deviations ** 2)); total_weight = float(np.sum(weights))
+        return float((len(values) / total_weight) * (np.sum(weights * deviations[:, None] * deviations[None, :]) / denominator))
+
+    rng = np.random.default_rng(0); results = {}; expected_i = -1.0 / (n - 1)
+    for metric in metrics:
+        values = [_roi_moran_feature_value(region, metric) for region in regions]
+        if any(value is None for value in values):
+            results[metric] = {"status": "skipped", "reason": "Feature is missing or non-numeric in at least one ROI."}; continue
+        array = np.asarray(values, dtype=float)
+        if float(np.var(array)) <= 0:
+            results[metric] = {"status": "skipped", "reason": "Feature has zero variance across ROIs."}; continue
+        observed = moran_value(array)
+        simulated = [moran_value(rng.permutation(array)) for _ in range(int(permutations))]
+        extreme = sum(abs(value - expected_i) >= abs(observed - expected_i) for value in simulated)
+        p_value = (extreme + 1) / (len(simulated) + 1) if simulated else None
+        results[metric] = {
+            "status": "computed", "source": "transparent NumPy Moran's I fallback", "roi_count": n,
+            "moran_i": observed, "expected_i": expected_i, "permutation_p_value": p_value,
+            "significant": bool(p_value is not None and p_value < float(alpha)),
+            "interpretation": _moran_interpretation(observed, p_value, float(alpha)),
+        }
+    output = {
+        "analysis": "common_roi_morans_i", "common_spatial_json_path": common_spatial_json_path,
+        "model_family": payload.get("model_family"), "model_name": payload.get("model_name"),
+        "parameters": {"metrics": metrics, "weights_method": method, "k_neighbours": k_neighbours,
+                       "distance_threshold": distance_threshold, "permutations": permutations, "alpha": alpha},
+        "results": results,
+    }
+    _write_json(output_json_path, output)
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write("Cross-model ROI Moran's I\n===========================\n")
+            for metric, result in results.items():
+                file.write(f"\n{metric}: {json.dumps(result, ensure_ascii=False)}\n")
+    return f"Cross-model Moran's I completed. JSON: {output_json_path}"
+
+
+def tool_compute_common_roi_entropy(
+    common_spatial_json_path: str,
+    output_json_path: str,
+    output_txt_path: Optional[str] = None,
+    output_csv_path: Optional[str] = None,
+    cell_types: Optional[List[str]] = None,
+    normalize: bool = True,
+    entropy_base: float = math.e,
+    low_threshold: float = 0.40,
+    high_threshold: float = 0.70,
+) -> str:
+    """Compute class-composition entropy for any adapted model family."""
+    return tool_compute_kongnet_spatial_entropy(
+        regions_json_path=common_spatial_json_path, output_json_path=output_json_path,
+        output_txt_path=output_txt_path, output_csv_path=output_csv_path,
+        normalize=normalize, entropy_base=entropy_base, low_threshold=low_threshold,
+        high_threshold=high_threshold, cell_types=cell_types,
+    )
+
+
+def _load_common_objects(common_spatial_json_path: str, min_probability: float = 0.0):
+    import numpy as np
+    if not os.path.exists(common_spatial_json_path):
+        raise FileNotFoundError(f"Common spatial JSON not found: {common_spatial_json_path}")
+    with open(common_spatial_json_path, "r", encoding="utf-8") as file:
+        common = json.load(file)
+    if common.get("format") != "common_spatial_features_v1":
+        raise ValueError("Input is not common_spatial_features_v1.")
+    objects_path = (common.get("outputs") or {}).get("objects_csv")
+    if not objects_path or not os.path.exists(objects_path):
+        raise FileNotFoundError("The common representation does not reference an existing spatial_objects.csv.")
+    rows = []
+    with open(objects_path, "r", encoding="utf-8", newline="") as file:
+        for row in csv.DictReader(file):
+            probability = float(row.get("probability") or 1.0)
+            if probability >= float(min_probability):
+                rows.append(row)
+    if not rows:
+        raise ValueError("No common spatial objects remained after probability filtering.")
+    coords = np.asarray([[float(row["x"]), float(row["y"])] for row in rows], dtype=float)
+    classes = np.asarray([str(row["class_name"]) for row in rows], dtype=object)
+    return common, rows, coords, classes
+
+
+def _validate_common_selected_classes(classes, requested: Optional[List[str]], label: str) -> List[str]:
+    available = list(dict.fromkeys(str(value) for value in classes))
+    if not requested:
+        return available
+    lookup = {name.casefold(): name for name in available}
+    resolved = []
+    for value in requested:
+        match = lookup.get(str(value).strip().casefold())
+        if not match:
+            raise ValueError(f"Unknown {label} class '{value}'. Available classes: {available}")
+        if match not in resolved:
+            resolved.append(match)
+    return resolved
+
+
+def tool_compute_common_point_pattern_statistics(
+    common_spatial_json_path: str,
+    output_json_path: str,
+    output_txt_path: Optional[str] = None,
+    cell_types: Optional[List[str]] = None,
+    source_types: Optional[List[str]] = None,
+    target_types: Optional[List[str]] = None,
+    radii: Optional[List[float]] = None,
+    quadrat_grid_size: int = 4,
+    min_points_per_pattern: int = 10,
+    min_probability: float = 0.0,
+) -> str:
+    """Run NNI, quadrat VMR/chi-square, Ripley, and cross-type proximity on common objects."""
+    import numpy as np
+    common, rows, coords, classes = _load_common_objects(common_spatial_json_path, min_probability)
+    selected = _validate_common_selected_classes(classes, cell_types, "point-pattern")
+    sources = _validate_common_selected_classes(classes, source_types, "source") if source_types else []
+    targets = _validate_common_selected_classes(classes, target_types, "target") if target_types else []
+    if bool(sources) != bool(targets):
+        raise ValueError("Provide both source_types and target_types for cross-type proximity, or neither.")
+    radii = [float(value) for value in (radii or [])]
+    if not radii or any(value <= 0 for value in radii):
+        raise ValueError("radii must be a non-empty list of positive values.")
+    min_xy = coords.min(axis=0); max_xy = coords.max(axis=0)
+    area = float(max((max_xy[0] - min_xy[0]) * (max_xy[1] - min_xy[1]), 1e-9))
+    by_class = {
+        name: _summarise_unmarked_point_pattern(coords[classes == name], area, radii, quadrat_grid_size, min_points_per_pattern)
+        for name in selected
+    }
+    cross = None
+    if sources and targets:
+        cross = {
+            "source_types": sources, "target_types": targets,
+            "statistics": _summarise_cross_type_proximity(
+                coords[np.isin(classes, sources)], coords[np.isin(classes, targets)], area, radii
+            ),
+        }
+    output = {
+        "analysis": "common_object_point_pattern_statistics", "common_spatial_json_path": common_spatial_json_path,
+        "model_family": common.get("model_family"), "model_name": common.get("model_name"),
+        "parameters": {"cell_types": selected, "source_types": sources, "target_types": targets, "radii": radii,
+                       "distance_units": common.get("distance_units"), "quadrat_grid_size": quadrat_grid_size,
+                       "min_points_per_pattern": min_points_per_pattern, "min_probability": min_probability},
+        "object_count": len(rows), "analysed_area": area, "by_class": by_class, "cross_type_proximity": cross,
+        "warning": "Ripley-style values are reported without edge correction.",
+    }
+    _write_json(output_json_path, output)
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write("Common-object point-pattern statistics\n======================================\n\n")
+            file.write(json.dumps(output, indent=2, ensure_ascii=False))
+    return f"Common-object point-pattern statistics completed. JSON: {output_json_path}"
+
+
+def tool_compute_common_cross_g(
+    common_spatial_json_path: str,
+    output_json_path: str,
+    output_csv_path: Optional[str] = None,
+    source_types: Optional[List[str]] = None,
+    target_types: Optional[List[str]] = None,
+    radii: Optional[List[float]] = None,
+    min_probability: float = 0.0,
+) -> str:
+    """Compute empirical source-to-target Cross-G from standardized common objects."""
+    common, rows, coords, classes = _load_common_objects(common_spatial_json_path, min_probability)
+    sources = _validate_common_selected_classes(classes, source_types, "source")
+    targets = _validate_common_selected_classes(classes, target_types, "target")
+    if not source_types or not target_types:
+        raise ValueError("Explicit source_types and target_types are required.")
+    radii = [float(value) for value in (radii or [])]
+    if not radii or any(value <= 0 for value in radii):
+        raise ValueError("radii must contain positive values.")
+    min_xy = coords.min(axis=0); max_xy = coords.max(axis=0)
+    area = float(max((max_xy[0] - min_xy[0]) * (max_xy[1] - min_xy[1]), 1e-9))
+    source_indices = [i for i, value in enumerate(classes) if value in sources]
+    target_indices = [i for i, value in enumerate(classes) if value in targets]
+    stats = _cross_g_curve(
+        coords[source_indices], [rows[i]["object_id"] for i in source_indices],
+        coords[target_indices], [rows[i]["object_id"] for i in target_indices], area, radii,
+    )
+    output = {
+        "analysis": "common_object_cross_g", "model_family": common.get("model_family"),
+        "model_name": common.get("model_name"), "source_types": sources, "target_types": targets,
+        "distance_units": common.get("distance_units"), "radii": radii, "statistics": stats,
+    }
+    _write_json(output_json_path, output)
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        with open(output_csv_path, "w", encoding="utf-8", newline="") as file:
+            fields = ["radius", "empirical_cross_g", "csr_poisson_expected", "difference_from_expected", "interpretation"]
+            writer = csv.DictWriter(file, fieldnames=fields); writer.writeheader(); writer.writerows(stats.get("curve", []))
+    return f"Common-object Cross-G completed. JSON: {output_json_path}"
+
+
+def tool_compute_common_cooccurrence(
+    common_spatial_json_path: str,
+    output_json_path: str,
+    radius: float,
+    cell_types: Optional[List[str]] = None,
+    min_probability: float = 0.0,
+) -> str:
+    """Count undirected selected-class object pairs within a radius."""
+    from collections import Counter
+    from scipy.spatial import cKDTree
+    common, rows, coords, classes = _load_common_objects(common_spatial_json_path, min_probability)
+    selected = _validate_common_selected_classes(classes, cell_types, "co-occurrence")
+    mask = [value in selected for value in classes]; filtered_coords = coords[mask]; filtered_classes = classes[mask]
+    pairs = cKDTree(filtered_coords).query_pairs(float(radius)); counts = Counter()
+    for first, second in pairs:
+        counts["--".join(sorted((str(filtered_classes[first]), str(filtered_classes[second]))))] += 1
+    output = {"analysis": "common_object_cooccurrence", "model_family": common.get("model_family"),
+              "model_name": common.get("model_name"), "radius": float(radius), "distance_units": common.get("distance_units"),
+              "cell_types": selected, "pair_count": len(pairs), "pair_counts": dict(counts)}
+    _write_json(output_json_path, output)
+    return f"Common-object co-occurrence completed. JSON: {output_json_path}"
+
+
+def tool_compute_common_neighbour_distances(
+    common_spatial_json_path: str,
+    output_json_path: str,
+    source_types: List[str],
+    target_types: List[str],
+    radius: Optional[float] = None,
+    min_probability: float = 0.0,
+) -> str:
+    """Compute nearest target distance and optional within-radius counts for selected sources."""
+    import numpy as np
+    from scipy.spatial import cKDTree
+    common, rows, coords, classes = _load_common_objects(common_spatial_json_path, min_probability)
+    sources = _validate_common_selected_classes(classes, source_types, "source")
+    targets = _validate_common_selected_classes(classes, target_types, "target")
+    source_coords = coords[np.isin(classes, sources)]; target_coords = coords[np.isin(classes, targets)]
+    if len(source_coords) < 1 or len(target_coords) < 1:
+        raise ValueError("At least one source and target object are required.")
+    distances, _ = cKDTree(target_coords).query(source_coords, k=1)
+    output = {
+        "analysis": "common_object_neighbour_distances", "model_family": common.get("model_family"),
+        "model_name": common.get("model_name"), "source_types": sources, "target_types": targets,
+        "distance_units": common.get("distance_units"), "source_count": len(source_coords), "target_count": len(target_coords),
+        "mean_nearest_distance": float(np.mean(distances)), "median_nearest_distance": float(np.median(distances)),
+        "minimum_nearest_distance": float(np.min(distances)), "maximum_nearest_distance": float(np.max(distances)),
+    }
+    if radius is not None:
+        counts = np.asarray([len(cKDTree(target_coords).query_ball_point(point, float(radius))) for point in source_coords])
+        output.update({"radius": float(radius), "sources_with_target_within_radius": int(np.sum(counts > 0)),
+                       "mean_targets_within_radius": float(np.mean(counts)), "total_directed_links_within_radius": int(np.sum(counts))})
+    _write_json(output_json_path, output)
+    return f"Common-object neighbour analysis completed. JSON: {output_json_path}"
