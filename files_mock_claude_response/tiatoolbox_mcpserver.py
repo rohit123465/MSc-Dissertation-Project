@@ -33,6 +33,7 @@ from tia_tools import (
     tool_compute_kongnet_point_pattern_statistics,
     tool_compute_kongnet_morans_i,
     tool_compute_kongnet_local_morans_i,
+    tool_compute_kongnet_nucleus_local_morans_i,
     tool_compute_kongnet_spatial_entropy,
     tool_compute_kongnet_cross_g_function,
     tool_export_kongnet_regions_to_annotationstore,
@@ -493,6 +494,38 @@ def infer_task_type(user_prompt: str) -> str:
     if requests_spatial_analysis and any(model in request for model in non_kongnet_spatial_models):
         return "common_spatial_adapter"
 
+    # Route nucleus-node LISA requests before the generic Local Moran branch.
+    # Users and client LLMs commonly vary the wording (for example,
+    # "individual-nucleus level" or "per-nucleus"), so do not rely on one
+    # exact phrase.
+    requests_local_moran = any(k in request for k in [
+        "local moran",
+        "local moran's i",
+        "local morans i",
+        "lisa",
+    ])
+    requests_nucleus_granularity = any(k in request for k in [
+        "nucleus-level",
+        "nucleus level",
+        "nuclei-level",
+        "nuclei level",
+        "individual-nucleus",
+        "individual nucleus",
+        "individual nuclei",
+        "per-nucleus",
+        "per nucleus",
+        "nucleus nodes",
+        "nuclei as nodes",
+        "nucleus as a node",
+        "each nucleus as a node",
+        "every nucleus as a node",
+        "existing nucleus-detection",
+        "existing nucleus detection",
+        "existing nucleus detections",
+    ])
+    if requests_local_moran and requests_nucleus_granularity:
+        return "kongnet_nucleus_local_morans_i_analysis"
+
     if any(k in request for k in [
         "validate roi pair",
         "validate the roi pair",
@@ -865,6 +898,8 @@ def build_plan(
             ("distance_units", "Should coordinates and grid size use pixels or microns?"),
         ],
         "common_roi_morans_i": [
+            ("distance_threshold", "What ROI-centroid radius should define adjacency for Moran's I?"),
+            ("distance_decay_sigma", "What exponential distance-decay sigma should be used?"),
             ("alpha", "What statistical-significance threshold (alpha) should be used for Moran's I?"),
         ],
         "common_roi_entropy": [
@@ -882,7 +917,15 @@ def build_plan(
         ],
         "kongnet_local_morans_i_analysis": [
             ("distance_threshold", "What ROI-centroid radius should define neighbours for Local Moran's I?"),
+            ("distance_decay_sigma", "What exponential distance-decay sigma should be used? If omitted, sigma is set to 1 / distance_threshold."),
             ("alpha", "What statistical-significance threshold (alpha) should be used for Local Moran's I?"),
+        ],
+        "kongnet_nucleus_local_morans_i_analysis": [
+            ("distance_threshold", "What nucleus-centroid radius should define adjacency for nucleus-level Local Moran's I?"),
+            ("distance_decay_sigma", "What exponential distance-decay sigma should be used? If omitted, sigma is 1 / distance_threshold."),
+            ("distance_units", "Should nucleus distances use microns or pixels?"),
+            ("min_probability", "What minimum nucleus-class probability should be retained?"),
+            ("alpha", "What statistical-significance threshold (alpha) should be used?"),
         ],
         "kongnet_spatial_entropy_analysis": [
             ("low_threshold", "What upper threshold should define low normalized spatial entropy?"),
@@ -923,6 +966,9 @@ def build_plan(
         ],
         "kongnet_local_morans_i_analysis": [
             ("metric", "Which single numeric ROI feature should Local Moran's I analyse?"),
+        ],
+        "kongnet_nucleus_local_morans_i_analysis": [
+            ("selected_class", "Which predicted nucleus class should be encoded as 1, with all other retained classes encoded as 0?"),
         ],
         "kongnet_spatial_entropy_analysis": [
             ("cell_types", "Which cell-type composition features should contribute to spatial entropy?"),
@@ -991,7 +1037,7 @@ def build_plan(
             "steps": ["Validate the requested ROI features.", "Build ROI spatial weights.", "Compute Moran's I and permutation p-values for each selected feature."],
             "suggested_tools_after_approval": ["validate_spatial_capabilities", "compute_common_roi_morans_i"],
             "expected_outputs": [os.path.join(output_dir, "common_roi_morans_i.json"), os.path.join(output_dir, "common_roi_morans_i.txt")],
-            "default_parameters": {"weights_method": "queen", "permutations": 999, "alpha": 0.05},
+            "default_parameters": {"permutations": 999, "alpha": 0.05},
         }
     elif task_type == "common_roi_entropy":
         plan = {
@@ -1188,6 +1234,34 @@ def build_plan(
             )
         }
 
+    elif task_type == "kongnet_nucleus_local_morans_i_analysis":
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute nucleus-level Local Moran's I using individual nucleus centroids as nodes and one selected nucleus class as a binary feature.",
+            "steps": [
+                "Load existing KongNet nuclei and retain predictions meeting the approved confidence threshold.",
+                "Treat each nucleus centroid as a graph node and encode the selected class as 1 versus all other retained classes as 0.",
+                "Build nucleus adjacency within the approved radius and assign w_ij = exp(-sigma * r_ij).",
+                "Row-standardize the weights and compute one Local Moran's I value per nucleus.",
+                "Calculate conditional permutation p-values and Benjamini-Hochberg adjusted p-values across all nuclei.",
+                "Save JSON, CSV and TXT results plus a TIAViz-compatible nucleus overlay.",
+            ],
+            "suggested_tools_after_approval": ["compute_kongnet_nucleus_local_morans_i"],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_nucleus_local_morans_i.json"),
+                os.path.join(output_dir, "kongnet_nucleus_local_morans_i.csv"),
+                os.path.join(output_dir, "kongnet_nucleus_local_morans_i.txt"),
+                os.path.join(output_dir, "kongnet_nucleus_local_morans_i_overlay.db"),
+            ],
+            "default_parameters": {
+                "permutations": 999, "alpha": 0.05, "seed": 42,
+                "marker_radius": 3.0,
+            },
+            "clinical_warning": (
+                "This is exploratory nucleus-level analysis of model-predicted classes, not a clinical diagnosis."
+            ),
+        }
+
     elif task_type == "kongnet_local_morans_i_analysis":
         plan = {
             "task_type": task_type,
@@ -1195,7 +1269,7 @@ def build_plan(
             "steps": [
                 "Read the existing KongNet ROI results from kongnet_regions.json.",
                 "Extract the selected numeric feature for every ROI.",
-                "Build binary distance-band weights from ROI-centroid distances using the user-selected radius.",
+                "Build the ROI adjacency matrix from centroid distances and assign connected edges exponential weights w_ij = exp(-sigma * r_ij).",
                 "Row-standardize the spatial weights.",
                 "Compute Local Moran's I and conditional permutation p-values for every ROI.",
                 "Classify significant ROIs as high-high, low-low, high-low, or low-high.",
@@ -1216,11 +1290,14 @@ def build_plan(
                     if str(wsi_path).lower().endswith(".json")
                     else os.path.join(output_dir, "kongnet_regions.json")
                 ),
-                "weights_method": "distance",
-                "k_neighbours": 4,
                 "permutations": 999,
                 "alpha": 0.05,
                 "seed": 42
+            },
+            "weight_definition": {
+                "adjacency": "A_ij = 1 when 0 < r_ij <= distance_threshold; otherwise 0",
+                "raw_weight": "w_ij = exp(-sigma * r_ij)",
+                "normalization": "row-standardized before Local Moran's I"
             },
             "clinical_warning": (
                 "Local Moran's I is exploratory and involves multiple ROI-level tests. "
@@ -1229,20 +1306,13 @@ def build_plan(
         }
 
     elif task_type == "kongnet_morans_i_analysis":
-        request = user_prompt.lower()
-        if "distance" in request:
-            weights_method = "distance"
-        elif "knn" in request or "k nearest" in request or "k-nearest" in request:
-            weights_method = "knn"
-        else:
-            weights_method = "queen"
         plan = {
             "task_type": task_type,
             "goal": "Compute ROI-level Moran's I spatial autocorrelation from existing KongNet region analysis results without rerunning nucleus detection or the full spatial workflow.",
             "steps": [
                 "Read the existing KongNet ROI results from kongnet_regions.json.",
                 "Extract one numeric value per ROI for each requested metric, such as neoplastic percentage, inflammatory percentage, cell density, and tumour-immune interaction strength.",
-                "Build ROI spatial weights using PySAL/libpysal.",
+                "Build the ROI adjacency matrix and, for distance weights, assign w_ij = exp(-sigma * r_ij) before row-standardisation.",
                 "Compute Moran's I and permutation p-values using esda.moran.Moran.",
                 "Save the results as a machine-readable JSON file and a readable text report in the same output directory."
             ],
@@ -1261,8 +1331,6 @@ def build_plan(
                     "cell_density",
                     "interaction_strength"
                 ],
-                "weights_method": weights_method,
-                "k_neighbours": 4,
                 "permutations": 999,
                 "alpha": 0.05
             },
@@ -1282,7 +1350,7 @@ def build_plan(
                 "Compute Shannon entropy from the ROI cell-type proportions.",
                 "Normalize entropy to a 0-1 diversity score so regions are easier to compare.",
                 "Label each ROI as low-diversity/homogeneous, moderate-diversity, or high-diversity/mixed.",
-                "Save JSON, readable TXT, and CSV outputs in the same output directory."
+                "Save JSON, readable TXT, CSV, and a TIAViz-compatible entropy AnnotationStore in the same output directory."
             ],
             "suggested_tools_after_approval": [
                 "compute_kongnet_spatial_entropy"
@@ -1290,7 +1358,8 @@ def build_plan(
             "expected_outputs": [
                 os.path.join(output_dir, "kongnet_spatial_entropy.json"),
                 os.path.join(output_dir, "kongnet_spatial_entropy.txt"),
-                os.path.join(output_dir, "kongnet_spatial_entropy.csv")
+                os.path.join(output_dir, "kongnet_spatial_entropy.csv"),
+                os.path.join(output_dir, "kongnet_spatial_entropy_overlay.db")
             ],
             "default_parameters": {
                 "regions_json_path": os.path.join(output_dir, "kongnet_regions.json"),
@@ -1660,9 +1729,12 @@ def build_plan(
     ):
         threshold_specs.append(("mpp", "What microns-per-pixel (MPP) value should be used?"))
     # Moran's I only needs a distance cut-off when distance weights are selected.
-    if task_type == "kongnet_morans_i_analysis" and plan["default_parameters"]["weights_method"] == "distance":
+    if task_type == "kongnet_morans_i_analysis":
         threshold_specs.append(
             ("distance_threshold", "What neighbour-distance threshold should be used for Moran's I distance weights?")
+        )
+        threshold_specs.append(
+            ("distance_decay_sigma", "What exponential distance-decay sigma should be used? If omitted, sigma is set to 1 / distance_threshold.")
         )
 
     allowed_thresholds = {name for name, _ in threshold_specs}
@@ -1679,7 +1751,7 @@ def build_plan(
         if name in {"alpha", "min_probability", "low_threshold", "high_threshold"}:
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0.0 <= float(value) <= 1.0:
                 raise ValueError(f"{name} must be a number between 0 and 1.")
-        if name in {"cooccurrence_radius", "neighbourhood_radius", "distance_threshold", "region_size", "mpp"}:
+        if name in {"cooccurrence_radius", "neighbourhood_radius", "distance_threshold", "distance_decay_sigma", "region_size", "mpp"}:
             if not isinstance(value, (int, float)) or isinstance(value, bool) or float(value) <= 0:
                 raise ValueError(f"{name} must be a positive number.")
         if name in {"radii", "point_pattern_radii"}:
@@ -1708,9 +1780,9 @@ def build_plan(
             f"Allowed parameters: {sorted(allowed_features)}."
         )
     for name, value in supplied_features.items():
-        if name == "metric":
+        if name in {"metric", "selected_class"}:
             if not isinstance(value, str) or not value.strip():
-                raise ValueError("metric must be a non-empty ROI feature name.")
+                raise ValueError(f"{name} must be a non-empty feature/class name.")
             continue
         if not isinstance(value, list) or not value or any(not isinstance(item, str) or not item.strip() for item in value):
             raise ValueError(f"{name} must be a non-empty list of feature or cell-type names.")
@@ -1866,7 +1938,11 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
             "distance_units": "distance_units",
             "mpp": "mpp",
         },
-        "compute_common_roi_morans_i": {"alpha": "alpha"},
+        "compute_common_roi_morans_i": {
+            "alpha": "alpha",
+            "distance_threshold": "distance_threshold",
+            "distance_decay_sigma": "distance_decay_sigma",
+        },
         "compute_common_roi_entropy": {
             "low_threshold": "low_threshold",
             "high_threshold": "high_threshold",
@@ -1898,10 +1974,19 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
         "compute_kongnet_morans_i": {
             "alpha": "alpha",
             "distance_threshold": "distance_threshold",
+            "distance_decay_sigma": "distance_decay_sigma",
         },
         "compute_kongnet_local_morans_i": {
             "alpha": "alpha",
             "distance_threshold": "distance_threshold",
+            "distance_decay_sigma": "distance_decay_sigma",
+        },
+        "compute_kongnet_nucleus_local_morans_i": {
+            "alpha": "alpha",
+            "distance_threshold": "distance_threshold",
+            "distance_decay_sigma": "distance_decay_sigma",
+            "distance_units": "distance_units",
+            "min_probability": "min_probability",
         },
         "compute_kongnet_spatial_entropy": {
             "low_threshold": "low_threshold",
@@ -1949,6 +2034,7 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
         },
         "compute_kongnet_morans_i": {"metrics": "metrics"},
         "compute_kongnet_local_morans_i": {"metric": "metric"},
+        "compute_kongnet_nucleus_local_morans_i": {"selected_class": "selected_class"},
         "compute_kongnet_spatial_entropy": {"cell_types": "cell_types"},
         "compute_kongnet_cross_g_function": {
             "source_types": "source_types",
@@ -2114,8 +2200,8 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "approval_token": {"type": "string"}, "common_spatial_json_path": {"type": "string"},
                     "output_json_path": {"type": "string"}, "output_txt_path": {"type": "string"},
                     "metrics": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-                    "weights_method": {"type": "string", "enum": ["queen", "rook", "distance", "knn"]},
-                    "k_neighbours": {"type": "integer"}, "distance_threshold": {"type": "number"},
+                    "distance_threshold": {"type": "number"},
+                    "distance_decay_sigma": {"type": "number", "exclusiveMinimum": 0},
                     "permutations": {"type": "integer"}, "alpha": {"type": "number"}
                     ,"min_rois": {"type": "integer", "minimum": 3}
                 },
@@ -2798,9 +2884,8 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "output_json_path": {"type": "string"},
                     "output_txt_path": {"type": "string"},
                     "metrics": {"type": "array", "items": {"type": "string"}},
-                    "weights_method": {"type": "string", "enum": ["queen", "rook", "distance", "knn"]},
-                    "k_neighbours": {"type": "integer"},
                     "distance_threshold": {"type": "number"},
+                    "distance_decay_sigma": {"type": "number", "exclusiveMinimum": 0},
                     "permutations": {"type": "integer"},
                     "alpha": {"type": "number"}
                 },
@@ -2825,9 +2910,8 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "mpp": {"type": "number"},
                     "overwrite": {"type": "boolean"},
                     "metric": {"type": "string"},
-                    "weights_method": {"type": "string", "enum": ["queen", "rook", "distance", "knn"]},
-                    "k_neighbours": {"type": "integer"},
                     "distance_threshold": {"type": "number"},
+                    "distance_decay_sigma": {"type": "number", "exclusiveMinimum": 0},
                     "permutations": {"type": "integer"},
                     "alpha": {"type": "number"},
                     "seed": {"type": "integer"}
@@ -2837,9 +2921,39 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
             }
         },
         {
+            "name": "compute_kongnet_nucleus_local_morans_i",
+            "title": "Compute KongNet Nucleus-Level Local Moran's I",
+            "description": "Treats individual KongNet nuclei as graph nodes, encodes one selected class as a binary feature, uses exponential nucleus-centroid distance weights, adjusts per-nucleus p-values, and creates a TIAViz overlay.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "output_annotationstore_path": {"type": "string"},
+                    "selected_class": {"type": "string"},
+                    "distance_threshold": {"type": "number", "exclusiveMinimum": 0},
+                    "distance_decay_sigma": {"type": "number", "exclusiveMinimum": 0},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number", "exclusiveMinimum": 0},
+                    "min_probability": {"type": "number", "minimum": 0, "maximum": 1},
+                    "permutations": {"type": "integer", "minimum": 0},
+                    "alpha": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+                    "seed": {"type": "integer"},
+                    "marker_radius": {"type": "number", "exclusiveMinimum": 0},
+                    "overwrite": {"type": "boolean"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_json_path", "selected_class", "distance_threshold"],
+                "additionalProperties": False
+            }
+        },
+        {
             "name": "compute_kongnet_spatial_entropy",
             "title": "Compute KongNet ROI Spatial Entropy",
-            "description": "Computes Shannon entropy from KongNet ROI class composition. This scores each ROI from homogeneous/cell-type-dominant to mixed/high-diversity microenvironment and saves JSON, TXT, and optional CSV outputs.",
+            "description": "Computes Shannon entropy from KongNet ROI class composition and optionally saves a TIAViz-compatible AnnotationStore overlay in addition to JSON, TXT, and CSV outputs.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -2848,6 +2962,10 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "output_json_path": {"type": "string"},
                     "output_txt_path": {"type": "string"},
                     "output_csv_path": {"type": "string"},
+                    "output_annotationstore_path": {"type": "string"},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number"},
+                    "overwrite": {"type": "boolean"},
                     "normalize": {"type": "boolean"},
                     "entropy_base": {"type": "number"},
                     "low_threshold": {"type": "number"},
@@ -3208,8 +3326,8 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             tool_result(req_id, tool_compute_common_roi_morans_i(
                 common_spatial_json_path=args.get("common_spatial_json_path", ""), output_json_path=args.get("output_json_path", ""),
                 output_txt_path=args.get("output_txt_path"), metrics=args.get("metrics"),
-                weights_method=str(args.get("weights_method", "queen")), k_neighbours=int(args.get("k_neighbours", 4)),
                 distance_threshold=float(args["distance_threshold"]) if args.get("distance_threshold") is not None else None,
+                distance_decay_sigma=float(args["distance_decay_sigma"]) if args.get("distance_decay_sigma") is not None else None,
                 permutations=int(args.get("permutations", 999)), alpha=float(args["alpha"]),
                 min_rois=int(args.get("min_rois", 9)),
             ))
@@ -3777,11 +3895,14 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     output_json_path=args.get("output_json_path", ""),
                     output_txt_path=args.get("output_txt_path"),
                     metrics=args.get("metrics"),
-                    weights_method=str(args.get("weights_method", "queen")),
-                    k_neighbours=int(args.get("k_neighbours", 4)),
                     distance_threshold=(
                         float(args["distance_threshold"])
                         if args.get("distance_threshold") is not None
+                        else None
+                    ),
+                    distance_decay_sigma=(
+                        float(args["distance_decay_sigma"])
+                        if args.get("distance_decay_sigma") is not None
                         else None
                     ),
                     permutations=int(args.get("permutations", 999)),
@@ -3804,16 +3925,44 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     mpp=float(args["mpp"]) if args.get("mpp") is not None else None,
                     overwrite=bool_arg(args.get("overwrite"), True),
                     metric=str(args.get("metric", "")),
-                    weights_method=str(args.get("weights_method", "distance")),
-                    k_neighbours=int(args.get("k_neighbours", 4)),
                     distance_threshold=(
                         float(args["distance_threshold"])
                         if args.get("distance_threshold") is not None
                         else None
                     ),
+                    distance_decay_sigma=(
+                        float(args["distance_decay_sigma"])
+                        if args.get("distance_decay_sigma") is not None
+                        else None
+                    ),
                     permutations=int(args.get("permutations", 999)),
                     alpha=float(args.get("alpha", 0.05)),
                     seed=int(args.get("seed", 42)),
+                )
+            )
+            return
+
+        if name == "compute_kongnet_nucleus_local_morans_i":
+            require_plan(args, name)
+            tool_result(
+                req_id,
+                tool_compute_kongnet_nucleus_local_morans_i(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_csv_path=args.get("output_csv_path"),
+                    output_txt_path=args.get("output_txt_path"),
+                    output_annotationstore_path=args.get("output_annotationstore_path"),
+                    selected_class=str(args.get("selected_class", "")),
+                    distance_threshold=float(args.get("distance_threshold", 25.0)),
+                    distance_decay_sigma=(float(args["distance_decay_sigma"]) if args.get("distance_decay_sigma") is not None else None),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(args["mpp"]) if args.get("mpp") is not None else None,
+                    min_probability=float(args.get("min_probability", 0.0)),
+                    permutations=int(args.get("permutations", 999)),
+                    alpha=float(args.get("alpha", 0.05)), seed=int(args.get("seed", 42)),
+                    marker_radius=float(args.get("marker_radius", 3.0)),
+                    overwrite=bool_arg(args.get("overwrite"), True),
                 )
             )
             return
@@ -3827,6 +3976,10 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     output_json_path=args.get("output_json_path", ""),
                     output_txt_path=args.get("output_txt_path"),
                     output_csv_path=args.get("output_csv_path"),
+                    output_annotationstore_path=args.get("output_annotationstore_path"),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(args["mpp"]) if args.get("mpp") is not None else None,
+                    overwrite=bool_arg(args.get("overwrite"), True),
                     normalize=bool_arg(args.get("normalize"), True),
                     entropy_base=float(args.get("entropy_base", 2.718281828459045)),
                     low_threshold=float(args.get("low_threshold", 0.40)),
