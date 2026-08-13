@@ -1944,9 +1944,15 @@ SEMANTIC_SEGMENTATION_MODEL_CATALOG = {
         "target_node": "Semantic Segmentation",
         "description": "Segments tumor, stroma, necrosis, and inflamatory regions in breast cancer images.",
         "primary_site": "breast",
-        "resolution_mpp": 0.5,
-        "patch_shape": [512, 512],
-        "stride_shape": [512, 512],
+        # Keep these values aligned with the IOSegmentorConfig bundled with
+        # TIAToolbox's pretrained BCSS model.  In particular, the network
+        # predicts a 512x512 centre crop from a 1024x1024 input patch.  Passing
+        # a 512x512 input override makes the real prediction 256x256 while the
+        # engine still allocates/merges using the model's 512x512 output
+        # geometry, which fails on edge tiles during WSI stitching.
+        "resolution_mpp": 0.25,
+        "patch_shape": [1024, 1024],
+        "stride_shape": [450, 450],
         "limitation": "Semantic region segmentation only; not a clinical diagnosis.",
     },
 }
@@ -2728,19 +2734,17 @@ def tool_predict_semantic_segmentation(
         verbose=True,
     )
 
-    input_resolutions = (
-        [{"units": "mpp", "resolution": float(model_meta["resolution_mpp"])}]
-        if model_meta.get("resolution_mpp") is not None
-        else None
-    )
-
     output = segmentor.run(
         # TIAToolbox 2.1.x WSIPatchDataset accepts a string path or WSIReader.
         # pathlib.Path passes our existence check but is rejected by that dataset.
         images=[os.path.abspath(wsi_path)],
         masks=None,
-        input_resolutions=input_resolutions,
-        patch_input_shape=model_meta.get("patch_shape"),
+        # Use the pretrained model's native IOSegmentorConfig.  Supplying only
+        # input resolution/shape here causes EngineABC to overwrite the input
+        # geometry without updating the model-specific output crop geometry.
+        # That inconsistency caused broadcasting failures while merging small
+        # non-tile-aligned WSIs (for example 256x504 versus 256x256).
+        ioconfig=segmentor.ioconfig,
         patch_mode=False,
         save_dir=save_dir,
         output_type="annotationstore",
@@ -3691,15 +3695,18 @@ def _default_moran_roi_metrics(regions: List[Dict[str, Any]]) -> List[str]:
 
 def _build_roi_pysal_weights(
     regions: List[Dict[str, Any]],
-    weights_method: str,
-    k_neighbours: int,
     distance_threshold: Optional[float],
+    distance_decay_sigma: Optional[float] = None,
 ):
-    """Build ROI neighbour weights using libpysal."""
-    import numpy as np
-    from libpysal.weights import DistanceBand, KNN, W
+    """Build the exponential distance-decay ROI adjacency matrix.
 
-    method = str(weights_method or "queen").strip().lower()
+    Connectivity is limited by ``distance_threshold`` and connected nodes receive the raw weight
+    ``w_ij = exp(-sigma * r_ij)``. Moran callers subsequently apply PySAL's
+    row-standardisation so each non-isolated row sums to one.
+    """
+    import numpy as np
+    from libpysal.weights import W
+
     centroids = np.asarray(
         [
             [
@@ -3712,54 +3719,102 @@ def _build_roi_pysal_weights(
     )
     ids = [str(region.get("region_id") or index) for index, region in enumerate(regions)]
 
-    if method == "knn":
-        k = min(max(1, int(k_neighbours)), max(1, len(regions) - 1))
-        weights = KNN.from_array(centroids, k=k, ids=ids)
-        return weights, {"method": "libpysal.weights.KNN.from_array", "k_neighbours": k}
-
-    if method == "distance":
-        if distance_threshold is None:
-            widths = [float(region["x_max"]) - float(region["x_min"]) for region in regions]
-            heights = [float(region["y_max"]) - float(region["y_min"]) for region in regions]
-            typical_size = max(float(np.median(widths + heights)), 1e-9)
-            distance_threshold = typical_size * 1.01
-        weights = DistanceBand.from_array(
-            centroids,
-            threshold=float(distance_threshold),
-            binary=True,
-            silence_warnings=True,
-            ids=ids,
-        )
-        return weights, {
-            "method": "libpysal.weights.DistanceBand.from_array",
-            "distance_threshold": float(distance_threshold),
-        }
-
-    if method not in {"queen", "rook"}:
-        raise ValueError("weights_method must be one of: queen, rook, distance, knn.")
+    if distance_threshold is None:
+        widths = [float(region["x_max"]) - float(region["x_min"]) for region in regions]
+        heights = [float(region["y_max"]) - float(region["y_min"]) for region in regions]
+        typical_size = max(float(np.median(widths + heights)), 1e-9)
+        distance_threshold = typical_size * 1.01
+    threshold = float(distance_threshold)
+    if threshold <= 0:
+        raise ValueError("distance_threshold must be greater than 0.")
+    sigma = float(distance_decay_sigma) if distance_decay_sigma is not None else 1.0 / threshold
+    if sigma <= 0:
+        raise ValueError("distance_decay_sigma must be greater than 0.")
 
     neighbours: Dict[str, List[str]] = {region_id: [] for region_id in ids}
     weights_by_id: Dict[str, List[float]] = {region_id: [] for region_id in ids}
-    for i, region_i in enumerate(regions):
-        gx_i = region_i.get("grid_x")
-        gy_i = region_i.get("grid_y")
-        if gx_i is None or gy_i is None:
-            raise ValueError(
-                "queen/rook weights require grid_x and grid_y in the regions JSON. "
-                "Use weights_method='distance' or 'knn' for non-grid regions."
-            )
-        for j, region_j in enumerate(regions):
+    for i, region_id in enumerate(ids):
+        for j, neighbour_id in enumerate(ids):
             if i == j:
                 continue
-            dx = abs(int(region_j.get("grid_x")) - int(gx_i))
-            dy = abs(int(region_j.get("grid_y")) - int(gy_i))
-            is_neighbour = (dx + dy == 1) if method == "rook" else (max(dx, dy) == 1)
-            if is_neighbour:
-                neighbours[ids[i]].append(ids[j])
-                weights_by_id[ids[i]].append(1.0)
+            r_ij = float(np.linalg.norm(centroids[i] - centroids[j]))
+            if 0.0 < r_ij <= threshold:
+                neighbours[region_id].append(neighbour_id)
+                weights_by_id[region_id].append(float(math.exp(-sigma * r_ij)))
 
     weights = W(neighbours, weights_by_id, ids=ids, silence_warnings=True)
-    return weights, {"method": "libpysal.weights.W", "contiguity": method}
+    return weights, {
+        "method": "libpysal.weights.W with truncated exponential distance decay",
+        "formula": "w_ij = exp(-sigma * r_ij) for 0 < r_ij <= distance_threshold; otherwise 0",
+        "distance_threshold": threshold,
+        "distance_decay_sigma": sigma,
+        "sigma_selection": "user supplied" if distance_decay_sigma is not None else "automatic: sigma = 1 / distance_threshold",
+        "self_weights": 0.0,
+        "adjacency": "A_ij = 1 when 0 < r_ij <= distance_threshold; otherwise 0.",
+        "row_standardization": "Applied by the Moran caller after matrix construction.",
+    }
+
+
+def _build_nucleus_pysal_weights(
+    nuclei: List[Dict[str, Any]],
+    coordinates,
+    distance_threshold: float,
+    distance_decay_sigma: Optional[float] = None,
+):
+    """Build exponential distance-decay weights between nucleus-centroid nodes."""
+    import numpy as np
+    from scipy.spatial import cKDTree
+    from libpysal.weights import W
+
+    coords = np.asarray(coordinates, dtype=float)
+    if len(coords) != len(nuclei) or coords.ndim != 2 or coords.shape[1] != 2:
+        raise ValueError("Nucleus coordinates must be an N x 2 array matching the nucleus records.")
+    threshold = float(distance_threshold)
+    if threshold <= 0:
+        raise ValueError("distance_threshold must be greater than 0.")
+    sigma = float(distance_decay_sigma) if distance_decay_sigma is not None else 1.0 / threshold
+    if sigma <= 0:
+        raise ValueError("distance_decay_sigma must be greater than 0.")
+
+    ids = [str(nucleus["annotation_id"]) for nucleus in nuclei]
+    neighbours: Dict[str, List[str]] = {node_id: [] for node_id in ids}
+    weights_by_id: Dict[str, List[float]] = {node_id: [] for node_id in ids}
+    tree = cKDTree(coords)
+    for i, j in tree.query_pairs(threshold):
+        r_ij = float(np.linalg.norm(coords[i] - coords[j]))
+        if r_ij <= 0:
+            continue
+        weight = float(math.exp(-sigma * r_ij))
+        neighbours[ids[i]].append(ids[j]); weights_by_id[ids[i]].append(weight)
+        neighbours[ids[j]].append(ids[i]); weights_by_id[ids[j]].append(weight)
+
+    return W(neighbours, weights_by_id, ids=ids, silence_warnings=True), {
+        "node_definition": "one node per retained nucleus centroid",
+        "method": "truncated exponential nucleus-centroid distance decay",
+        "formula": "w_ij = exp(-sigma * r_ij) for 0 < r_ij <= distance_threshold; otherwise 0",
+        "distance_threshold": threshold,
+        "distance_decay_sigma": sigma,
+        "sigma_selection": "user supplied" if distance_decay_sigma is not None else "automatic: sigma = 1 / distance_threshold",
+        "self_weights": 0.0,
+        "row_standardization": "Applied before Local Moran's I.",
+    }
+
+
+def _benjamini_hochberg_adjust(p_values: List[Optional[float]]) -> List[Optional[float]]:
+    """Return Benjamini-Hochberg adjusted values while preserving input order."""
+    valid = [(index, float(value)) for index, value in enumerate(p_values) if value is not None]
+    adjusted: List[Optional[float]] = [None] * len(p_values)
+    if not valid:
+        return adjusted
+    ordered = sorted(valid, key=lambda item: item[1])
+    count = len(ordered)
+    running = 1.0
+    for rank_index in range(count - 1, -1, -1):
+        original_index, value = ordered[rank_index]
+        rank = rank_index + 1
+        running = min(running, value * count / rank)
+        adjusted[original_index] = min(1.0, running)
+    return adjusted
 
 
 def _moran_interpretation(moran_i: Optional[float], p_value: Optional[float], alpha: float) -> str:
@@ -3826,6 +3881,10 @@ def tool_compute_kongnet_spatial_entropy(
     output_json_path: str,
     output_txt_path: Optional[str] = None,
     output_csv_path: Optional[str] = None,
+    output_annotationstore_path: Optional[str] = None,
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    overwrite: bool = True,
     normalize: bool = True,
     entropy_base: float = math.e,
     low_threshold: float = 0.40,
@@ -3960,6 +4019,12 @@ def tool_compute_kongnet_spatial_entropy(
             "high_threshold": float(high_threshold),
             "cell_types": selected_cell_types or available_cell_types,
         },
+        "outputs": {
+            "json": output_json_path,
+            "txt": output_txt_path,
+            "csv": output_csv_path,
+            "annotationstore": output_annotationstore_path,
+        },
         "region_count": len(regions),
         "computed_region_count": len(computed_values),
         "summary": {
@@ -3977,6 +4042,90 @@ def tool_compute_kongnet_spatial_entropy(
         ),
     }
     _write_json(output_json_path, payload)
+
+    overlay_count = 0
+    if output_annotationstore_path:
+        from shapely.geometry import box
+        from tiatoolbox.annotation.storage import Annotation, SQLiteStore
+
+        units = str(regions_payload.get("distance_units", "pixels")).lower()
+        stored_scale = regions_payload.get("scale") or {}
+        if units == "pixels":
+            x_scale = y_scale = 1.0
+        elif mpp is not None or wsi_path:
+            resolved = _resolve_spatial_scale("microns", wsi_path=wsi_path, mpp=mpp)
+            x_scale, y_scale = resolved["x_scale"], resolved["y_scale"]
+        elif stored_scale.get("x_scale") and stored_scale.get("y_scale"):
+            x_scale = float(stored_scale["x_scale"])
+            y_scale = float(stored_scale["y_scale"])
+        else:
+            raise ValueError(
+                "Micron-based entropy overlays require wsi_path, mpp, or scale metadata "
+                "in the regions JSON."
+            )
+
+        ensure_parent_dir(output_annotationstore_path)
+        if os.path.exists(output_annotationstore_path):
+            if not overwrite:
+                raise FileExistsError(
+                    f"Output entropy AnnotationStore already exists: {output_annotationstore_path}"
+                )
+            os.remove(output_annotationstore_path)
+
+        colour_by_label = {
+            "low diversity / homogeneous": "#2166AC",
+            "moderate diversity": "#FDAE61",
+            "high diversity / mixed microenvironment": "#B2182B",
+        }
+        annotations, keys = [], []
+        for index, row in enumerate(entropy_rows, start=1):
+            bounds = [row.get(name) for name in ("x_min", "y_min", "x_max", "y_max")]
+            if any(value is None for value in bounds):
+                raise ValueError(
+                    f"Region {row.get('region_id') or index} has no complete bounds; "
+                    "x_min, y_min, x_max and y_max are required for an entropy overlay."
+                )
+            label = str(row.get("entropy_label") or "unknown entropy")
+            colour = colour_by_label.get(label, "#757575")
+            geometry = box(
+                float(bounds[0]) / x_scale,
+                float(bounds[1]) / y_scale,
+                float(bounds[2]) / x_scale,
+                float(bounds[3]) / y_scale,
+            )
+            properties = {
+                "type": label,
+                "label": label,
+                "type_id": {"low diversity / homogeneous": 0, "moderate diversity": 1,
+                            "high diversity / mixed microenvironment": 2}.get(label, 3),
+                "region_id": row.get("region_id") or f"R{index}",
+                "region_label": row.get("region_label"),
+                "shannon_entropy": row.get("shannon_entropy"),
+                "raw_shannon_entropy": row.get("raw_shannon_entropy"),
+                "normalized": bool(normalize),
+                "cell_count": int(row["cell_count"]),
+                "present_class_count": int(row["present_class_count"]),
+                "dominant_class": row.get("dominant_class"),
+                "dominant_percentage": row.get("dominant_percentage"),
+                "colour": colour,
+                "color": colour,
+                "line_color": colour,
+                "fill_color": colour,
+                "fill_opacity": 0.35,
+                "is_roi": True,
+                "coordinate_space": "baseline",
+                "source": "KongNet spatial entropy",
+            }
+            annotations.append(Annotation(geometry, properties=properties))
+            keys.append(str(properties["region_id"]))
+
+        store = SQLiteStore(output_annotationstore_path)
+        try:
+            store.append_many(annotations, keys=keys)
+            store.commit()
+            overlay_count = len(store)
+        finally:
+            store.close()
 
     if output_csv_path:
         ensure_parent_dir(output_csv_path)
@@ -4063,6 +4212,10 @@ def tool_compute_kongnet_spatial_entropy(
         f"JSON: {output_json_path}",
         f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
         f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
+        (
+            f"Entropy overlay: {output_annotationstore_path} ({overlay_count} regions)"
+            if output_annotationstore_path else "Entropy overlay: not requested"
+        ),
     ])
 
 
@@ -4449,9 +4602,8 @@ def tool_compute_kongnet_morans_i(
     output_json_path: str,
     output_txt_path: Optional[str] = None,
     metrics: Optional[List[str]] = None,
-    weights_method: str = "distance",
-    k_neighbours: int = 4,
     distance_threshold: Optional[float] = None,
+    distance_decay_sigma: Optional[float] = None,
     permutations: int = 999,
     alpha: float = 0.05,
 ) -> str:
@@ -4484,9 +4636,8 @@ def tool_compute_kongnet_morans_i(
     requested_metrics = metrics or _default_moran_roi_metrics(regions)
     weights, weights_details = _build_roi_pysal_weights(
         regions,
-        weights_method=weights_method,
-        k_neighbours=k_neighbours,
         distance_threshold=distance_threshold,
+        distance_decay_sigma=distance_decay_sigma,
     )
     weights.transform = "R"
 
@@ -4563,9 +4714,9 @@ def tool_compute_kongnet_morans_i(
         },
         "parameters": {
             "metrics": requested_metrics,
-            "weights_method": str(weights_method),
-            "k_neighbours": int(k_neighbours),
+            "weights_method": "exponential_distance_decay",
             "distance_threshold": distance_threshold,
+            "distance_decay_sigma": weights_details.get("distance_decay_sigma"),
             "permutations": int(permutations),
             "alpha": float(alpha),
         },
@@ -4772,9 +4923,8 @@ def tool_compute_kongnet_local_morans_i(
     wsi_path: Optional[str] = None,
     mpp: Optional[float] = None,
     overwrite: bool = True,
-    weights_method: str = "distance",
-    k_neighbours: int = 4,
     distance_threshold: Optional[float] = None,
+    distance_decay_sigma: Optional[float] = None,
     permutations: int = 999,
     alpha: float = 0.05,
     seed: int = 42,
@@ -4819,9 +4969,8 @@ def tool_compute_kongnet_local_morans_i(
 
     weights, weights_details = _build_roi_pysal_weights(
         regions,
-        weights_method=weights_method,
-        k_neighbours=k_neighbours,
         distance_threshold=distance_threshold,
+        distance_decay_sigma=distance_decay_sigma,
     )
     isolated_ids = [
         region_id
@@ -4912,9 +5061,9 @@ def tool_compute_kongnet_local_morans_i(
         },
         "parameters": {
             "metric": metric,
-            "weights_method": str(weights_method),
-            "k_neighbours": int(k_neighbours),
+            "weights_method": "exponential_distance_decay",
             "distance_threshold": distance_threshold,
+            "distance_decay_sigma": weights_details.get("distance_decay_sigma"),
             "permutations": int(permutations),
             "alpha": float(alpha),
             "seed": int(seed),
@@ -4987,6 +5136,208 @@ def tool_compute_kongnet_local_morans_i(
         f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
         f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
         f"TIAViz AnnotationStore: {resolved_annotationstore_path}",
+    ])
+
+
+def tool_compute_kongnet_nucleus_local_morans_i(
+    annotationstore_path: str,
+    output_json_path: str,
+    selected_class: str,
+    output_csv_path: Optional[str] = None,
+    output_txt_path: Optional[str] = None,
+    output_annotationstore_path: Optional[str] = None,
+    distance_threshold: float = 25.0,
+    distance_decay_sigma: Optional[float] = None,
+    distance_units: str = "microns",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    min_probability: float = 0.0,
+    permutations: int = 999,
+    alpha: float = 0.05,
+    seed: int = 42,
+    marker_radius: float = 3.0,
+    overwrite: bool = True,
+) -> str:
+    """Compute Local Moran's I with nucleus nodes and binary cell-class features."""
+    import numpy as np
+    from esda.moran import Moran_Local
+    from libpysal.weights import lag_spatial
+    from shapely.geometry import Point
+    from tiatoolbox.annotation.storage import Annotation, SQLiteStore
+
+    if not str(selected_class or "").strip():
+        raise ValueError("selected_class must name one predicted nucleus class.")
+    if int(permutations) < 0:
+        raise ValueError("permutations must be non-negative.")
+    if not 0.0 < float(alpha) < 1.0:
+        raise ValueError("alpha must be between 0 and 1.")
+    if float(marker_radius) <= 0:
+        raise ValueError("marker_radius must be greater than 0.")
+
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
+    if len(nuclei) < 3:
+        raise ValueError("Nucleus-level Local Moran's I requires at least 3 retained nuclei.")
+    available = sorted({str(nucleus["type"]) for nucleus in nuclei})
+    class_lookup = {name.casefold(): name for name in available}
+    resolved_class = class_lookup.get(str(selected_class).strip().casefold())
+    if resolved_class is None:
+        raise ValueError(f"Unknown selected_class {selected_class!r}. Available classes: {available}")
+
+    coordinates = _nucleus_coordinates(nuclei, scale)
+    values = np.asarray([1.0 if nucleus["type"] == resolved_class else 0.0 for nucleus in nuclei])
+    positive_count = int(values.sum())
+    if positive_count == 0 or positive_count == len(values):
+        raise ValueError(
+            "The binary nucleus feature has zero variance: both selected-class and other-class nuclei are required."
+        )
+
+    weights, weights_details = _build_nucleus_pysal_weights(
+        nuclei, coordinates, distance_threshold, distance_decay_sigma
+    )
+    isolated = [node_id for node_id in weights.id_order if not weights.neighbors.get(node_id)]
+    if isolated:
+        raise ValueError(
+            f"{len(isolated)} nuclei have no neighbour within {float(distance_threshold):g} {scale['units']}. "
+            "Increase distance_threshold before running Local Moran's I."
+        )
+    weights.transform = "R"
+    np.random.seed(int(seed))
+    local = Moran_Local(values, weights, permutations=int(permutations), seed=int(seed))
+    standardized = np.asarray(local.z, dtype=float)
+    spatial_lags = np.asarray(lag_spatial(weights, standardized), dtype=float)
+    quadrant_labels = {1: "high-high", 2: "low-high", 3: "low-low", 4: "high-low"}
+    raw_p_values = [
+        _safe_float(local.p_sim[index]) if int(permutations) > 0 else None
+        for index in range(len(nuclei))
+    ]
+    adjusted_p_values = _benjamini_hochberg_adjust(raw_p_values)
+
+    rows = []
+    for index, nucleus in enumerate(nuclei):
+        node_id = str(nucleus["annotation_id"])
+        quadrant = int(local.q[index])
+        raw_label = quadrant_labels.get(quadrant, "unclassified")
+        raw_significant = raw_p_values[index] is not None and raw_p_values[index] < float(alpha)
+        adjusted_significant = adjusted_p_values[index] is not None and adjusted_p_values[index] < float(alpha)
+        rows.append({
+            "nucleus_id": node_id,
+            "predicted_type": nucleus["type"],
+            "probability": float(nucleus["probability"]),
+            "selected_class": resolved_class,
+            "feature_value": int(values[index]),
+            "x": float(coordinates[index, 0]), "y": float(coordinates[index, 1]),
+            "distance_units": scale["units"],
+            "standardized_feature_value": float(standardized[index]),
+            "spatial_lag": float(spatial_lags[index]),
+            "local_moran_i": float(local.Is[index]),
+            "p_value": raw_p_values[index],
+            "adjusted_p_value": adjusted_p_values[index],
+            "raw_significant": bool(raw_significant),
+            "adjusted_significant": bool(adjusted_significant),
+            "quadrant": quadrant,
+            "raw_cluster_label": raw_label,
+            "cluster_label": raw_label if adjusted_significant else "not significant",
+            "neighbour_count": len(weights.neighbors[node_id]),
+            "neighbour_ids": list(weights.neighbors[node_id]),
+        })
+
+    resolved_db = output_annotationstore_path or os.path.splitext(output_json_path)[0] + "_overlay.db"
+    ensure_parent_dir(resolved_db)
+    if os.path.exists(resolved_db):
+        if not overwrite:
+            raise FileExistsError(f"Output AnnotationStore already exists: {resolved_db}")
+        os.remove(resolved_db)
+    x_scale, y_scale = float(scale["x_scale"]), float(scale["y_scale"])
+    marker_x = float(marker_radius) / x_scale
+    marker_y = float(marker_radius) / y_scale
+    annotations, keys = [], []
+    for row in rows:
+        label = row["cluster_label"]
+        colour = LOCAL_MORAN_CLUSTER_COLOURS.get(label, "#BDBDBD")
+        geometry = Point(row["x"] / x_scale, row["y"] / y_scale).buffer(
+            max(marker_x, marker_y), resolution=8
+        )
+        properties = {
+            **{key: value for key, value in row.items() if key != "neighbour_ids"},
+            "type": label, "label": label,
+            "neighbour_ids": ";".join(row["neighbour_ids"]),
+            "colour": colour, "color": colour, "line_color": colour,
+            "fill_color": colour, "fill_opacity": 0.75 if row["adjusted_significant"] else 0.18,
+            "coordinate_space": "baseline", "is_nucleus_node": True,
+            "source": "KongNet nucleus-level Local Moran's I",
+        }
+        annotations.append(Annotation(geometry, properties=properties)); keys.append(row["nucleus_id"])
+    store = SQLiteStore(resolved_db)
+    try:
+        store.append_many(annotations, keys=keys); store.commit(); annotation_count = len(store)
+    finally:
+        store.close()
+
+    cluster_counts = dict(Counter(row["cluster_label"] for row in rows))
+    payload = {
+        "analysis": "kongnet_nucleus_local_morans_i",
+        "annotationstore_path": annotationstore_path,
+        "method": {
+            "library": "PySAL ecosystem", "statistic": "esda.moran.Moran_Local",
+            "node": "individual retained nucleus centroid",
+            "feature": f"binary indicator: 1 for {resolved_class}, 0 for every other nucleus class",
+            "weights": weights_details, "weights_transform": "row-standardized",
+            "multiple_testing": "Benjamini-Hochberg adjustment across all tested nuclei",
+        },
+        "parameters": {
+            "selected_class": resolved_class, "distance_threshold": float(distance_threshold),
+            "distance_decay_sigma": weights_details["distance_decay_sigma"],
+            "distance_units": scale["units"], "min_probability": float(min_probability),
+            "permutations": int(permutations), "alpha": float(alpha), "seed": int(seed),
+        },
+        "nucleus_count": len(rows), "selected_class_count": positive_count,
+        "other_class_count": len(rows) - positive_count,
+        "cluster_counts_after_adjustment": cluster_counts,
+        "annotationstore_output_path": resolved_db, "annotation_count": annotation_count,
+        "regions": rows,
+        "interpretation_warning": (
+            "This is an exploratory nucleus-level analysis of model-predicted classes. "
+            "It does not validate classifications or establish clinical significance."
+        ),
+    }
+    _write_json(output_json_path, payload)
+
+    fields = [
+        "nucleus_id", "predicted_type", "probability", "selected_class", "feature_value",
+        "x", "y", "distance_units", "standardized_feature_value", "spatial_lag",
+        "local_moran_i", "p_value", "adjusted_p_value", "raw_significant",
+        "adjusted_significant", "quadrant", "raw_cluster_label", "cluster_label",
+        "neighbour_count", "neighbour_ids",
+    ]
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        with open(output_csv_path, "w", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=fields); writer.writeheader()
+            for row in rows:
+                record = {key: row.get(key) for key in fields}
+                record["neighbour_ids"] = ";".join(row["neighbour_ids"]); writer.writerow(record)
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        significant = [row for row in rows if row["adjusted_significant"]]
+        lines = [
+            "KongNet nucleus-level Local Moran's I", "=====================================", "",
+            f"Nodes: {len(rows)} retained nuclei", f"Binary feature: {resolved_class} = 1; all other types = 0",
+            f"Selected-class nuclei: {positive_count}", f"Distance threshold: {float(distance_threshold):g} {scale['units']}",
+            f"Sigma: {weights_details['distance_decay_sigma']:.8g}", f"Permutations: {int(permutations)}",
+            f"Alpha: {float(alpha):g}", "Significance labels use Benjamini-Hochberg adjusted p-values.", "",
+            f"Adjusted-significant nuclei: {len(significant)}", f"Cluster counts: {cluster_counts}", "",
+            payload["interpretation_warning"],
+        ]
+        with open(output_txt_path, "w", encoding="utf-8") as file: file.write("\n".join(lines) + "\n")
+
+    return "\n".join([
+        "KongNet nucleus-level Local Moran's I completed.",
+        f"Nucleus nodes: {len(rows)}", f"Selected feature: {resolved_class} (1 versus 0)",
+        f"Adjusted-significant nuclei: {sum(row['adjusted_significant'] for row in rows)}",
+        f"JSON: {output_json_path}", f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
+        f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
+        f"TIAViz AnnotationStore: {resolved_db}",
     ])
 
 
@@ -9196,9 +9547,8 @@ def tool_compute_common_roi_morans_i(
     output_json_path: str,
     output_txt_path: Optional[str] = None,
     metrics: Optional[List[str]] = None,
-    weights_method: str = "queen",
-    k_neighbours: int = 4,
     distance_threshold: Optional[float] = None,
+    distance_decay_sigma: Optional[float] = None,
     permutations: int = 999,
     alpha: float = 0.05,
     min_rois: int = 9,
@@ -9226,25 +9576,16 @@ def tool_compute_common_roi_morans_i(
         [(float(r["x_min"]) + float(r["x_max"])) / 2, (float(r["y_min"]) + float(r["y_max"])) / 2]
         for r in regions
     ], dtype=float)
-    n = len(regions); weights = np.zeros((n, n), dtype=float); method = str(weights_method).lower()
-    if method in {"queen", "rook"}:
-        for i, left in enumerate(regions):
-            for j, right in enumerate(regions):
-                if i == j: continue
-                dx = abs(int(left["grid_x"]) - int(right["grid_x"])); dy = abs(int(left["grid_y"]) - int(right["grid_y"]))
-                weights[i, j] = float((dx + dy == 1) if method == "rook" else (max(dx, dy) == 1))
-    else:
-        distances = np.sqrt(np.sum((coordinates[:, None, :] - coordinates[None, :, :]) ** 2, axis=2))
-        np.fill_diagonal(distances, np.inf)
-        if method == "knn":
-            k = min(max(1, int(k_neighbours)), n - 1)
-            for i in range(n): weights[i, np.argsort(distances[i])[:k]] = 1.0
-        elif method == "distance":
-            if distance_threshold is None or float(distance_threshold) <= 0:
-                raise ValueError("A positive distance_threshold is required for distance weights.")
-            weights[distances <= float(distance_threshold)] = 1.0
-        else:
-            raise ValueError("weights_method must be queen, rook, knn, or distance.")
+    n = len(regions); weights = np.zeros((n, n), dtype=float)
+    if distance_threshold is None or float(distance_threshold) <= 0:
+        raise ValueError("A positive distance_threshold is required for exponential distance weights.")
+    threshold = float(distance_threshold)
+    sigma = float(distance_decay_sigma) if distance_decay_sigma is not None else 1.0 / threshold
+    if sigma <= 0:
+        raise ValueError("distance_decay_sigma must be greater than 0.")
+    distances = np.sqrt(np.sum((coordinates[:, None, :] - coordinates[None, :, :]) ** 2, axis=2))
+    connected = (distances > 0.0) & (distances <= threshold)
+    weights[connected] = np.exp(-sigma * distances[connected])
     row_sums = weights.sum(axis=1)
     if np.any(row_sums == 0):
         raise ValueError("At least one ROI has no neighbours under the selected spatial weights.")
@@ -9275,8 +9616,9 @@ def tool_compute_common_roi_morans_i(
     output = {
         "analysis": "common_roi_morans_i", "common_spatial_json_path": common_spatial_json_path,
         "model_family": payload.get("model_family"), "model_name": payload.get("model_name"),
-        "parameters": {"metrics": metrics, "weights_method": method, "k_neighbours": k_neighbours,
-                       "distance_threshold": distance_threshold, "permutations": permutations, "alpha": alpha},
+        "parameters": {"metrics": metrics, "weights_method": "exponential_distance_decay",
+                       "distance_threshold": threshold, "distance_decay_sigma": sigma,
+                       "permutations": permutations, "alpha": alpha},
         "results": results,
     }
     _write_json(output_json_path, output)
