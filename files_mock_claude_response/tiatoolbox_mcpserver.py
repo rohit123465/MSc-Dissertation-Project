@@ -33,6 +33,7 @@ from tia_tools import (
     tool_compute_kongnet_point_pattern_statistics,
     tool_compute_kongnet_morans_i,
     tool_compute_kongnet_local_morans_i,
+    tool_compute_kongnet_nucleus_global_morans_i,
     tool_compute_kongnet_nucleus_local_morans_i,
     tool_compute_kongnet_spatial_entropy,
     tool_compute_kongnet_cross_g_function,
@@ -523,6 +524,14 @@ def infer_task_type(user_prompt: str) -> str:
         "existing nucleus detection",
         "existing nucleus detections",
     ])
+    requests_global_moran = any(k in request for k in [
+        "global moran",
+        "global moran's i",
+        "global morans i",
+        "overall spatial autocorrelation",
+    ])
+    if requests_global_moran and requests_nucleus_granularity:
+        return "kongnet_nucleus_global_morans_i_analysis"
     if requests_local_moran and requests_nucleus_granularity:
         return "kongnet_nucleus_local_morans_i_analysis"
 
@@ -925,6 +934,17 @@ def build_plan(
             ("distance_decay_sigma", "What exponential distance-decay sigma should be used? If omitted, sigma is 1 / distance_threshold."),
             ("distance_units", "Should nucleus distances use microns or pixels?"),
             ("min_probability", "What minimum nucleus-class probability should be retained?"),
+            ("permutations", "How many conditional permutations should be used for nucleus-level Local Moran's I?"),
+            ("seed", "What random seed should be used for reproducible permutations?"),
+            ("alpha", "What statistical-significance threshold (alpha) should be used?"),
+        ],
+        "kongnet_nucleus_global_morans_i_analysis": [
+            ("distance_threshold", "What nucleus-centroid radius should define adjacency for nucleus-level Global Moran's I?"),
+            ("distance_decay_sigma", "What exponential distance-decay sigma should be used? If omitted, sigma is 1 / distance_threshold."),
+            ("distance_units", "Should nucleus distances use microns or pixels?"),
+            ("min_probability", "What minimum nucleus-class probability should be retained?"),
+            ("permutations", "How many permutations should be used for nucleus-level Global Moran's I?"),
+            ("seed", "What random seed should be used for reproducible permutations?"),
             ("alpha", "What statistical-significance threshold (alpha) should be used?"),
         ],
         "kongnet_spatial_entropy_analysis": [
@@ -968,6 +988,9 @@ def build_plan(
             ("metric", "Which single numeric ROI feature should Local Moran's I analyse?"),
         ],
         "kongnet_nucleus_local_morans_i_analysis": [
+            ("selected_class", "Which predicted nucleus class should be encoded as 1, with all other retained classes encoded as 0?"),
+        ],
+        "kongnet_nucleus_global_morans_i_analysis": [
             ("selected_class", "Which predicted nucleus class should be encoded as 1, with all other retained classes encoded as 0?"),
         ],
         "kongnet_spatial_entropy_analysis": [
@@ -1234,6 +1257,32 @@ def build_plan(
             )
         }
 
+    elif task_type == "kongnet_nucleus_global_morans_i_analysis":
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute one nucleus-level Global Moran's I statistic using individual nucleus centroids and a selected binary nucleus-class feature.",
+            "steps": [
+                "Load existing KongNet nuclei and retain predictions meeting the approved confidence threshold.",
+                "Treat each nucleus centroid as a graph node and encode the selected class as 1 versus all other retained classes as 0.",
+                "Build nucleus adjacency within the approved radius and assign w_ij = exp(-sigma * r_ij).",
+                "Row-standardize the weights and compute one Global Moran's I value for the complete nucleus pattern.",
+                "Estimate one permutation p-value for overall spatial autocorrelation.",
+                "Save JSON, CSV and TXT summary results; no per-nucleus overlay is generated for a single global statistic.",
+            ],
+            "suggested_tools_after_approval": ["compute_kongnet_nucleus_global_morans_i"],
+            "expected_outputs": [
+                os.path.join(output_dir, "kongnet_nucleus_global_morans_i.json"),
+                os.path.join(output_dir, "kongnet_nucleus_global_morans_i.csv"),
+                os.path.join(output_dir, "kongnet_nucleus_global_morans_i.txt"),
+            ],
+            "default_parameters": {
+                "permutations": 9999, "alpha": 0.05, "seed": 42,
+            },
+            "clinical_warning": (
+                "This is exploratory global analysis of model-predicted nucleus classes, not a clinical diagnosis."
+            ),
+        }
+
     elif task_type == "kongnet_nucleus_local_morans_i_analysis":
         plan = {
             "task_type": task_type,
@@ -1254,7 +1303,7 @@ def build_plan(
                 os.path.join(output_dir, "kongnet_nucleus_local_morans_i_overlay.db"),
             ],
             "default_parameters": {
-                "permutations": 999, "alpha": 0.05, "seed": 42,
+                "permutations": 9999, "alpha": 0.05, "seed": 42,
                 "marker_radius": 3.0,
             },
             "clinical_warning": (
@@ -1765,6 +1814,12 @@ def build_plan(
             not isinstance(value, int) or isinstance(value, bool) or value < 1
         ):
             raise ValueError(f"{name} must be an integer of at least 1.")
+        if name == "permutations" and (
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+        ):
+            raise ValueError("permutations must be a non-negative integer.")
+        if name == "seed" and (not isinstance(value, int) or isinstance(value, bool)):
+            raise ValueError("seed must be an integer.")
 
     if {"low_threshold", "high_threshold"}.issubset(supplied_thresholds):
         if float(supplied_thresholds["low_threshold"]) > float(supplied_thresholds["high_threshold"]):
@@ -1987,6 +2042,17 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
             "distance_decay_sigma": "distance_decay_sigma",
             "distance_units": "distance_units",
             "min_probability": "min_probability",
+            "permutations": "permutations",
+            "seed": "seed",
+        },
+        "compute_kongnet_nucleus_global_morans_i": {
+            "alpha": "alpha",
+            "distance_threshold": "distance_threshold",
+            "distance_decay_sigma": "distance_decay_sigma",
+            "distance_units": "distance_units",
+            "min_probability": "min_probability",
+            "permutations": "permutations",
+            "seed": "seed",
         },
         "compute_kongnet_spatial_entropy": {
             "low_threshold": "low_threshold",
@@ -2035,6 +2101,7 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
         "compute_kongnet_morans_i": {"metrics": "metrics"},
         "compute_kongnet_local_morans_i": {"metric": "metric"},
         "compute_kongnet_nucleus_local_morans_i": {"selected_class": "selected_class"},
+        "compute_kongnet_nucleus_global_morans_i": {"selected_class": "selected_class"},
         "compute_kongnet_spatial_entropy": {"cell_types": "cell_types"},
         "compute_kongnet_cross_g_function": {
             "source_types": "source_types",
@@ -2917,6 +2984,33 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                     "seed": {"type": "integer"}
                 },
                 "required": ["approval_token", "regions_json_path", "output_json_path", "metric"],
+                "additionalProperties": False
+            }
+        },
+        {
+            "name": "compute_kongnet_nucleus_global_morans_i",
+            "title": "Compute KongNet Nucleus-Level Global Moran's I",
+            "description": "Treats individual KongNet nuclei as graph nodes, encodes one selected class as a binary feature, and computes one overall Global Moran's I with exponential nucleus-centroid distance weights and permutation inference.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "approval_token": {"type": "string"},
+                    "annotationstore_path": {"type": "string"},
+                    "output_json_path": {"type": "string"},
+                    "output_csv_path": {"type": "string"},
+                    "output_txt_path": {"type": "string"},
+                    "selected_class": {"type": "string"},
+                    "distance_threshold": {"type": "number", "exclusiveMinimum": 0},
+                    "distance_decay_sigma": {"type": "number", "exclusiveMinimum": 0},
+                    "distance_units": {"type": "string", "enum": ["microns", "pixels"]},
+                    "wsi_path": {"type": "string"},
+                    "mpp": {"type": "number", "exclusiveMinimum": 0},
+                    "min_probability": {"type": "number", "minimum": 0, "maximum": 1},
+                    "permutations": {"type": "integer", "minimum": 0},
+                    "alpha": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+                    "seed": {"type": "integer"}
+                },
+                "required": ["approval_token", "annotationstore_path", "output_json_path", "selected_class", "distance_threshold"],
                 "additionalProperties": False
             }
         },
@@ -3942,6 +4036,29 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
             )
             return
 
+        if name == "compute_kongnet_nucleus_global_morans_i":
+            require_plan(args, name)
+            tool_result(
+                req_id,
+                tool_compute_kongnet_nucleus_global_morans_i(
+                    annotationstore_path=args.get("annotationstore_path", ""),
+                    output_json_path=args.get("output_json_path", ""),
+                    output_csv_path=args.get("output_csv_path"),
+                    output_txt_path=args.get("output_txt_path"),
+                    selected_class=str(args.get("selected_class", "")),
+                    distance_threshold=float(args.get("distance_threshold", 25.0)),
+                    distance_decay_sigma=(float(args["distance_decay_sigma"]) if args.get("distance_decay_sigma") is not None else None),
+                    distance_units=str(args.get("distance_units", "microns")),
+                    wsi_path=args.get("wsi_path"),
+                    mpp=float(args["mpp"]) if args.get("mpp") is not None else None,
+                    min_probability=float(args.get("min_probability", 0.0)),
+                    permutations=int(args.get("permutations", 9999)),
+                    alpha=float(args.get("alpha", 0.05)),
+                    seed=int(args.get("seed", 42)),
+                )
+            )
+            return
+
         if name == "compute_kongnet_nucleus_local_morans_i":
             require_plan(args, name)
             tool_result(
@@ -3959,7 +4076,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                     wsi_path=args.get("wsi_path"),
                     mpp=float(args["mpp"]) if args.get("mpp") is not None else None,
                     min_probability=float(args.get("min_probability", 0.0)),
-                    permutations=int(args.get("permutations", 999)),
+                    permutations=int(args.get("permutations", 9999)),
                     alpha=float(args.get("alpha", 0.05)), seed=int(args.get("seed", 42)),
                     marker_radius=float(args.get("marker_radius", 3.0)),
                     overwrite=bool_arg(args.get("overwrite"), True),
