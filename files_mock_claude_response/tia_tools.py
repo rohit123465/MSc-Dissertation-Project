@@ -3796,8 +3796,34 @@ def _build_nucleus_pysal_weights(
         "distance_decay_sigma": sigma,
         "sigma_selection": "user supplied" if distance_decay_sigma is not None else "automatic: sigma = 1 / distance_threshold",
         "self_weights": 0.0,
-        "row_standardization": "Applied before Local Moran's I.",
+        "row_standardization": "Applied by the Global or Local Moran caller after matrix construction.",
     }
+
+
+def _encode_nucleus_class_feature(
+    nuclei: List[Dict[str, Any]],
+    selected_class: str,
+):
+    """Encode one predicted nucleus class as 1 and every other class as 0."""
+    import numpy as np
+
+    if not str(selected_class or "").strip():
+        raise ValueError("selected_class must name one predicted nucleus class.")
+    available = sorted({str(nucleus["type"]) for nucleus in nuclei})
+    class_lookup = {name.casefold(): name for name in available}
+    resolved_class = class_lookup.get(str(selected_class).strip().casefold())
+    if resolved_class is None:
+        raise ValueError(f"Unknown selected_class {selected_class!r}. Available classes: {available}")
+    values = np.asarray(
+        [1.0 if str(nucleus["type"]) == resolved_class else 0.0 for nucleus in nuclei],
+        dtype=float,
+    )
+    positive_count = int(values.sum())
+    if positive_count == 0 or positive_count == len(values):
+        raise ValueError(
+            "The binary nucleus feature has zero variance: both selected-class and other-class nuclei are required."
+        )
+    return values, resolved_class, available
 
 
 def _benjamini_hochberg_adjust(p_values: List[Optional[float]]) -> List[Optional[float]]:
@@ -5139,6 +5165,174 @@ def tool_compute_kongnet_local_morans_i(
     ])
 
 
+def tool_compute_kongnet_nucleus_global_morans_i(
+    annotationstore_path: str,
+    output_json_path: str,
+    selected_class: str,
+    output_csv_path: Optional[str] = None,
+    output_txt_path: Optional[str] = None,
+    distance_threshold: float = 25.0,
+    distance_decay_sigma: Optional[float] = None,
+    distance_units: str = "microns",
+    wsi_path: Optional[str] = None,
+    mpp: Optional[float] = None,
+    min_probability: float = 0.0,
+    permutations: int = 9999,
+    alpha: float = 0.05,
+    seed: int = 42,
+) -> str:
+    """Compute one Global Moran's I for a binary class feature on nucleus nodes."""
+    import numpy as np
+    from esda.moran import Moran
+
+    if int(permutations) < 0:
+        raise ValueError("permutations must be non-negative.")
+    if not 0.0 < float(alpha) < 1.0:
+        raise ValueError("alpha must be between 0 and 1.")
+
+    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+    nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
+    if len(nuclei) < 3:
+        raise ValueError("Nucleus-level Global Moran's I requires at least 3 retained nuclei.")
+    coordinates = _nucleus_coordinates(nuclei, scale)
+    values, resolved_class, available_classes = _encode_nucleus_class_feature(
+        nuclei, selected_class
+    )
+    positive_count = int(values.sum())
+
+    weights, weights_details = _build_nucleus_pysal_weights(
+        nuclei, coordinates, distance_threshold, distance_decay_sigma
+    )
+    isolated = [node_id for node_id in weights.id_order if not weights.neighbors.get(node_id)]
+    if isolated:
+        raise ValueError(
+            f"{len(isolated)} nuclei have no neighbour within {float(distance_threshold):g} {scale['units']}. "
+            "Increase distance_threshold before running Global Moran's I."
+        )
+    weights.transform = "R"
+    np.random.seed(int(seed))
+    global_moran = Moran(values, weights, permutations=int(permutations), two_tailed=True)
+    p_value = _safe_float(global_moran.p_sim) if int(permutations) > 0 else None
+    significant = p_value is not None and p_value < float(alpha)
+    moran_i = float(global_moran.I)
+    if significant and moran_i > 0:
+        interpretation = (
+            f"Significant positive global spatial autocorrelation: {resolved_class} identity tends to occur "
+            "near the same binary class state under the approved nucleus graph."
+        )
+    elif significant and moran_i < 0:
+        interpretation = (
+            f"Significant negative global spatial autocorrelation: {resolved_class} and non-{resolved_class} "
+            "identities tend to alternate under the approved nucleus graph."
+        )
+    else:
+        interpretation = (
+            f"No statistically significant global spatial autocorrelation was detected for {resolved_class} "
+            f"identity at alpha={float(alpha):g}."
+        )
+
+    neighbour_counts = [len(weights.neighbors[node_id]) for node_id in weights.id_order]
+    result = {
+        "selected_class": resolved_class,
+        "moran_i": moran_i,
+        "expected_i": float(global_moran.EI),
+        "permutation_p_value": p_value,
+        "permutation_z_score": _safe_float(getattr(global_moran, "z_sim", None)),
+        "significant": bool(significant),
+        "alpha": float(alpha),
+        "interpretation": interpretation,
+    }
+    payload = {
+        "analysis": "kongnet_nucleus_global_morans_i",
+        "annotationstore_path": annotationstore_path,
+        "method": {
+            "library": "PySAL ecosystem",
+            "statistic": "esda.moran.Moran",
+            "node": "individual retained nucleus centroid",
+            "feature": f"binary indicator: 1 for {resolved_class}, 0 for every other nucleus class",
+            "weights": weights_details,
+            "weights_transform": "row-standardized",
+            "inference": "one global permutation test; no per-nucleus multiple-testing adjustment",
+        },
+        "parameters": {
+            "selected_class": resolved_class,
+            "distance_threshold": float(distance_threshold),
+            "distance_decay_sigma": weights_details["distance_decay_sigma"],
+            "distance_units": scale["units"],
+            "min_probability": float(min_probability),
+            "permutations": int(permutations),
+            "alpha": float(alpha),
+            "seed": int(seed),
+        },
+        "nucleus_count": len(nuclei),
+        "selected_class_count": positive_count,
+        "other_class_count": len(nuclei) - positive_count,
+        "available_classes": available_classes,
+        "neighbour_count_summary": {
+            "minimum": int(min(neighbour_counts)),
+            "mean": float(np.mean(neighbour_counts)),
+            "maximum": int(max(neighbour_counts)),
+        },
+        "result": result,
+        "interpretation_warning": (
+            "This is an exploratory global analysis of model-predicted nucleus classes. "
+            "It does not validate classifications or establish clinical significance."
+        ),
+    }
+    _write_json(output_json_path, payload)
+
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        with open(output_csv_path, "w", newline="", encoding="utf-8") as file:
+            fields = [
+                "selected_class", "nucleus_count", "selected_class_count", "other_class_count",
+                "distance_threshold", "distance_decay_sigma", "distance_units", "permutations",
+                "alpha", "moran_i", "expected_i", "permutation_p_value",
+                "permutation_z_score", "significant", "mean_neighbour_count",
+            ]
+            writer = csv.DictWriter(file, fieldnames=fields); writer.writeheader()
+            writer.writerow({
+                "selected_class": resolved_class, "nucleus_count": len(nuclei),
+                "selected_class_count": positive_count, "other_class_count": len(nuclei) - positive_count,
+                "distance_threshold": float(distance_threshold),
+                "distance_decay_sigma": weights_details["distance_decay_sigma"],
+                "distance_units": scale["units"], "permutations": int(permutations),
+                "alpha": float(alpha), "moran_i": moran_i, "expected_i": float(global_moran.EI),
+                "permutation_p_value": p_value,
+                "permutation_z_score": _safe_float(getattr(global_moran, "z_sim", None)),
+                "significant": bool(significant), "mean_neighbour_count": float(np.mean(neighbour_counts)),
+            })
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        lines = [
+            "KongNet nucleus-level Global Moran's I", "======================================", "",
+            f"Nodes: {len(nuclei)} retained nuclei",
+            f"Binary feature: {resolved_class} = 1; all other types = 0",
+            f"Selected-class nuclei: {positive_count}",
+            f"Distance threshold: {float(distance_threshold):g} {scale['units']}",
+            f"Sigma: {weights_details['distance_decay_sigma']:.8g}",
+            f"Mean neighbours per nucleus: {float(np.mean(neighbour_counts)):.4f}",
+            f"Permutations: {int(permutations)}", f"Alpha: {float(alpha):g}", "",
+            f"Global Moran's I: {moran_i:.8g}", f"Expected I: {float(global_moran.EI):.8g}",
+            f"Permutation p-value: {p_value if p_value is not None else 'not computed'}",
+            f"Permutation z-score: {_safe_float(getattr(global_moran, 'z_sim', None))}",
+            f"Statistically significant: {bool(significant)}", "", interpretation, "",
+            payload["interpretation_warning"],
+        ]
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write("\n".join(lines) + "\n")
+
+    return "\n".join([
+        "KongNet nucleus-level Global Moran's I completed.",
+        f"Nucleus nodes: {len(nuclei)}", f"Selected feature: {resolved_class} (1 versus 0)",
+        f"Global Moran's I: {moran_i:.8g}",
+        f"Permutation p-value: {p_value if p_value is not None else 'not computed'}",
+        f"Significant at alpha={float(alpha):g}: {bool(significant)}",
+        f"JSON: {output_json_path}", f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
+        f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
+    ])
+
+
 def tool_compute_kongnet_nucleus_local_morans_i(
     annotationstore_path: str,
     output_json_path: str,
@@ -5152,7 +5346,7 @@ def tool_compute_kongnet_nucleus_local_morans_i(
     wsi_path: Optional[str] = None,
     mpp: Optional[float] = None,
     min_probability: float = 0.0,
-    permutations: int = 999,
+    permutations: int = 9999,
     alpha: float = 0.05,
     seed: int = 42,
     marker_radius: float = 3.0,
@@ -5165,8 +5359,6 @@ def tool_compute_kongnet_nucleus_local_morans_i(
     from shapely.geometry import Point
     from tiatoolbox.annotation.storage import Annotation, SQLiteStore
 
-    if not str(selected_class or "").strip():
-        raise ValueError("selected_class must name one predicted nucleus class.")
     if int(permutations) < 0:
         raise ValueError("permutations must be non-negative.")
     if not 0.0 < float(alpha) < 1.0:
@@ -5178,19 +5370,9 @@ def tool_compute_kongnet_nucleus_local_morans_i(
     nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
     if len(nuclei) < 3:
         raise ValueError("Nucleus-level Local Moran's I requires at least 3 retained nuclei.")
-    available = sorted({str(nucleus["type"]) for nucleus in nuclei})
-    class_lookup = {name.casefold(): name for name in available}
-    resolved_class = class_lookup.get(str(selected_class).strip().casefold())
-    if resolved_class is None:
-        raise ValueError(f"Unknown selected_class {selected_class!r}. Available classes: {available}")
-
     coordinates = _nucleus_coordinates(nuclei, scale)
-    values = np.asarray([1.0 if nucleus["type"] == resolved_class else 0.0 for nucleus in nuclei])
+    values, resolved_class, _ = _encode_nucleus_class_feature(nuclei, selected_class)
     positive_count = int(values.sum())
-    if positive_count == 0 or positive_count == len(values):
-        raise ValueError(
-            "The binary nucleus feature has zero variance: both selected-class and other-class nuclei are required."
-        )
 
     weights, weights_details = _build_nucleus_pysal_weights(
         nuclei, coordinates, distance_threshold, distance_decay_sigma
