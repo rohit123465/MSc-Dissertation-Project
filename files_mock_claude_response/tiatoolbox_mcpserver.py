@@ -57,6 +57,9 @@ from tia_tools import (
     tool_build_common_spatial_features,
     tool_validate_spatial_capabilities,
     tool_compute_common_roi_morans_i,
+    tool_compute_common_nucleus_global_morans_i,
+    tool_compute_common_nucleus_local_morans_i,
+    tool_compute_common_tumour_immune_interaction,
     tool_compute_common_roi_entropy,
     tool_compute_common_point_pattern_statistics,
     tool_compute_common_cross_g,
@@ -476,6 +479,27 @@ def infer_task_type(user_prompt: str) -> str:
         "hovernet", "hover-net", "hovernetplus", "hover-net plus",
         "bcss", "semantic segmentation", "kather", "pcam", "patch classification",
     ]
+    # Recognise natural wording, common tool names, and common-format inputs
+    # before the broad model-family/adapter routes. Keep multi-statistic requests
+    # on the existing multi-tool plan rather than silently dropping operations.
+    normalized = " ".join(request.replace("_", " ").replace("-", " ").split())
+    common_context = any(term in normalized for term in (
+        "common", "model independent", "model independant", "cross model",
+        "model agnostic", "source independent", "hovernet", "hover net",
+    ))
+    wants_cooccurrence = any(term in normalized for term in (
+        "cooccurrence", "co occurrence", "cooccurance", "co occurance",
+        "cooccurence", "co occurence",
+    ))
+    other_object_statistics = any(term in normalized for term in (
+        "ripley", "cross g", "nearest neighbour", "nearest neighbor", "nni",
+        "point pattern", "quadrat",
+    ))
+    if common_context and wants_cooccurrence:
+        if other_object_statistics:
+            return "common_object_spatial_analysis"
+        if not any(term in normalized for term in ("moran", "entropy", "immune interaction")):
+            return "common_cooccurrence"
     requests_spatial_analysis = any(term in request for term in [
         "spatial analysis", "spatial statistics", "spatial statistic",
         "analyse spatial", "analyze spatial",
@@ -486,6 +510,11 @@ def infer_task_type(user_prompt: str) -> str:
     ])
     if requests_object_statistics and any(model in request for model in non_kongnet_spatial_models + ["common object", "common-object"]):
         return "common_object_spatial_analysis"
+    common_request = any(word in request for word in ["common", "cross-model", "cross model", "model-independent", "annotationstore"])
+    if common_request and "moran" in request and any(word in request for word in ["nucleus", "nuclei", "cell-level"]):
+        return "common_nucleus_morans_i"
+    if common_request and "immune" in request and any(word in request for word in ["tumor", "tumour"]):
+        return "common_tumour_immune_interaction"
     if ("common" in request or "cross-model" in request or "cross model" in request) and "moran" in request:
         return "common_roi_morans_i"
     if ("common" in request or "cross-model" in request or "cross model" in request) and "entropy" in request:
@@ -894,6 +923,23 @@ def build_plan(
     # questions below are attached to the draft plan so the client LLM asks the
     # user to confirm them before requesting approval.
     spatial_threshold_questions = {
+        "common_cooccurrence": [
+            ("cooccurrence_radius", "What pair-counting radius should be used in the common dataset's declared units (microns if calibrated)?"),
+            ("min_probability", "What minimum object-class probability should be retained?"),
+        ],
+        "common_nucleus_morans_i": [
+            ("distance_threshold", "What nucleus-neighbour radius should be used in the common dataset's units?"),
+            ("distance_decay_sigma", "What distance-decay sigma should be used (suggestion: 1/radius)?"),
+            ("permutations", "How many permutations should be used (suggestion: 999)?"),
+            ("seed", "What reproducible random seed should be used (suggestion: 42)?"),
+            ("alpha", "What significance threshold should be used?"),
+            ("min_probability", "What minimum nucleus probability should be retained?"),
+        ],
+        "common_tumour_immune_interaction": [
+            ("radius", "What proximity radius should be used in the common dataset's units?"),
+            ("region_size", "What grid ROI size should be used in those same units?"),
+            ("min_probability", "What minimum nucleus probability should be retained?"),
+        ],
         "common_object_spatial_analysis": [
             ("radii", "At which radii should Ripley, point-pattern, and Cross-G statistics be evaluated?"),
             ("cooccurrence_radius", "What radius should be used for cell-type co-occurrence?"),
@@ -964,6 +1010,14 @@ def build_plan(
         ],
     }
     spatial_feature_questions = {
+        "common_cooccurrence": [
+            ("cooccurrence_cell_types", "Which exact adapted classes should be included in cell-type co-occurrence?"),
+        ],
+        "common_nucleus_morans_i": [("selected_class", "Which class is encoded as 1 versus all other retained classes as 0?")],
+        "common_tumour_immune_interaction": [
+            ("tumour_types", "Which exact adapted classes represent tumour nuclei?"),
+            ("immune_types", "Which disjoint adapted classes represent immune nuclei?"),
+        ],
         "common_object_spatial_analysis": [
             ("point_pattern_cell_types", "Which classes should receive per-class NNI, quadrat, and Ripley statistics?"),
             ("source_types", "Which class or classes should be the source population?"),
@@ -1010,7 +1064,21 @@ def build_plan(
         ],
     }
 
-    if task_type == "common_object_spatial_analysis":
+    if task_type == "common_cooccurrence":
+        plan = {
+            "task_type": task_type,
+            "goal": "Compute model-independent cell-type co-occurrence only, using common individual objects.",
+            "steps": [
+                "Use an existing common_spatial_features_v1 dataset; if only a raw AnnotationStore exists, obtain a separate approved adapter plan first.",
+                "Check object capability, class names and declared coordinate units. A nucleus DB is not a QuPath GeoJSON ROI pair.",
+                "Count each unordered pair once within the approved radius, grouping pairs by selected class names.",
+                "Save the common co-occurrence JSON without running unrelated spatial statistics.",
+            ],
+            "suggested_tools_after_approval": ["validate_spatial_capabilities", "compute_common_cooccurrence"],
+            "expected_outputs": [os.path.join(output_dir, "common_cooccurrence.json")],
+            "default_parameters": {"cooccurrence_radius": 50.0, "min_probability": 0.0},
+        }
+    elif task_type == "common_object_spatial_analysis":
         plan = {
             "task_type": task_type,
             "goal": "Run compatible point-level spatial statistics on a standardized common-object representation.",
@@ -1033,6 +1101,20 @@ def build_plan(
             "default_parameters": {"radii": [25.0, 50.0, 100.0], "cooccurrence_radius": 50.0,
                                    "neighbourhood_radius": 50.0, "min_probability": 0.0,
                                    "min_points_per_pattern": 10},
+        }
+    elif task_type in {"common_nucleus_morans_i", "common_tumour_immune_interaction"}:
+        names = (["compute_common_nucleus_global_morans_i", "compute_common_nucleus_local_morans_i"]
+                 if task_type == "common_nucleus_morans_i" else ["compute_common_tumour_immune_interaction"])
+        plan = {
+            "task_type": task_type,
+            "goal": "Analyse explicitly mapped nucleus objects independently of their annotation source.",
+            "steps": ["Use an existing common nucleus dataset, or approve a separate adapter plan first.",
+                      "Confirm class selections and physical distance units.",
+                      "For Local Moran only, retain isolated nuclei and mark their local results not computed; do not increase the radius automatically. Global Moran still rejects isolated nuclei.",
+                      "Compute and save the requested statistics using common nucleus objects."],
+            "suggested_tools_after_approval": names,
+            "expected_outputs": [os.path.join(output_dir, name + ".json") for name in names],
+            "default_parameters": {"min_probability": 0., "permutations": 999, "seed": 42, "alpha": .05},
         }
     elif task_type == "common_spatial_adapter":
         plan = {
@@ -1800,7 +1882,7 @@ def build_plan(
         if name in {"alpha", "min_probability", "low_threshold", "high_threshold"}:
             if not isinstance(value, (int, float)) or isinstance(value, bool) or not 0.0 <= float(value) <= 1.0:
                 raise ValueError(f"{name} must be a number between 0 and 1.")
-        if name in {"cooccurrence_radius", "neighbourhood_radius", "distance_threshold", "distance_decay_sigma", "region_size", "mpp"}:
+        if name in {"radius", "cooccurrence_radius", "neighbourhood_radius", "distance_threshold", "distance_decay_sigma", "region_size", "mpp"}:
             if not isinstance(value, (int, float)) or isinstance(value, bool) or float(value) <= 0:
                 raise ValueError(f"{name} must be a positive number.")
         if name in {"radii", "point_pattern_radii"}:
@@ -1981,6 +2063,9 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
     selected = plan.get("selected_threshold_parameters", {})
     selected_features = plan.get("selected_feature_parameters", {})
     bindings = {
+        "compute_common_nucleus_global_morans_i": {key: key for key in ["distance_threshold", "distance_decay_sigma", "min_probability", "alpha", "permutations", "seed"]},
+        "compute_common_nucleus_local_morans_i": {key: key for key in ["distance_threshold", "distance_decay_sigma", "min_probability", "alpha", "permutations", "seed"]},
+        "compute_common_tumour_immune_interaction": {key: key for key in ["radius", "region_size", "min_probability"]},
         "compute_common_point_pattern_statistics": {
             "radii": "radii", "min_probability": "min_probability", "min_points_per_pattern": "min_points_per_pattern",
         },
@@ -2077,6 +2162,9 @@ def require_plan(args: Dict[str, Any], tool_name: str) -> str:
         args[argument_name] = selected_value
 
     feature_bindings = {
+        "compute_common_nucleus_global_morans_i": {"selected_class": "selected_class"},
+        "compute_common_nucleus_local_morans_i": {"selected_class": "selected_class"},
+        "compute_common_tumour_immune_interaction": {"tumour_types": "tumour_types", "immune_types": "immune_types"},
         "compute_common_point_pattern_statistics": {
             "cell_types": "point_pattern_cell_types", "source_types": "source_types", "target_types": "target_types",
         },
@@ -2158,6 +2246,41 @@ def handle_initialize(req: Dict[str, Any]) -> None:
     })
 
 
+def common_nucleus_tool_schemas():
+    """Single schema source for the three source-independent nucleus tools."""
+    base = {"approval_token": {"type": "string"}, "common_spatial_json_path": {"type": "string"},
+            "output_json_path": {"type": "string"}, "output_csv_path": {"type": "string"},
+            "min_probability": {"type": "number", "minimum": 0, "maximum": 1}}
+    result = []
+    for kind in ("global", "local", "interaction"):
+        properties = dict(base)
+        required = ["approval_token", "common_spatial_json_path", "output_json_path"]
+        if kind == "interaction":
+            name = "compute_common_tumour_immune_interaction"
+            properties.update({key: {"type": "array", "items": {"type": "string"}, "minItems": 1} for key in ("tumour_types", "immune_types")})
+            properties.update({key: {"type": "number", "exclusiveMinimum": 0} for key in ("radius", "region_size")})
+            required += ["tumour_types", "immune_types", "radius", "region_size"]
+            description = "Explicit disjoint tumour/immune classes: distinct within-ROI proximity pairs per 100 retained nuclei, not a percentage or proof of biological interaction. Distances use common input units."
+        else:
+            name = f"compute_common_nucleus_{kind}_morans_i"
+            properties.update({"selected_class": {"type": "string"},
+                "distance_threshold": {"type": "number", "exclusiveMinimum": 0},
+                "distance_decay_sigma": {"type": "number", "exclusiveMinimum": 0},
+                "permutations": {"type": "integer", "minimum": 0}, "seed": {"type": "integer"},
+                "alpha": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+                "output_txt_path": {"type": "string"}})
+            required += ["selected_class", "distance_threshold"]
+            if kind == "local":
+                properties.update({"output_annotationstore_path": {"type": "string"},
+                    "marker_radius": {"type": "number", "exclusiveMinimum": 0}, "overwrite": {"type": "boolean"}})
+            description = f"Cross-model nucleus-level {kind} Moran's I: selected class=1, others=0; row-standardized exponential distance weights. Distances use common input units. Requires nucleus-only objects with explicit class names."
+            if kind == "local":
+                description += " Isolated nuclei are retained with null local statistics/p-values and a distinct no-neighbours label; excluded from multiple-testing correction but retained in the reference population. An entirely isolated graph is rejected."
+        result.append({"name": name, "description": description, "inputSchema": {
+            "type": "object", "properties": properties, "required": required, "additionalProperties": False}})
+    return result
+
+
 def handle_tools_list(req: Dict[str, Any]) -> None:
     tools = [
         {
@@ -2225,7 +2348,8 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
                 "properties": {
                     "approval_token": {"type": "string"},
                     "source_path": {"type": "string"},
-                    "model_family": {"type": "string", "enum": ["kongnet", "hovernet", "hovernetplus", "semantic_segmentation", "patch_classification"]},
+                    "model_family": {"type": "string", "enum": ["annotation_objects", "kongnet", "hovernet", "hovernetplus", "semantic_segmentation", "patch_classification"]},
+                    "class_mapping": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Explicit numeric class-ID to semantic class-name mapping. Use annotation_objects for human, synthetic or other nucleus sources; supply nucleus-only layers."},
                     "model_name": {"type": "string"},
                     "output_dir": {"type": "string"},
                     "region_size": {"type": "number", "exclusiveMinimum": 0},
@@ -3324,7 +3448,7 @@ def handle_tools_list(req: Dict[str, Any]) -> None:
     send({
         "jsonrpc": "2.0",
         "id": req["id"],
-        "result": {"tools": tools}
+        "result": {"tools": tools + common_nucleus_tool_schemas()}
     })
 
 
@@ -3404,6 +3528,7 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                 distance_units=str(args.get("distance_units", "pixels")), wsi_path=args.get("wsi_path"),
                 mpp=float(mpp) if mpp is not None else None,
                 min_recommended_rois=int(args.get("min_recommended_rois", 9)),
+                class_mapping=args.get("class_mapping"),
             ))
             return
 
@@ -3413,6 +3538,16 @@ def handle_tools_call(req: Dict[str, Any]) -> None:
                 capabilities_json_path=args.get("capabilities_json_path", ""), statistic=args.get("statistic", ""),
                 feature_name=args.get("feature_name"), source_types=args.get("source_types"), target_types=args.get("target_types"),
             ))
+            return
+
+        common_nucleus_tools = {
+            "compute_common_nucleus_global_morans_i": tool_compute_common_nucleus_global_morans_i,
+            "compute_common_nucleus_local_morans_i": tool_compute_common_nucleus_local_morans_i,
+            "compute_common_tumour_immune_interaction": tool_compute_common_tumour_immune_interaction,
+        }
+        if name in common_nucleus_tools:
+            require_plan(args, name)
+            tool_result(req_id, common_nucleus_tools[name](**{k: v for k, v in args.items() if k != "approval_token"}))
             return
 
         if name == "compute_common_roi_morans_i":
