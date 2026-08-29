@@ -3742,7 +3742,8 @@ def _build_roi_pysal_weights(
                 neighbours[region_id].append(neighbour_id)
                 weights_by_id[region_id].append(float(math.exp(-sigma * r_ij)))
 
-    weights = W(neighbours, weights_by_id, ids=ids, silence_warnings=True)
+    # id_order, not ids, fixes sparse-matrix rows to the feature-array order.
+    weights = W(neighbours, weights_by_id, id_order=ids, silence_warnings=True)
     return weights, {
         "method": "libpysal.weights.W with truncated exponential distance decay",
         "formula": "w_ij = exp(-sigma * r_ij) for 0 < r_ij <= distance_threshold; otherwise 0",
@@ -3788,7 +3789,8 @@ def _build_nucleus_pysal_weights(
         neighbours[ids[i]].append(ids[j]); weights_by_id[ids[i]].append(weight)
         neighbours[ids[j]].append(ids[i]); weights_by_id[ids[j]].append(weight)
 
-    return W(neighbours, weights_by_id, ids=ids, silence_warnings=True), {
+    return W(neighbours, weights_by_id, id_order=ids, silence_warnings=True), {
+        "matrix_order": "Explicit input nucleus order; aligned with feature values and output IDs",
         "node_definition": "one node per retained nucleus centroid",
         "method": "truncated exponential nucleus-centroid distance decay",
         "formula": "w_ij = exp(-sigma * r_ij) for 0 < r_ij <= distance_threshold; otherwise 0",
@@ -4682,9 +4684,11 @@ def tool_compute_kongnet_morans_i(
             }
             continue
 
-        valid_region_ids = {str(region.get("region_id") or index) for index, (region, _) in enumerate(valid_pairs)}
         if len(valid_pairs) != len(regions):
-            sub_weights = weights.subset(list(valid_region_ids))
+            sub_weights, _ = _build_roi_pysal_weights(
+                [region for region, _ in valid_pairs], distance_threshold, distance_decay_sigma
+            )
+            sub_weights.transform = "R"
         else:
             sub_weights = weights
         if any(len(sub_weights.neighbors.get(region_id, [])) == 0 for region_id in sub_weights.id_order):
@@ -5180,6 +5184,7 @@ def tool_compute_kongnet_nucleus_global_morans_i(
     permutations: int = 9999,
     alpha: float = 0.05,
     seed: int = 42,
+    _common_input: bool = False,
 ) -> str:
     """Compute one Global Moran's I for a binary class feature on nucleus nodes."""
     import numpy as np
@@ -5190,8 +5195,11 @@ def tool_compute_kongnet_nucleus_global_morans_i(
     if not 0.0 < float(alpha) < 1.0:
         raise ValueError("alpha must be between 0 and 1.")
 
-    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
-    nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
+    if _common_input:
+        _, nuclei, scale = _common_nucleus_input(annotationstore_path, min_probability)
+    else:
+        scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+        nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
     if len(nuclei) < 3:
         raise ValueError("Nucleus-level Global Moran's I requires at least 3 retained nuclei.")
     coordinates = _nucleus_coordinates(nuclei, scale)
@@ -5351,6 +5359,7 @@ def tool_compute_kongnet_nucleus_local_morans_i(
     seed: int = 42,
     marker_radius: float = 3.0,
     overwrite: bool = True,
+    _common_input: bool = False,
 ) -> str:
     """Compute Local Moran's I with nucleus nodes and binary cell-class features."""
     import numpy as np
@@ -5366,8 +5375,11 @@ def tool_compute_kongnet_nucleus_local_morans_i(
     if float(marker_radius) <= 0:
         raise ValueError("marker_radius must be greater than 0.")
 
-    scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
-    nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
+    if _common_input:
+        _, nuclei, scale = _common_nucleus_input(annotationstore_path, min_probability)
+    else:
+        scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
+        nuclei = _load_kongnet_nuclei(annotationstore_path, None, min_probability)
     if len(nuclei) < 3:
         raise ValueError("Nucleus-level Local Moran's I requires at least 3 retained nuclei.")
     coordinates = _nucleus_coordinates(nuclei, scale)
@@ -5378,11 +5390,16 @@ def tool_compute_kongnet_nucleus_local_morans_i(
         nuclei, coordinates, distance_threshold, distance_decay_sigma
     )
     isolated = [node_id for node_id in weights.id_order if not weights.neighbors.get(node_id)]
-    if isolated:
+    if isolated and not _common_input:
         raise ValueError(
             f"{len(isolated)} nuclei have no neighbour within {float(distance_threshold):g} {scale['units']}. "
             "Increase distance_threshold before running Local Moran's I."
         )
+    if len(isolated) == len(nuclei):
+        raise ValueError("No nuclei have neighbours: no Local Moran statistics can be computed at this radius.")
+    isolated_set = set(isolated)
+    if weights.id_order != [str(nucleus["annotation_id"]) for nucleus in nuclei]:
+        raise RuntimeError("Nucleus spatial weights and feature-array order do not match.")
     weights.transform = "R"
     np.random.seed(int(seed))
     local = Moran_Local(values, weights, permutations=int(permutations), seed=int(seed))
@@ -5390,7 +5407,7 @@ def tool_compute_kongnet_nucleus_local_morans_i(
     spatial_lags = np.asarray(lag_spatial(weights, standardized), dtype=float)
     quadrant_labels = {1: "high-high", 2: "low-high", 3: "low-low", 4: "high-low"}
     raw_p_values = [
-        _safe_float(local.p_sim[index]) if int(permutations) > 0 else None
+        _safe_float(local.p_sim[index]) if int(permutations) > 0 and weights.id_order[index] not in isolated_set else None
         for index in range(len(nuclei))
     ]
     adjusted_p_values = _benjamini_hochberg_adjust(raw_p_values)
@@ -5398,6 +5415,7 @@ def tool_compute_kongnet_nucleus_local_morans_i(
     rows = []
     for index, nucleus in enumerate(nuclei):
         node_id = str(nucleus["annotation_id"])
+        is_isolated = node_id in isolated_set
         quadrant = int(local.q[index])
         raw_label = quadrant_labels.get(quadrant, "unclassified")
         raw_significant = raw_p_values[index] is not None and raw_p_values[index] < float(alpha)
@@ -5423,6 +5441,15 @@ def tool_compute_kongnet_nucleus_local_morans_i(
             "neighbour_count": len(weights.neighbors[node_id]),
             "neighbour_ids": list(weights.neighbors[node_id]),
         })
+        if _common_input:
+            rows[-1]["computation_status"] = "not_computed_no_neighbours" if is_isolated else "computed"
+        if is_isolated:
+            rows[-1].update({
+                "spatial_lag": None, "local_moran_i": None, "p_value": None,
+                "adjusted_p_value": None, "raw_significant": None, "adjusted_significant": None,
+                "quadrant": None, "raw_cluster_label": "not computed - no neighbours",
+                "cluster_label": "not computed - no neighbours",
+            })
 
     resolved_db = output_annotationstore_path or os.path.splitext(output_json_path)[0] + "_overlay.db"
     ensure_parent_dir(resolved_db)
@@ -5445,9 +5472,9 @@ def tool_compute_kongnet_nucleus_local_morans_i(
             "type": label, "label": label,
             "neighbour_ids": ";".join(row["neighbour_ids"]),
             "colour": colour, "color": colour, "line_color": colour,
-            "fill_color": colour, "fill_opacity": 0.75 if row["adjusted_significant"] else 0.18,
+            "fill_color": colour, "fill_opacity": 0.75 if row["adjusted_significant"] or row["nucleus_id"] in isolated_set else 0.18,
             "coordinate_space": "baseline", "is_nucleus_node": True,
-            "source": "KongNet nucleus-level Local Moran's I",
+            "source": "Common nucleus-level Local Moran's I" if _common_input else "KongNet nucleus-level Local Moran's I",
         }
         annotations.append(Annotation(geometry, properties=properties)); keys.append(row["nucleus_id"])
     store = SQLiteStore(resolved_db)
@@ -5483,6 +5510,13 @@ def tool_compute_kongnet_nucleus_local_morans_i(
             "It does not validate classifications or establish clinical significance."
         ),
     }
+    if _common_input:
+        payload.update({"computed_nucleus_count": len(rows)-len(isolated),
+                        "not_computed_nucleus_count": len(isolated), "isolated_nucleus_ids": isolated,
+                        "multiple_testing_count": sum(p is not None for p in raw_p_values)})
+        payload["method"]["island_policy"] = "Retain all nuclei; no-neighbour local statistics and significance are null, not zero or not significant."
+        payload["method"]["reference_population"] = "All retained nuclei, including isolates, define feature mean/variance and the conditional permutation pool."
+        payload["method"]["multiple_testing"] = "Benjamini-Hochberg across finite computed p-values only; isolated nuclei excluded."
     _write_json(output_json_path, payload)
 
     fields = [
@@ -5492,6 +5526,8 @@ def tool_compute_kongnet_nucleus_local_morans_i(
         "adjusted_significant", "quadrant", "raw_cluster_label", "cluster_label",
         "neighbour_count", "neighbour_ids",
     ]
+    if _common_input:
+        fields.append("computation_status")
     if output_csv_path:
         ensure_parent_dir(output_csv_path)
         with open(output_csv_path, "w", newline="", encoding="utf-8") as file:
@@ -5516,7 +5552,7 @@ def tool_compute_kongnet_nucleus_local_morans_i(
     return "\n".join([
         "KongNet nucleus-level Local Moran's I completed.",
         f"Nucleus nodes: {len(rows)}", f"Selected feature: {resolved_class} (1 versus 0)",
-        f"Adjusted-significant nuclei: {sum(row['adjusted_significant'] for row in rows)}",
+        f"Adjusted-significant nuclei: {sum(bool(row['adjusted_significant']) for row in rows)}",
         f"JSON: {output_json_path}", f"CSV: {output_csv_path}" if output_csv_path else "CSV: not requested",
         f"TXT: {output_txt_path}" if output_txt_path else "TXT: not requested",
         f"TIAViz AnnotationStore: {resolved_db}",
@@ -9405,6 +9441,7 @@ def tool_run_kongnet_spatial_workflow(
 # -----------------------------------------------------------------------------
 
 COMMON_SPATIAL_MODEL_FAMILIES = {
+    "annotation_objects": "object",
     "kongnet": "object",
     "hovernet": "object",
     "hovernetplus": "object_and_region",
@@ -9430,6 +9467,7 @@ COMMON_SPATIAL_STATISTIC_ALIASES = {
 }
 
 COMMON_IMPLEMENTED_STATISTICS = [
+    "nucleus_global_morans_i", "nucleus_local_morans_i", "tumour_immune_interaction",
     "morans_i", "spatial_entropy", "nni", "ripley", "quadrat_vmr",
     "point_pattern_statistics", "cross_g", "nearest_neighbour",
     "cooccurrence", "radius_neighbourhood",
@@ -9472,6 +9510,7 @@ def tool_build_common_spatial_features(
     wsi_path: Optional[str] = None,
     mpp: Optional[float] = None,
     min_recommended_rois: int = 9,
+    class_mapping: Optional[Dict[str, str]] = None,
 ) -> str:
     """Convert model-specific AnnotationStore/CSV outputs into common spatial tables.
 
@@ -9497,6 +9536,8 @@ def tool_build_common_spatial_features(
 
     scale = _resolve_spatial_scale(distance_units, wsi_path=wsi_path, mpp=mpp)
     class_dict = _common_model_class_dict(family, model_name)
+    if class_mapping is not None:
+        class_dict.update({int(key): str(value) for key, value in class_mapping.items()})
     os.makedirs(output_dir, exist_ok=True)
     objects_path = os.path.join(output_dir, "spatial_objects.csv")
     features_path = os.path.join(output_dir, "spatial_roi_features.csv")
@@ -9562,7 +9603,7 @@ def tool_build_common_spatial_features(
     max_x = max(record["x"] for record in records)
     max_y = max(record["y"] for record in records)
     size = float(region_size)
-    aggregation_mode = "centroid_count" if COMMON_SPATIAL_MODEL_FAMILIES[family] == "object" else "geometry_area"
+    aggregation_mode = "centroid_count" if COMMON_SPATIAL_MODEL_FAMILIES[family] in {"object", "object_and_region"} else "geometry_area"
 
     region_data: Dict[tuple[int, int], Dict[str, Any]] = defaultdict(
         lambda: {"class_counts": defaultdict(float), "class_areas": defaultdict(float), "probabilities": defaultdict(list)}
@@ -9652,9 +9693,10 @@ def tool_build_common_spatial_features(
         fields = ["region_id", "model_family", "model_name", "grid_x", "grid_y", "x_min", "y_min", "x_max", "y_max", "area", "feature_name", "feature_value"]
         writer = csv.DictWriter(file, fieldnames=fields); writer.writeheader(); writer.writerows(long_rows)
 
-    object_statistics = ["nni", "ripley", "quadrat_vmr", "point_pattern_statistics", "cross_g", "nearest_neighbour", "cooccurrence", "radius_neighbourhood"]
+    object_statistics = ["nni", "ripley", "quadrat_vmr", "point_pattern_statistics", "cross_g", "nearest_neighbour", "cooccurrence", "radius_neighbourhood", "nucleus_global_morans_i", "nucleus_local_morans_i", "tumour_immune_interaction"]
     roi_statistics = ["morans_i", "spatial_entropy", "hotspot_ranking"]
-    data_compatible = (object_statistics if family in {"kongnet", "hovernet", "hovernetplus"} else []) + roi_statistics
+    object_family = family in {"annotation_objects", "kongnet", "hovernet", "hovernetplus"}
+    data_compatible = (object_statistics if object_family else []) + roi_statistics
     warnings = []
     if len(regions) < int(min_recommended_rois):
         warnings.append(
@@ -9663,8 +9705,8 @@ def tool_build_common_spatial_features(
     capabilities = {
         "model_family": family, "model_name": model_name, "source_path": source_path,
         "representation": COMMON_SPATIAL_MODEL_FAMILIES[family],
-        "has_individual_objects": family in {"kongnet", "hovernet", "hovernetplus"},
-        "has_object_coordinates": family in {"kongnet", "hovernet", "hovernetplus"},
+        "has_individual_objects": object_family,
+        "has_object_coordinates": object_family,
         "has_class_labels": any(record["class_name"] != "Unknown" for record in records),
         "has_roi_features": bool(regions), "has_numeric_roi_features": bool(long_rows),
         "has_physical_scale": scale["units"] == "microns", "distance_units": scale["units"],
@@ -9965,6 +10007,184 @@ def tool_compute_common_cross_g(
             fields = ["radius", "empirical_cross_g", "csr_poisson_expected", "difference_from_expected", "interpretation"]
             writer = csv.DictWriter(file, fieldnames=fields); writer.writeheader(); writer.writerows(stats.get("curve", []))
     return f"Common-object Cross-G completed. JSON: {output_json_path}"
+
+
+def _common_nucleus_input(path: str, min_probability: float = 0.0):
+    """Read canonical individual nuclei; never apply a model-specific class map."""
+    import numpy as np
+    if not math.isfinite(float(min_probability)) or not 0 <= min_probability <= 1:
+        raise ValueError("min_probability must be between 0 and 1.")
+    with open(path, encoding="utf-8") as file:
+        common = json.load(file)
+    if common.get("format") != "common_spatial_features_v1":
+        raise ValueError("Expected common_spatial_features_v1 input.")
+    if common.get("model_family") not in {"annotation_objects", "kongnet", "hovernet", "hovernetplus"}:
+        raise ValueError("This tool requires individual nucleus objects, not semantic regions or patches.")
+    if common.get("aggregation_mode") != "centroid_count":
+        raise ValueError("Rebuild common features using the individual nucleus layer and centroid_count aggregation.")
+    units = common.get("distance_units")
+    if units not in {"pixels", "microns"}:
+        raise ValueError("Common coordinates must declare pixels or microns.")
+    scale = dict(common.get("scale") or {})
+    if units == "pixels":
+        scale = {"units": "pixels", "x_scale": 1., "y_scale": 1., "source": "common_pixel_coordinates"}
+    elif any(not math.isfinite(float(scale.get(k, 0))) or float(scale.get(k, 0)) <= 0 for k in ("x_scale", "y_scale")):
+        raise ValueError("Micron common objects require positive finite x_scale and y_scale for baseline overlays.")
+    scale["units"] = units
+    objects_path = (common.get("outputs") or {}).get("objects_csv")
+    if not objects_path:
+        raise ValueError("Common input is missing objects_csv.")
+    if not os.path.isabs(objects_path) and not os.path.exists(objects_path):
+        objects_path = os.path.join(os.path.dirname(os.path.abspath(path)), objects_path)
+    nuclei, identities = [], set()
+    with open(objects_path, newline="", encoding="utf-8") as file:
+        for row in csv.DictReader(file):
+            probability = float(row.get("probability", 1.))
+            if not math.isfinite(probability) or not 0 <= probability <= 1:
+                raise ValueError("Invalid object probability.")
+            if probability < min_probability:
+                continue
+            identity = str(row.get("object_id") or "").strip()
+            label = str(row.get("class_name") or "").strip()
+            if not identity or identity in identities:
+                raise ValueError("Object IDs must be non-empty and unique.")
+            if not label or label.lower() == "unknown" or label.lstrip("-+").isdigit():
+                raise ValueError("Objects require explicit class names; supply a numeric class_mapping during adaptation.")
+            xy = np.array([float(row["x"]), float(row["y"])])
+            if not np.isfinite(xy).all():
+                raise ValueError("Object coordinates must be finite.")
+            if row.get("distance_units") != units:
+                raise ValueError("Object and common JSON coordinate units disagree.")
+            identities.add(identity)
+            nuclei.append({"annotation_id": identity, "type": label, "probability": probability,
+                           "x_px": float(xy[0])/float(scale["x_scale"]),
+                           "y_px": float(xy[1])/float(scale["y_scale"])})
+    if not nuclei:
+        raise ValueError("No individual nuclei remained after filtering.")
+    return common, nuclei, scale
+
+
+def _finish_common_moran(path, common_path, kind, output_txt_path=None):
+    with open(path, encoding="utf-8") as file:
+        payload = json.load(file)
+    with open(common_path, encoding="utf-8") as file:
+        common = json.load(file)
+    payload.pop("annotationstore_path", None)
+    payload.update({"analysis": f"common_nucleus_{kind}_morans_i",
+                    "common_spatial_json_path": common_path,
+                    "model_family": common.get("model_family"), "model_name": common.get("model_name")})
+    payload["method"]["node"] = "individual nucleus centroid from canonical common objects"
+    payload["interpretation_warning"] = "Exploratory spatial analysis of supplied class labels; not validation of those labels or clinical significance."
+    _write_json(path, payload)
+    message = f"Common nucleus-level {kind} Moran's I completed. JSON: {path}"
+    if output_txt_path:
+        ensure_parent_dir(output_txt_path)
+        with open(output_txt_path, "w", encoding="utf-8") as file:
+            file.write(message + "\n" + json.dumps(payload, indent=2))
+    return message
+
+
+def tool_compute_common_nucleus_global_morans_i(
+    common_spatial_json_path: str, output_json_path: str, selected_class: str,
+    distance_threshold: float, distance_decay_sigma: Optional[float] = None,
+    min_probability: float = 0., permutations: int = 999, alpha: float = .05,
+    seed: int = 42, output_csv_path: Optional[str] = None, output_txt_path: Optional[str] = None,
+) -> str:
+    """Shared validated Moran calculation; threshold is in the common input's units."""
+    _validate_common_moran_parameters(distance_threshold, distance_decay_sigma)
+    tool_compute_kongnet_nucleus_global_morans_i(
+        annotationstore_path=common_spatial_json_path, output_json_path=output_json_path,
+        selected_class=selected_class, output_csv_path=output_csv_path,
+        distance_threshold=distance_threshold, distance_decay_sigma=distance_decay_sigma,
+        min_probability=min_probability, permutations=permutations, alpha=alpha, seed=seed,
+        _common_input=True)
+    return _finish_common_moran(output_json_path, common_spatial_json_path, "global", output_txt_path)
+
+
+def _validate_common_moran_parameters(threshold, sigma):
+    if not math.isfinite(float(threshold)) or threshold <= 0:
+        raise ValueError("distance_threshold must be finite and positive.")
+    if sigma is not None and (not math.isfinite(float(sigma)) or sigma <= 0):
+        raise ValueError("distance_decay_sigma must be finite and positive.")
+
+
+def tool_compute_common_nucleus_local_morans_i(
+    common_spatial_json_path: str, output_json_path: str, selected_class: str,
+    distance_threshold: float, distance_decay_sigma: Optional[float] = None,
+    min_probability: float = 0., permutations: int = 999, alpha: float = .05,
+    seed: int = 42, output_csv_path: Optional[str] = None, output_txt_path: Optional[str] = None,
+    output_annotationstore_path: Optional[str] = None, marker_radius: float = 3., overwrite: bool = True,
+) -> str:
+    """Common-object Local Moran with the same permutation/BH logic as legacy tools."""
+    _validate_common_moran_parameters(distance_threshold, distance_decay_sigma)
+    if not math.isfinite(float(marker_radius)) or marker_radius <= 0:
+        raise ValueError("marker_radius must be finite and positive.")
+    tool_compute_kongnet_nucleus_local_morans_i(
+        annotationstore_path=common_spatial_json_path, output_json_path=output_json_path,
+        selected_class=selected_class, output_csv_path=output_csv_path,
+        distance_threshold=distance_threshold, distance_decay_sigma=distance_decay_sigma,
+        min_probability=min_probability, permutations=permutations, alpha=alpha, seed=seed,
+        output_annotationstore_path=output_annotationstore_path, marker_radius=marker_radius,
+        overwrite=overwrite, _common_input=True)
+    return _finish_common_moran(output_json_path, common_spatial_json_path, "local", output_txt_path)
+
+
+def tool_compute_common_tumour_immune_interaction(
+    common_spatial_json_path: str, output_json_path: str,
+    tumour_types: List[str], immune_types: List[str], radius: float,
+    region_size: float, min_probability: float = 0., output_csv_path: Optional[str] = None,
+) -> str:
+    """Explicit-class proximity pairs per 100 retained ROI nuclei. No implicit fallback."""
+    import numpy as np
+    from scipy.spatial import cKDTree
+    if not math.isfinite(float(radius)) or radius <= 0 or not math.isfinite(float(region_size)) or region_size <= 0:
+        raise ValueError("radius and region_size must be finite and positive.")
+    if not tumour_types or not immune_types:
+        raise ValueError("Explicit tumour_types and immune_types are required.")
+    common, nuclei, scale = _common_nucleus_input(common_spatial_json_path, min_probability)
+    coords = _nucleus_coordinates(nuclei, scale)
+    classes = np.array([n["type"] for n in nuclei], dtype=object)
+    tumour = set(_validate_common_selected_classes(classes, tumour_types, "tumour"))
+    immune = set(_validate_common_selected_classes(classes, immune_types, "immune"))
+    if tumour & immune:
+        raise ValueError("Tumour and immune selections must be disjoint.")
+    origin = coords.min(axis=0)
+    groups = {}
+    for index, point in enumerate(coords):
+        key = tuple(int(v) for v in np.floor((point-origin)/region_size))
+        groups.setdefault(key, []).append(index)
+    rows = []
+    for number, (grid, indices) in enumerate(sorted(groups.items()), 1):
+        subset = classes[indices]
+        pairs = cKDTree(coords[indices]).query_pairs(float(radius))
+        count = sum((subset[i] in tumour and subset[j] in immune) or
+                    (subset[j] in tumour and subset[i] in immune) for i,j in pairs)
+        nt = sum(c in tumour for c in subset); ni = sum(c in immune for c in subset)
+        rows.append({"region_id": f"R{number}", "grid_x": grid[0], "grid_y": grid[1],
+                     "x_min": float(origin[0]+grid[0]*region_size), "y_min": float(origin[1]+grid[1]*region_size),
+                     "x_max": float(origin[0]+(grid[0]+1)*region_size), "y_max": float(origin[1]+(grid[1]+1)*region_size),
+                     "cell_count": len(indices), "tumour_count": nt, "immune_count": ni,
+                     "tumour_immune_pair_count": count,
+                     "interaction_strength": count/len(indices)*100.,
+                     "tumour_immune_pairs_per_100_cells": count/len(indices)*100.,
+                     "contact_fraction": count/(nt*ni) if nt*ni else 0.,
+                     "population_status": "both_present" if nt and ni else "missing_population_in_roi"})
+    payload = {"analysis": "common_tumour_immune_interaction", "common_spatial_json_path": common_spatial_json_path,
+               "model_family": common.get("model_family"), "model_name": common.get("model_name"),
+               "parameters": {"tumour_types": sorted(tumour), "immune_types": sorted(immune),
+                              "radius": radius, "region_size": region_size, "distance_units": scale["units"],
+                              "min_probability": min_probability, "grid_origin": origin.tolist()},
+               "method": {"formula": "100 * distinct tumour-immune pairs within radius / all retained ROI nuclei",
+                          "cross_roi_pairs": "excluded", "units": "pairs per 100 cells; not a percentage",
+                          "class_selection": "explicit disjoint sets; no model-specific fallback"},
+               "regions": rows, "rankings": sorted(rows, key=lambda r: r["interaction_strength"], reverse=True),
+               "interpretation_warning": "Spatial proximity only, not proven biological interaction or CSR-normalized enrichment."}
+    _write_json(output_json_path, payload)
+    if output_csv_path:
+        ensure_parent_dir(output_csv_path)
+        with open(output_csv_path, "w", newline="", encoding="utf-8") as file:
+            writer = csv.DictWriter(file, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
+    return f"Common tumour-immune interaction completed. JSON: {output_json_path}"
 
 
 def tool_compute_common_cooccurrence(
