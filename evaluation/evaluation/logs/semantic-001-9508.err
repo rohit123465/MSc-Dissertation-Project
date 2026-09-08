@@ -1,0 +1,19 @@
+|2026-08-25|21:20:34.026| [WARNING] GPU is not compatible with torch.compile. Compatible GPUs include NVIDIA V100, A100, and H100. Speedup numbers may be lower than expected.
+Processing WSIs:   0%|          | 0/1 [00:00<?, ?it/s]|2026-08-25|21:20:34.101| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-25|21:20:34.101| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U6'), dtype('<U6'), dtype('<U12'))
+|2026-08-25|21:20:34.102| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-25|21:20:34.102| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-25|21:20:34.102| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+
+Inferring patches:   0%|          | 0/99 [00:00<?, ?it/s][A|2026-08-25|21:20:34.131| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-25|21:20:34.131| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U6'), dtype('<U6'), dtype('<U12'))
+|2026-08-25|21:20:34.131| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-25|21:20:34.131| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-25|21:20:34.131| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+|2026-08-25|21:20:34.158| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-25|21:20:34.158| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U6'), dtype('<U6'), dtype('<U12'))
+|2026-08-25|21:20:34.158| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-25|21:20:34.158| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-25|21:20:34.158| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+Could not load symbol cudnnGetLibConfig. Error: /local/java/cudnn-linux-x86_64-9.0.0.312_cuda12-archive/lib/libcudnn_graph.so.9: undefined symbol: cudnnGetLibConfig
+/var/spool/slurmd/job09508/slurm_script: line 43: 278225 Aborted                 (core dumped) python evaluation/run_tool.py --task evaluation/tasks/semantic_001.json

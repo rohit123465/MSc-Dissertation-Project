@@ -1,0 +1,23 @@
+{
+  "task_id": "kongnet_003",
+  "function": "predict_kongnet_nucleus_detection",
+  "arguments": {
+    "wsi_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/Zoomed.ome.tif",
+    "output_json_path": "evaluation/results/kongnet_003/run_summary.json",
+    "model_name": "KongNet_PanNuke_1",
+    "batch_size": 1,
+    "device": "cuda",
+    "save_dir": "evaluation/results/kongnet_003/annotationstore",
+    "output_type": "annotationstore",
+    "patch_mode": false,
+    "auto_get_mask": false,
+    "num_workers": 1,
+    "overwrite": true
+  },
+  "expected": {
+    "required_files": [
+      "evaluation/results/kongnet_003/run_summary.json"
+    ],
+    "require_annotationstore": true
+  }
+}

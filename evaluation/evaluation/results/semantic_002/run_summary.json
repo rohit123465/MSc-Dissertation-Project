@@ -1,0 +1,55 @@
+{
+  "mode": "wsi_semantic_segmentation_annotationstore",
+  "model_name": "fcn_resnet50_unet-bcss",
+  "model_description": "Segments tumor, stroma, necrosis, and inflamatory regions in breast cancer images.",
+  "primary_site": "breast",
+  "input_resolution_mpp": 0.25,
+  "model_metadata": {
+    "model_name": "fcn_resnet50_unet-bcss",
+    "model_type": "semantic_segmentation",
+    "target_node": "Semantic Segmentation",
+    "class_mapping": {
+      "Tumour": 0,
+      "Stroma": 1,
+      "Inflamatory": 2,
+      "Necrosis": 3,
+      "Others": 4
+    },
+    "description": "Segments tumor, stroma, necrosis, and inflamatory regions in breast cancer images.",
+    "primary_site": "breast",
+    "input_resolution": {
+      "units": "mpp",
+      "value": 0.25
+    },
+    "patch_shape": [
+      1024,
+      1024
+    ],
+    "stride_shape": [
+      450,
+      450
+    ],
+    "limitation": "Semantic region segmentation only; not a clinical diagnosis."
+  },
+  "wsi_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/roi.ome.tif",
+  "save_dir": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_002/annotationstore",
+  "annotationstore_paths": [
+    "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_002/annotationstore/roi.ome.db"
+  ],
+  "output_type": "annotationstore",
+  "device": "cuda",
+  "num_workers": 1,
+  "batch_size": 1,
+  "patch_mode": false,
+  "auto_get_mask": false,
+  "class_dict": {
+    "0": "Tumour",
+    "1": "Stroma",
+    "2": "Inflamatory",
+    "3": "Necrosis",
+    "4": "Others"
+  },
+  "tiaviz_command": "tiatoolbox visualize --slides \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures\" --overlays \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_002/annotationstore\"",
+  "tiatoolbox_output": "{PosixPath('/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/roi.ome.tif'): PosixPath('/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_002/annotationstore/roi.ome.db')}",
+  "clinical_warning": "This is model-derived semantic segmentation output, not a clinical diagnosis."
+}

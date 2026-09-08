@@ -1,0 +1,67 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+|2026-08-26|10:47:53.472| [WARNING] Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+|2026-08-26|10:47:54.914| [WARNING] GPU is not compatible with torch.compile. Compatible GPUs include NVIDIA V100, A100, and H100. Speedup numbers may be lower than expected.
+Processing WSIs:   0%|          | 0/1 [00:00<?, ?it/s]|2026-08-26|10:47:54.984| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+
+Inferring patches:   0%|          | 0/140 [00:00<?, ?it/s][A
+Inferring patches:   1%|          | 1/140 [00:00<01:21,  1.70it/s][A
+Inferring patches:   3%|▎         | 4/140 [00:00<00:19,  7.00it/s][A
+Inferring patches:   5%|▌         | 7/140 [00:00<00:11, 11.45it/s][A
+Inferring patches:   7%|▋         | 10/140 [00:00<00:08, 14.91it/s][A
+Inferring patches:   9%|▉         | 13/140 [00:01<00:07, 15.95it/s][A
+Inferring patches:  11%|█▏        | 16/140 [00:01<00:06, 18.42it/s][A
+Inferring patches:  14%|█▎        | 19/140 [00:01<00:05, 20.27it/s][A
+Inferring patches:  16%|█▌        | 22/140 [00:01<00:06, 19.38it/s][A
+Inferring patches:  18%|█▊        | 25/140 [00:01<00:05, 21.12it/s][A
+Inferring patches:  20%|██        | 28/140 [00:01<00:05, 22.36it/s][A
+Inferring patches:  22%|██▏       | 31/140 [00:01<00:05, 20.48it/s][A
+Inferring patches:  24%|██▍       | 34/140 [00:02<00:04, 22.06it/s][A
+Inferring patches:  26%|██▋       | 37/140 [00:02<00:04, 23.00it/s][A
+Inferring patches:  29%|██▊       | 40/140 [00:02<00:04, 23.55it/s][A
+Inferring patches:  31%|███       | 43/140 [00:02<00:04, 22.52it/s][A
+Inferring patches:  33%|███▎      | 46/140 [00:02<00:03, 23.70it/s][A
+Inferring patches:  35%|███▌      | 49/140 [00:02<00:03, 24.39it/s][A
+Inferring patches:  37%|███▋      | 52/140 [00:02<00:03, 22.87it/s][A
+Inferring patches:  39%|███▉      | 55/140 [00:02<00:03, 24.02it/s][A
+Inferring patches:  41%|████▏     | 58/140 [00:03<00:03, 24.47it/s][A
+Inferring patches:  44%|████▎     | 61/140 [00:03<00:03, 21.81it/s][A
+Inferring patches:  46%|████▌     | 64/140 [00:03<00:03, 23.15it/s][A
+Inferring patches:  48%|████▊     | 67/140 [00:03<00:03, 23.78it/s][A
+Inferring patches:  50%|█████     | 70/140 [00:03<00:02, 23.99it/s][A
+Inferring patches:  52%|█████▏    | 73/140 [00:03<00:03, 21.83it/s][A
+Inferring patches:  54%|█████▍    | 76/140 [00:03<00:02, 22.90it/s][A
+Inferring patches:  56%|█████▋    | 79/140 [00:03<00:02, 23.60it/s][A
+Inferring patches:  59%|█████▊    | 82/140 [00:04<00:02, 21.53it/s][A
+Inferring patches:  61%|██████    | 85/140 [00:04<00:02, 22.99it/s][A
+Inferring patches:  63%|██████▎   | 88/140 [00:04<00:02, 23.96it/s][A
+Inferring patches:  65%|██████▌   | 91/140 [00:04<00:02, 22.43it/s][A
+Inferring patches:  67%|██████▋   | 94/140 [00:04<00:01, 23.76it/s][A
+Inferring patches:  69%|██████▉   | 97/140 [00:04<00:01, 24.61it/s][A
+Inferring patches:  71%|███████▏  | 100/140 [00:04<00:01, 25.03it/s][A
+Inferring patches:  74%|███████▎  | 103/140 [00:04<00:01, 23.35it/s][A
+Inferring patches:  76%|███████▌  | 106/140 [00:05<00:01, 24.34it/s][A
+Inferring patches:  78%|███████▊  | 109/140 [00:05<00:01, 24.48it/s][A
+Inferring patches:  80%|████████  | 112/140 [00:05<00:01, 21.98it/s][A
+Inferring patches:  82%|████████▏ | 115/140 [00:05<00:01, 23.10it/s][A
+Inferring patches:  84%|████████▍ | 118/140 [00:05<00:00, 23.84it/s][A
+Inferring patches:  86%|████████▋ | 121/140 [00:05<00:00, 21.42it/s][A
+Inferring patches:  89%|████████▊ | 124/140 [00:05<00:00, 22.94it/s][A
+Inferring patches:  91%|█████████ | 127/140 [00:06<00:00, 23.96it/s][A
+Inferring patches:  93%|█████████▎| 130/140 [00:06<00:00, 24.31it/s][A
+Inferring patches:  95%|█████████▌| 133/140 [00:06<00:00, 22.74it/s][A
+Inferring patches:  97%|█████████▋| 136/140 [00:06<00:00, 23.89it/s][A
+Inferring patches:  99%|█████████▉| 139/140 [00:06<00:00, 24.34it/s][A
+                                                                    [A
+Merging rows:   0%|          | 0/14 [00:00<?, ?it/s][A
+Merging rows:  14%|█▍        | 2/14 [00:00<00:00, 18.46it/s][A
+Merging rows:  36%|███▌      | 5/14 [00:00<00:00, 21.43it/s][A
+Merging rows:  57%|█████▋    | 8/14 [00:00<00:00, 22.34it/s][A
+Merging rows:  79%|███████▊  | 11/14 [00:00<00:00, 22.79it/s][A
+                                                             [A|2026-08-26|10:48:05.369| [WARNING] SQLite math functions are not enabled. This may cause problems with some queries. For example, floor division (//) will not work. For a full list see https://tia-toolbox.readthedocs.io/en/v2.1.0/_autosummary/tiatoolbox.annotation.dsl.html
+
+Converting outputs to AnnotationStore.:   0%|          | 0/4 [00:00<?, ?it/s][A|2026-08-26|10:48:05.462| [WARNING] Invalid geometry found, fix using buffer().
+
+Converting outputs to AnnotationStore.:  25%|██▌       | 1/4 [00:04<00:13,  4.46s/it][A
+Converting outputs to AnnotationStore.:  75%|███████▌  | 3/4 [00:04<00:01,  1.24s/it][A
+Converting outputs to AnnotationStore.: 100%|██████████| 4/4 [00:08<00:00,  2.20s/it][A
+                                                                                     [AProcessing WSIs: 100%|██████████| 1/1 [00:19<00:00, 19.90s/it]                                                              

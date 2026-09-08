@@ -1,0 +1,117 @@
+========================================
+Semantic-segmentation functional test
+========================================
+Job ID: 9510
+Job name: semantic-001
+Compute node: falcon-01
+Start time: 2026-08-25T21:29:47+01:00
+Project: /dcs/22/u2265464/Documents/MSc-Dissertation-Project
+Task: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/tasks/semantic_001.json
+CUDA_VISIBLE_DEVICES: 0
+Python: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python
+Python version: Python 3.12.13
+Loaded modules:
+Currently Loaded Modulefiles:
+ 1) CUDA/12.2-cudnn9 <aL>           3) tiatoolbox/2.1.0  
+ 2) NCCL/2.20.3_for_CUDA12.2 <aL>  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+Original LD_LIBRARY_PATH:
+/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tensorrt_libs/:/local/java/nccl_2.20.3-1+cuda12.2_x86_64/lib/:/local/java/cuda-12.2/lib64/:/local/java/cudnn-linux-x86_64-9.0.0.312_cuda12-archive/lib:/local/java/cuda-12.2/extras/CUPTI/lib64/
+Cleaned LD_LIBRARY_PATH:
+not-set
+GPU information:
+Tue Aug 25 21:29:48 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA RTX A5000               Off |   00000000:01:00.0 Off |                  Off |
+| 30%   56C    P0             60W /  230W |       0MiB /  24564MiB |      5%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+Running CUDA and cuDNN preflight test...
+Python: 3.12.13 (main, Jul 10 2026, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-14)]
+Python executable: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python
+TIAToolbox: 2.1.0
+Torch: 2.12.0+cu130
+TorchVision: 0.27.0+cu130
+Torch CUDA build: 13.0
+CUDA available: True
+Visible GPU count: 1
+cuDNN available: True
+cuDNN version: 92000
+GPU: NVIDIA RTX A5000
+cuDNN convolution succeeded
+Output shape: (2, 16, 224, 224)
+Output mean: 0.15672285854816437
+CUDA and cuDNN preflight passed.
+Starting semantic-segmentation function...
+|2026-08-25|21:30:16.166| [INFO] HTTP Request: HEAD https://huggingface.co/TIACentre/TIAToolbox_pretrained_weights/resolve/main/fcn_resnet50_unet-bcss.pth "HTTP/1.1 302 Found"
+|2026-08-25|21:30:16.344| [INFO] When providing multiple whole slide images, the outputs will be saved and the locations of outputs will be returned to the calling function when `run()` finishes successfully.
+|2026-08-25|21:30:23.591| [INFO] Saving predictions as annotationstore in .db format.
+|2026-08-25|21:30:29.228| [INFO] Output file saved at /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/annotationstore/nucleii.ome.db.
+{
+  "task_id": "semantic_001",
+  "function": "predict_semantic_segmentation",
+  "status": "passed",
+  "started_at_unix": 1787689796.506767,
+  "runtime_seconds": 32.90502839599503,
+  "input_task_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/tasks/semantic_001.json",
+  "function_arguments": {
+    "wsi_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/files_mock_claude_response/nucleii.ome.tif",
+    "output_json_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/run_summary.json",
+    "model_name": "fcn_resnet50_unet-bcss",
+    "batch_size": 1,
+    "device": "cuda",
+    "save_dir": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/annotationstore",
+    "output_type": "annotationstore",
+    "patch_mode": false,
+    "auto_get_mask": false,
+    "num_workers": 1,
+    "overwrite": true
+  },
+  "function_result": "WSI semantic segmentation completed successfully.\nModel: fcn_resnet50_unet-bcss\nWSI: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/files_mock_claude_response/nucleii.ome.tif\nOutput saved to: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/annotationstore\nDetected output DBs: 1\nDevice: cuda\nWorkers: 1\n\nOpen in TIAViz with:\ntiatoolbox visualize --slides \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/files_mock_claude_response\" --overlays \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/annotationstore\"\n\nAnnotationStore files:\n/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/annotationstore/nucleii.ome.db\n\nRun summary saved to: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/run_summary.json\n\nImportant: this output is not a clinical diagnosis.",
+  "output_validation": {
+    "passed": true,
+    "required_files_found": [
+      "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/run_summary.json"
+    ],
+    "missing_files": [],
+    "invalid_json_files": [],
+    "annotationstore_files": [
+      "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/annotationstore/nucleii.ome.db"
+    ],
+    "annotationstore_missing": false
+  },
+  "environment": {
+    "python_version": "3.12.13 (main, Jul 10 2026, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-14)]",
+    "python_executable": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python",
+    "platform": "Linux-5.14.0-687.39.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "tiatoolbox_version": "2.1.0",
+    "torch_version": "2.12.0+cu130",
+    "torch_cuda_build": "13.0",
+    "cuda_available": true,
+    "visible_gpu_count": 1,
+    "gpu_name": "NVIDIA RTX A5000"
+  }
+}
+Evaluation record: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/evaluation_result.json
+Semantic-segmentation function finished.
+End time: 2026-08-25T21:30:30+01:00
+Generated files:
+/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/evaluation_result.json 2808 bytes
+/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/annotationstore/nucleii.ome.db 6643712 bytes
+/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/semantic_001/run_summary.json 2220 bytes

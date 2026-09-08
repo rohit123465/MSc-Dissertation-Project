@@ -1,0 +1,47 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+|2026-08-26|12:14:08.283| [WARNING] Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+|2026-08-26|12:15:01.201| [WARNING] GPU is not compatible with torch.compile. Compatible GPUs include NVIDIA V100, A100, and H100. Speedup numbers may be lower than expected.
+Processing WSIs:   0%|          | 0/1 [00:00<?, ?it/s]|2026-08-26|12:15:01.253| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|12:15:01.253| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U8'), dtype('<U8'), dtype('<U16'))
+|2026-08-26|12:15:01.253| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|12:15:01.254| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|12:15:01.254| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+
+Inferring patches:   0%|          | 0/25 [00:00<?, ?it/s][A|2026-08-26|12:15:01.284| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|12:15:01.284| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U8'), dtype('<U8'), dtype('<U16'))
+|2026-08-26|12:15:01.284| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|12:15:01.284| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|12:15:01.284| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+|2026-08-26|12:15:01.310| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|12:15:01.310| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U8'), dtype('<U8'), dtype('<U16'))
+|2026-08-26|12:15:01.310| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|12:15:01.310| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|12:15:01.310| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+
+Inferring patches:   4%|▍         | 1/25 [00:01<00:44,  1.85s/it][A
+Inferring patches:  12%|█▏        | 3/25 [00:01<00:11,  1.93it/s][A
+Inferring patches:  20%|██        | 5/25 [00:02<00:05,  3.57it/s][A
+Inferring patches:  28%|██▊       | 7/25 [00:02<00:03,  5.37it/s][A
+Inferring patches:  36%|███▌      | 9/25 [00:02<00:02,  7.35it/s][A
+Inferring patches:  44%|████▍     | 11/25 [00:02<00:01,  9.22it/s][A
+Inferring patches:  52%|█████▏    | 13/25 [00:02<00:01, 11.10it/s][A
+Inferring patches:  60%|██████    | 15/25 [00:02<00:00, 12.76it/s][A
+Inferring patches:  68%|██████▊   | 17/25 [00:02<00:00, 13.93it/s][A
+Inferring patches:  76%|███████▌  | 19/25 [00:02<00:00, 15.16it/s][A
+Inferring patches:  84%|████████▍ | 21/25 [00:02<00:00, 15.93it/s][A
+Inferring patches:  92%|█████████▏| 23/25 [00:03<00:00, 16.68it/s][A
+Inferring patches: 100%|██████████| 25/25 [00:03<00:00, 17.30it/s][A
+                                                                  [A
+Merging rows:   0%|          | 0/5 [00:00<?, ?it/s][A
+                                                   [A
+Computing Centroids:   0%|          | 0/34 [00:00<?, ?it/s][A|2026-08-26|12:15:08.362| [WARNING] /local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tiatoolbox/models/architecture/utils.py:505: FutureWarning: `RegionProperties['mean_intensity']` is deprecated starting in version 0.26 and will be removed in version 2.0. Use `RegionProperties['intensity_mean']` instead. 
+  peak["mean_intensity"],
+
+
+Computing Centroids:  97%|█████████▋| 33/34 [00:00<00:00, 138.29it/s][A
+                                                                     [A
+Processing detection blocks:   0%|          | 0/1 [00:00<?, ?it/s][A
+                                                                  [A|2026-08-26|12:15:08.534| [WARNING] SQLite math functions are not enabled. This may cause problems with some queries. For example, floor division (//) will not work. For a full list see https://tia-toolbox.readthedocs.io/en/v2.1.0/_autosummary/tiatoolbox.annotation.dsl.html
+
+Writing detections to store:   0%|          | 0/1 [00:00<?, ?it/s][A
+                                                                  [AProcessing WSIs: 100%|██████████| 1/1 [00:07<00:00,  7.50s/it]                                                              

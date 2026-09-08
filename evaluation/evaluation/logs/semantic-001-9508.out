@@ -1,0 +1,38 @@
+Job ID: 9508
+Node: falcon-01
+Python: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python
+Start time: 2026-08-25T21:19:49+01:00
+CUDA_VISIBLE_DEVICES: 0
+Currently Loaded Modulefiles:
+ 1) CUDA/12.2-cudnn9 <aL>           3) tiatoolbox/2.1.0  
+ 2) NCCL/2.20.3_for_CUDA12.2 <aL>  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+Tue Aug 25 21:19:51 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA RTX A5000               Off |   00000000:01:00.0 Off |                  Off |
+| 30%   56C    P0             61W /  230W |       0MiB /  24564MiB |      5%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+Torch: 2.12.0+cu130
+Torch CUDA build: 13.0
+TIAToolbox: 2.1.0
+CUDA available: True
+GPU: NVIDIA RTX A5000
+|2026-08-25|21:20:32.571| [INFO] HTTP Request: HEAD https://huggingface.co/TIACentre/TIAToolbox_pretrained_weights/resolve/main/fcn_resnet50_unet-bcss.pth "HTTP/1.1 302 Found"
+|2026-08-25|21:20:34.027| [INFO] When providing multiple whole slide images, the outputs will be saved and the locations of outputs will be returned to the calling function when `run()` finishes successfully.

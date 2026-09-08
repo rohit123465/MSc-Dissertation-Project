@@ -1,0 +1,122 @@
+========================================
+KongNet PanNuke functional test
+========================================
+Job ID: 9615
+Job name: kongnet-002
+Compute node: falcon-01
+Start time: 2026-08-26T13:20:28+01:00
+Project: /dcs/22/u2265464/Documents/MSc-Dissertation-Project
+Task: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/tasks/kongnet_002.json
+CUDA_VISIBLE_DEVICES: 0
+Python: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python
+Python version: Python 3.12.13
+Loaded modules:
+Currently Loaded Modulefiles:
+ 1) CUDA/12.2-cudnn9 <aL>           3) tiatoolbox/2.1.0  
+ 2) NCCL/2.20.3_for_CUDA12.2 <aL>  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+Original LD_LIBRARY_PATH:
+/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tensorrt_libs/:/local/java/nccl_2.20.3-1+cuda12.2_x86_64/lib/:/local/java/cuda-12.2/lib64/:/local/java/cudnn-linux-x86_64-9.0.0.312_cuda12-archive/lib:/local/java/cuda-12.2/extras/CUPTI/lib64/
+Cleaned LD_LIBRARY_PATH:
+not-set
+GPU information:
+Wed Aug 26 13:20:30 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA RTX A5000               Off |   00000000:01:00.0 Off |                  Off |
+| 30%   56C    P0             61W /  230W |       0MiB /  24564MiB |      5%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+Running CUDA and cuDNN preflight...
+Python: 3.12.13 (main, Jul 10 2026, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-14)]
+Python executable: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python
+TIAToolbox: 2.1.0
+Torch: 2.12.0+cu130
+TorchVision: 0.27.0+cu130
+Torch CUDA build: 13.0
+CUDA available: True
+Visible GPU count: 1
+cuDNN available: True
+cuDNN version: 92000
+GPU: NVIDIA RTX A5000
+cuDNN convolution succeeded
+Output shape: (2, 16, 224, 224)
+Output mean: 0.0756247416138649
+CUDA and cuDNN preflight passed.
+Starting KongNet PanNuke nucleus detection...
+|2026-08-26|13:21:11.254| [INFO] HTTP Request: HEAD https://huggingface.co/TIACentre/KongNet_pretrained_weights/resolve/main/KongNet_PanNuke_1.pth "HTTP/1.1 302 Found"
+|2026-08-26|13:21:30.529| [INFO] When providing multiple whole slide images, the outputs will be saved and the locations of outputs will be returned to the calling function when `run()` finishes successfully.
+|2026-08-26|13:24:07.485| [INFO] Post processing WSI predictions in NucleusDetector
+|2026-08-26|13:24:10.637| [INFO] Computing and caching centroid maps to zarr file at: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore/wsi4_12k_12k.zarr
+|2026-08-26|13:24:40.656| [INFO] Extracting detections from centroid maps block by block...
+|2026-08-26|13:24:43.793| [INFO] Saving predictions as AnnotationStore.
+|2026-08-26|13:24:44.903| [INFO] Total detections written to store: 22813
+|2026-08-26|13:24:45.003| [INFO] Removed cached centroid maps at: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore/wsi4_12k_12k.zarr
+|2026-08-26|13:24:45.003| [INFO] Output file saved at /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore/wsi4_12k_12k.db.
+{
+  "task_id": "kongnet_002",
+  "function": "predict_kongnet_nucleus_detection",
+  "status": "passed",
+  "started_at_unix": 1787746844.9876976,
+  "runtime_seconds": 240.2003950930084,
+  "input_task_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/tasks/kongnet_002.json",
+  "function_arguments": {
+    "wsi_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/wsi4_12k_12k.svs",
+    "output_json_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/run_summary.json",
+    "model_name": "KongNet_PanNuke_1",
+    "batch_size": 1,
+    "device": "cuda",
+    "save_dir": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore",
+    "output_type": "annotationstore",
+    "patch_mode": false,
+    "auto_get_mask": false,
+    "num_workers": 1,
+    "overwrite": true
+  },
+  "function_result": "WSI nucleus detection completed successfully.\nModel: KongNet_PanNuke_1\nWSI: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/wsi4_12k_12k.svs\nAnnotationStore output saved to: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore\nDetected output DBs: 1\nDevice: cuda\nWorkers: 1\n\nOpen in TIAViz with:\ntiatoolbox visualize --slides \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures\" --overlays \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore\"\n\nAnnotationStore files:\n/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore/wsi4_12k_12k.db\n\nRun summary saved to: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/run_summary.json\n\nImportant: this output is not a clinical diagnosis.",
+  "output_validation": {
+    "passed": true,
+    "required_files_found": [
+      "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/run_summary.json"
+    ],
+    "missing_files": [],
+    "invalid_json_files": [],
+    "annotationstore_files": [
+      "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore/wsi4_12k_12k.db"
+    ],
+    "annotationstore_missing": false
+  },
+  "environment": {
+    "python_version": "3.12.13 (main, Jul 10 2026, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-14)]",
+    "python_executable": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python",
+    "platform": "Linux-5.14.0-687.39.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "tiatoolbox_version": "2.1.0",
+    "torch_version": "2.12.0+cu130",
+    "torch_cuda_build": "13.0",
+    "cuda_available": true,
+    "visible_gpu_count": 1,
+    "gpu_name": "NVIDIA RTX A5000"
+  }
+}
+Evaluation record: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/evaluation_result.json
+KongNet nucleus detection finished.
+End time: 2026-08-26T13:24:46+01:00
+Generated files:
+/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/evaluation_result.json 2788 bytes
+/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore/wsi4_12k_12k.db 4931584 bytes
+/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/run_summary.json 2174 bytes

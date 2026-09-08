@@ -1,0 +1,437 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+|2026-08-26|13:51:18.295| [WARNING] Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+|2026-08-26|13:51:37.510| [WARNING] GPU is not compatible with torch.compile. Compatible GPUs include NVIDIA V100, A100, and H100. Speedup numbers may be lower than expected.
+Processing WSIs:   0%|          | 0/1 [00:00<?, ?it/s]|2026-08-26|13:51:37.584| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|13:51:37.584| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U5'), dtype('<U5'), dtype('<U10'))
+|2026-08-26|13:51:37.584| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|13:51:37.584| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|13:51:37.584| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+
+Inferring patches:   0%|          | 0/775 [00:00<?, ?it/s][A|2026-08-26|13:51:37.615| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|13:51:37.615| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U5'), dtype('<U5'), dtype('<U10'))
+|2026-08-26|13:51:37.615| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|13:51:37.616| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|13:51:37.616| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+|2026-08-26|13:51:37.642| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|13:51:37.642| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U5'), dtype('<U5'), dtype('<U10'))
+|2026-08-26|13:51:37.642| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|13:51:37.642| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|13:51:37.643| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+
+Inferring patches:   0%|          | 1/775 [00:01<19:10,  1.49s/it][A
+Inferring patches:   0%|          | 3/775 [00:01<05:28,  2.35it/s][A
+Inferring patches:   1%|          | 5/775 [00:01<03:00,  4.26it/s][A
+Inferring patches:   1%|          | 7/775 [00:01<02:01,  6.30it/s][A
+Inferring patches:   1%|          | 9/775 [00:01<01:31,  8.37it/s][A
+Inferring patches:   1%|▏         | 11/775 [00:02<01:14, 10.23it/s][A
+Inferring patches:   2%|▏         | 13/775 [00:02<01:03, 12.01it/s][A
+Inferring patches:   2%|▏         | 15/775 [00:02<00:56, 13.40it/s][A
+Inferring patches:   2%|▏         | 17/775 [00:02<00:51, 14.59it/s][A
+Inferring patches:   2%|▏         | 19/775 [00:02<00:48, 15.56it/s][A
+Inferring patches:   3%|▎         | 21/775 [00:02<00:46, 16.30it/s][A
+Inferring patches:   3%|▎         | 23/775 [00:02<00:44, 16.81it/s][A
+Inferring patches:   3%|▎         | 25/775 [00:02<00:44, 16.84it/s][A
+Inferring patches:   3%|▎         | 27/775 [00:02<00:43, 17.19it/s][A
+Inferring patches:   4%|▎         | 29/775 [00:03<00:42, 17.49it/s][A
+Inferring patches:   4%|▍         | 31/775 [00:03<00:42, 17.68it/s][A
+Inferring patches:   4%|▍         | 33/775 [00:03<00:46, 16.02it/s][A
+Inferring patches:   5%|▍         | 35/775 [00:03<00:44, 16.74it/s][A
+Inferring patches:   5%|▍         | 37/775 [00:03<00:42, 17.28it/s][A
+Inferring patches:   5%|▌         | 39/775 [00:03<00:41, 17.70it/s][A
+Inferring patches:   5%|▌         | 41/775 [00:03<00:40, 17.98it/s][A
+Inferring patches:   6%|▌         | 43/775 [00:03<00:40, 18.14it/s][A
+Inferring patches:   6%|▌         | 45/775 [00:03<00:40, 18.05it/s][A
+Inferring patches:   6%|▌         | 47/775 [00:04<00:40, 17.95it/s][A
+Inferring patches:   6%|▋         | 49/775 [00:04<00:40, 17.99it/s][A
+Inferring patches:   7%|▋         | 51/775 [00:04<00:39, 18.16it/s][A
+Inferring patches:   7%|▋         | 53/775 [00:04<00:39, 18.17it/s][A
+Inferring patches:   7%|▋         | 55/775 [00:04<00:39, 18.23it/s][A
+Inferring patches:   7%|▋         | 57/775 [00:04<00:39, 18.28it/s][A
+Inferring patches:   8%|▊         | 59/775 [00:04<00:39, 18.29it/s][A
+Inferring patches:   8%|▊         | 61/775 [00:04<00:39, 18.27it/s][A
+Inferring patches:   8%|▊         | 63/775 [00:04<00:42, 16.88it/s][A
+Inferring patches:   8%|▊         | 65/775 [00:05<00:40, 17.40it/s][A
+Inferring patches:   9%|▊         | 67/775 [00:05<00:39, 17.84it/s][A
+Inferring patches:   9%|▉         | 69/775 [00:05<00:39, 18.09it/s][A
+Inferring patches:   9%|▉         | 71/775 [00:05<00:38, 18.24it/s][A
+Inferring patches:   9%|▉         | 73/775 [00:05<00:38, 18.39it/s][A
+Inferring patches:  10%|▉         | 75/775 [00:05<00:37, 18.46it/s][A
+Inferring patches:  10%|▉         | 77/775 [00:05<00:37, 18.54it/s][A
+Inferring patches:  10%|█         | 79/775 [00:05<00:37, 18.58it/s][A
+Inferring patches:  10%|█         | 81/775 [00:05<00:37, 18.54it/s][A
+Inferring patches:  11%|█         | 83/775 [00:06<00:37, 18.46it/s][A
+Inferring patches:  11%|█         | 85/775 [00:06<00:37, 18.36it/s][A
+Inferring patches:  11%|█         | 87/775 [00:06<00:37, 18.36it/s][A
+Inferring patches:  11%|█▏        | 89/775 [00:06<00:37, 18.32it/s][A
+Inferring patches:  12%|█▏        | 91/775 [00:06<00:37, 18.31it/s][A
+Inferring patches:  12%|█▏        | 93/775 [00:06<00:37, 18.29it/s][A
+Inferring patches:  12%|█▏        | 95/775 [00:06<00:41, 16.50it/s][A
+Inferring patches:  13%|█▎        | 97/775 [00:06<00:39, 17.17it/s][A
+Inferring patches:  13%|█▎        | 99/775 [00:06<00:38, 17.56it/s][A
+Inferring patches:  13%|█▎        | 101/775 [00:07<00:37, 17.90it/s][A
+Inferring patches:  13%|█▎        | 103/775 [00:07<00:37, 18.12it/s][A
+Inferring patches:  14%|█▎        | 105/775 [00:07<00:36, 18.30it/s][A
+Inferring patches:  14%|█▍        | 107/775 [00:07<00:36, 18.35it/s][A
+Inferring patches:  14%|█▍        | 109/775 [00:07<00:36, 18.38it/s][A
+Inferring patches:  14%|█▍        | 111/775 [00:07<00:36, 18.43it/s][A
+Inferring patches:  15%|█▍        | 113/775 [00:07<00:35, 18.41it/s][A
+Inferring patches:  15%|█▍        | 115/775 [00:07<00:35, 18.45it/s][A
+Inferring patches:  15%|█▌        | 117/775 [00:07<00:35, 18.39it/s][A
+Inferring patches:  15%|█▌        | 119/775 [00:08<00:35, 18.32it/s][A
+Inferring patches:  16%|█▌        | 121/775 [00:08<00:35, 18.31it/s][A
+Inferring patches:  16%|█▌        | 123/775 [00:08<00:35, 18.27it/s][A
+Inferring patches:  16%|█▌        | 125/775 [00:08<00:39, 16.39it/s][A
+Inferring patches:  16%|█▋        | 127/775 [00:08<00:38, 16.99it/s][A
+Inferring patches:  17%|█▋        | 129/775 [00:08<00:36, 17.50it/s][A
+Inferring patches:  17%|█▋        | 131/775 [00:08<00:36, 17.81it/s][A
+Inferring patches:  17%|█▋        | 133/775 [00:08<00:35, 18.06it/s][A
+Inferring patches:  17%|█▋        | 135/775 [00:08<00:35, 18.18it/s][A
+Inferring patches:  18%|█▊        | 137/775 [00:09<00:34, 18.30it/s][A
+Inferring patches:  18%|█▊        | 139/775 [00:09<00:34, 18.38it/s][A
+Inferring patches:  18%|█▊        | 141/775 [00:09<00:34, 18.33it/s][A
+Inferring patches:  18%|█▊        | 143/775 [00:09<00:34, 18.28it/s][A
+Inferring patches:  19%|█▊        | 145/775 [00:09<00:34, 18.28it/s][A
+Inferring patches:  19%|█▉        | 147/775 [00:09<00:34, 18.25it/s][A
+Inferring patches:  19%|█▉        | 149/775 [00:09<00:35, 17.86it/s][A
+Inferring patches:  19%|█▉        | 151/775 [00:09<00:34, 17.96it/s][A
+Inferring patches:  20%|█▉        | 153/775 [00:09<00:34, 17.98it/s][A
+Inferring patches:  20%|██        | 155/775 [00:10<00:34, 18.00it/s][A
+Inferring patches:  20%|██        | 157/775 [00:10<00:36, 16.83it/s][A
+Inferring patches:  21%|██        | 159/775 [00:10<00:35, 17.31it/s][A
+Inferring patches:  21%|██        | 161/775 [00:10<00:34, 17.69it/s][A
+Inferring patches:  21%|██        | 163/775 [00:10<00:34, 17.93it/s][A
+Inferring patches:  21%|██▏       | 165/775 [00:10<00:33, 18.10it/s][A
+Inferring patches:  22%|██▏       | 167/775 [00:10<00:33, 18.21it/s][A
+Inferring patches:  22%|██▏       | 169/775 [00:10<00:33, 18.33it/s][A
+Inferring patches:  22%|██▏       | 171/775 [00:10<00:32, 18.40it/s][A
+Inferring patches:  22%|██▏       | 173/775 [00:11<00:32, 18.37it/s][A
+Inferring patches:  23%|██▎       | 175/775 [00:11<00:32, 18.39it/s][A
+Inferring patches:  23%|██▎       | 177/775 [00:11<00:32, 18.35it/s][A
+Inferring patches:  23%|██▎       | 179/775 [00:11<00:32, 18.29it/s][A
+Inferring patches:  23%|██▎       | 181/775 [00:11<00:32, 18.28it/s][A
+Inferring patches:  24%|██▎       | 183/775 [00:11<00:32, 18.29it/s][A
+Inferring patches:  24%|██▍       | 185/775 [00:11<00:32, 18.26it/s][A
+Inferring patches:  24%|██▍       | 187/775 [00:11<00:35, 16.42it/s][A
+Inferring patches:  24%|██▍       | 189/775 [00:11<00:34, 17.04it/s][A
+Inferring patches:  25%|██▍       | 191/775 [00:12<00:33, 17.55it/s][A
+Inferring patches:  25%|██▍       | 193/775 [00:12<00:32, 17.89it/s][A
+Inferring patches:  25%|██▌       | 195/775 [00:12<00:31, 18.14it/s][A
+Inferring patches:  25%|██▌       | 197/775 [00:12<00:31, 18.27it/s][A
+Inferring patches:  26%|██▌       | 199/775 [00:12<00:31, 18.30it/s][A
+Inferring patches:  26%|██▌       | 201/775 [00:12<00:31, 18.38it/s][A
+Inferring patches:  26%|██▌       | 203/775 [00:12<00:31, 18.39it/s][A
+Inferring patches:  26%|██▋       | 205/775 [00:12<00:31, 18.38it/s][A
+Inferring patches:  27%|██▋       | 207/775 [00:12<00:30, 18.38it/s][A
+Inferring patches:  27%|██▋       | 209/775 [00:13<00:30, 18.31it/s][A
+Inferring patches:  27%|██▋       | 211/775 [00:13<00:30, 18.30it/s][A
+Inferring patches:  27%|██▋       | 213/775 [00:13<00:30, 18.24it/s][A
+Inferring patches:  28%|██▊       | 215/775 [00:13<00:30, 18.21it/s][A
+Inferring patches:  28%|██▊       | 217/775 [00:13<00:30, 18.06it/s][A
+Inferring patches:  28%|██▊       | 219/775 [00:13<00:33, 16.46it/s][A
+Inferring patches:  29%|██▊       | 221/775 [00:13<00:32, 17.10it/s][A
+Inferring patches:  29%|██▉       | 223/775 [00:13<00:31, 17.56it/s][A
+Inferring patches:  29%|██▉       | 225/775 [00:13<00:30, 17.84it/s][A
+Inferring patches:  29%|██▉       | 227/775 [00:14<00:30, 18.08it/s][A
+Inferring patches:  30%|██▉       | 229/775 [00:14<00:29, 18.23it/s][A
+Inferring patches:  30%|██▉       | 231/775 [00:14<00:29, 18.30it/s][A
+Inferring patches:  30%|███       | 233/775 [00:14<00:29, 18.32it/s][A
+Inferring patches:  30%|███       | 235/775 [00:14<00:29, 18.24it/s][A
+Inferring patches:  31%|███       | 237/775 [00:14<00:29, 18.30it/s][A
+Inferring patches:  31%|███       | 239/775 [00:14<00:29, 18.32it/s][A
+Inferring patches:  31%|███       | 241/775 [00:14<00:29, 18.23it/s][A
+Inferring patches:  31%|███▏      | 243/775 [00:14<00:29, 18.22it/s][A
+Inferring patches:  32%|███▏      | 245/775 [00:15<00:29, 18.18it/s][A
+Inferring patches:  32%|███▏      | 247/775 [00:15<00:29, 18.19it/s][A
+Inferring patches:  32%|███▏      | 249/775 [00:15<00:32, 16.38it/s][A
+Inferring patches:  32%|███▏      | 251/775 [00:15<00:30, 16.95it/s][A
+Inferring patches:  33%|███▎      | 253/775 [00:15<00:29, 17.47it/s][A
+Inferring patches:  33%|███▎      | 255/775 [00:15<00:29, 17.80it/s][A
+Inferring patches:  33%|███▎      | 257/775 [00:15<00:28, 18.03it/s][A
+Inferring patches:  33%|███▎      | 259/775 [00:15<00:28, 18.23it/s][A
+Inferring patches:  34%|███▎      | 261/775 [00:15<00:27, 18.36it/s][A
+Inferring patches:  34%|███▍      | 263/775 [00:16<00:27, 18.43it/s][A
+Inferring patches:  34%|███▍      | 265/775 [00:16<00:27, 18.47it/s][A
+Inferring patches:  34%|███▍      | 267/775 [00:16<00:27, 18.38it/s][A
+Inferring patches:  35%|███▍      | 269/775 [00:16<00:27, 18.38it/s][A
+Inferring patches:  35%|███▍      | 271/775 [00:16<00:27, 18.29it/s][A
+Inferring patches:  35%|███▌      | 273/775 [00:16<00:27, 18.29it/s][A
+Inferring patches:  35%|███▌      | 275/775 [00:16<00:27, 18.20it/s][A
+Inferring patches:  36%|███▌      | 277/775 [00:16<00:27, 18.18it/s][A
+Inferring patches:  36%|███▌      | 279/775 [00:16<00:28, 17.64it/s][A
+Inferring patches:  36%|███▋      | 281/775 [00:17<00:29, 16.56it/s][A
+Inferring patches:  37%|███▋      | 283/775 [00:17<00:28, 17.16it/s][A
+Inferring patches:  37%|███▋      | 285/775 [00:17<00:27, 17.56it/s][A
+Inferring patches:  37%|███▋      | 287/775 [00:17<00:27, 17.87it/s][A
+Inferring patches:  37%|███▋      | 289/775 [00:17<00:26, 18.06it/s][A
+Inferring patches:  38%|███▊      | 291/775 [00:17<00:26, 18.21it/s][A
+Inferring patches:  38%|███▊      | 293/775 [00:17<00:26, 18.30it/s][A
+Inferring patches:  38%|███▊      | 295/775 [00:17<00:26, 18.30it/s][A
+Inferring patches:  38%|███▊      | 297/775 [00:17<00:26, 18.34it/s][A
+Inferring patches:  39%|███▊      | 299/775 [00:18<00:25, 18.31it/s][A
+Inferring patches:  39%|███▉      | 301/775 [00:18<00:25, 18.32it/s][A
+Inferring patches:  39%|███▉      | 303/775 [00:18<00:25, 18.30it/s][A
+Inferring patches:  39%|███▉      | 305/775 [00:18<00:25, 18.29it/s][A
+Inferring patches:  40%|███▉      | 307/775 [00:18<00:25, 18.18it/s][A
+Inferring patches:  40%|███▉      | 309/775 [00:18<00:25, 18.15it/s][A
+Inferring patches:  40%|████      | 311/775 [00:18<00:28, 16.38it/s][A
+Inferring patches:  40%|████      | 313/775 [00:18<00:27, 17.05it/s][A
+Inferring patches:  41%|████      | 315/775 [00:18<00:26, 17.55it/s][A
+Inferring patches:  41%|████      | 317/775 [00:19<00:25, 17.88it/s][A
+Inferring patches:  41%|████      | 319/775 [00:19<00:25, 18.12it/s][A
+Inferring patches:  41%|████▏     | 321/775 [00:19<00:24, 18.18it/s][A
+Inferring patches:  42%|████▏     | 323/775 [00:19<00:24, 18.30it/s][A
+Inferring patches:  42%|████▏     | 325/775 [00:19<00:24, 18.28it/s][A
+Inferring patches:  42%|████▏     | 327/775 [00:19<00:24, 18.30it/s][A
+Inferring patches:  42%|████▏     | 329/775 [00:19<00:24, 18.33it/s][A
+Inferring patches:  43%|████▎     | 331/775 [00:19<00:24, 18.29it/s][A
+Inferring patches:  43%|████▎     | 333/775 [00:19<00:24, 18.30it/s][A
+Inferring patches:  43%|████▎     | 335/775 [00:20<00:24, 18.30it/s][A
+Inferring patches:  43%|████▎     | 337/775 [00:20<00:24, 18.22it/s][A
+Inferring patches:  44%|████▎     | 339/775 [00:20<00:23, 18.21it/s][A
+Inferring patches:  44%|████▍     | 341/775 [00:20<00:24, 17.68it/s][A
+Inferring patches:  44%|████▍     | 343/775 [00:20<00:26, 16.56it/s][A
+Inferring patches:  45%|████▍     | 345/775 [00:20<00:25, 17.19it/s][A
+Inferring patches:  45%|████▍     | 347/775 [00:20<00:24, 17.58it/s][A
+Inferring patches:  45%|████▌     | 349/775 [00:20<00:23, 17.92it/s][A
+Inferring patches:  45%|████▌     | 351/775 [00:20<00:23, 18.09it/s][A
+Inferring patches:  46%|████▌     | 353/775 [00:21<00:23, 18.27it/s][A
+Inferring patches:  46%|████▌     | 355/775 [00:21<00:22, 18.40it/s][A
+Inferring patches:  46%|████▌     | 357/775 [00:21<00:22, 18.44it/s][A
+Inferring patches:  46%|████▋     | 359/775 [00:21<00:22, 18.46it/s][A
+Inferring patches:  47%|████▋     | 361/775 [00:21<00:22, 18.37it/s][A
+Inferring patches:  47%|████▋     | 363/775 [00:21<00:22, 18.38it/s][A
+Inferring patches:  47%|████▋     | 365/775 [00:21<00:22, 18.35it/s][A
+Inferring patches:  47%|████▋     | 367/775 [00:21<00:22, 18.25it/s][A
+Inferring patches:  48%|████▊     | 369/775 [00:21<00:22, 18.23it/s][A
+Inferring patches:  48%|████▊     | 371/775 [00:22<00:22, 18.22it/s][A
+Inferring patches:  48%|████▊     | 373/775 [00:22<00:24, 16.38it/s][A
+Inferring patches:  48%|████▊     | 375/775 [00:22<00:23, 17.05it/s][A
+Inferring patches:  49%|████▊     | 377/775 [00:22<00:22, 17.50it/s][A
+Inferring patches:  49%|████▉     | 379/775 [00:22<00:22, 17.82it/s][A
+Inferring patches:  49%|████▉     | 381/775 [00:22<00:21, 18.01it/s][A
+Inferring patches:  49%|████▉     | 383/775 [00:22<00:21, 18.22it/s][A
+Inferring patches:  50%|████▉     | 385/775 [00:22<00:21, 18.33it/s][A
+Inferring patches:  50%|████▉     | 387/775 [00:22<00:21, 18.37it/s][A
+Inferring patches:  50%|█████     | 389/775 [00:23<00:20, 18.44it/s][A
+Inferring patches:  50%|█████     | 391/775 [00:23<00:20, 18.45it/s][A
+Inferring patches:  51%|█████     | 393/775 [00:23<00:20, 18.44it/s][A
+Inferring patches:  51%|█████     | 395/775 [00:23<00:20, 18.39it/s][A
+Inferring patches:  51%|█████     | 397/775 [00:23<00:20, 18.37it/s][A
+Inferring patches:  51%|█████▏    | 399/775 [00:23<00:20, 18.35it/s][A
+Inferring patches:  52%|█████▏    | 401/775 [00:23<00:20, 18.33it/s][A
+Inferring patches:  52%|█████▏    | 403/775 [00:23<00:21, 17.71it/s][A
+Inferring patches:  52%|█████▏    | 405/775 [00:23<00:22, 16.65it/s][A
+Inferring patches:  53%|█████▎    | 407/775 [00:24<00:21, 17.18it/s][A
+Inferring patches:  53%|█████▎    | 409/775 [00:24<00:20, 17.64it/s][A
+Inferring patches:  53%|█████▎    | 411/775 [00:24<00:20, 17.97it/s][A
+Inferring patches:  53%|█████▎    | 413/775 [00:24<00:19, 18.18it/s][A
+Inferring patches:  54%|█████▎    | 415/775 [00:24<00:19, 18.26it/s][A
+Inferring patches:  54%|█████▍    | 417/775 [00:24<00:19, 18.39it/s][A
+Inferring patches:  54%|█████▍    | 419/775 [00:24<00:19, 18.38it/s][A
+Inferring patches:  54%|█████▍    | 421/775 [00:24<00:19, 18.42it/s][A
+Inferring patches:  55%|█████▍    | 423/775 [00:24<00:19, 18.41it/s][A
+Inferring patches:  55%|█████▍    | 425/775 [00:25<00:19, 18.40it/s][A
+Inferring patches:  55%|█████▌    | 427/775 [00:25<00:18, 18.38it/s][A
+Inferring patches:  55%|█████▌    | 429/775 [00:25<00:18, 18.39it/s][A
+Inferring patches:  56%|█████▌    | 431/775 [00:25<00:18, 18.37it/s][A
+Inferring patches:  56%|█████▌    | 433/775 [00:25<00:18, 18.23it/s][A
+Inferring patches:  56%|█████▌    | 435/775 [00:25<00:20, 16.45it/s][A
+Inferring patches:  56%|█████▋    | 437/775 [00:25<00:19, 17.08it/s][A
+Inferring patches:  57%|█████▋    | 439/775 [00:25<00:19, 17.61it/s][A
+Inferring patches:  57%|█████▋    | 441/775 [00:25<00:18, 17.98it/s][A
+Inferring patches:  57%|█████▋    | 443/775 [00:26<00:18, 18.23it/s][A
+Inferring patches:  57%|█████▋    | 445/775 [00:26<00:17, 18.36it/s][A
+Inferring patches:  58%|█████▊    | 447/775 [00:26<00:17, 18.42it/s][A
+Inferring patches:  58%|█████▊    | 449/775 [00:26<00:17, 18.44it/s][A
+Inferring patches:  58%|█████▊    | 451/775 [00:26<00:17, 18.41it/s][A
+Inferring patches:  58%|█████▊    | 453/775 [00:26<00:17, 18.43it/s][A
+Inferring patches:  59%|█████▊    | 455/775 [00:26<00:17, 18.38it/s][A
+Inferring patches:  59%|█████▉    | 457/775 [00:26<00:17, 18.38it/s][A
+Inferring patches:  59%|█████▉    | 459/775 [00:26<00:17, 18.30it/s][A
+Inferring patches:  59%|█████▉    | 461/775 [00:27<00:17, 18.33it/s][A
+Inferring patches:  60%|█████▉    | 463/775 [00:27<00:17, 18.31it/s][A
+Inferring patches:  60%|██████    | 465/775 [00:27<00:17, 17.76it/s][A
+Inferring patches:  60%|██████    | 467/775 [00:27<00:18, 16.71it/s][A
+Inferring patches:  61%|██████    | 469/775 [00:27<00:17, 17.29it/s][A
+Inferring patches:  61%|██████    | 471/775 [00:27<00:17, 17.77it/s][A
+Inferring patches:  61%|██████    | 473/775 [00:27<00:16, 18.09it/s][A
+Inferring patches:  61%|██████▏   | 475/775 [00:27<00:16, 18.33it/s][A
+Inferring patches:  62%|██████▏   | 477/775 [00:27<00:16, 18.47it/s][A
+Inferring patches:  62%|██████▏   | 479/775 [00:28<00:15, 18.58it/s][A
+Inferring patches:  62%|██████▏   | 481/775 [00:28<00:15, 18.63it/s][A
+Inferring patches:  62%|██████▏   | 483/775 [00:28<00:15, 18.61it/s][A
+Inferring patches:  63%|██████▎   | 485/775 [00:28<00:15, 18.57it/s][A
+Inferring patches:  63%|██████▎   | 487/775 [00:28<00:15, 18.52it/s][A
+Inferring patches:  63%|██████▎   | 489/775 [00:28<00:15, 18.48it/s][A
+Inferring patches:  63%|██████▎   | 491/775 [00:28<00:15, 18.42it/s][A
+Inferring patches:  64%|██████▎   | 493/775 [00:28<00:15, 18.36it/s][A
+Inferring patches:  64%|██████▍   | 495/775 [00:28<00:15, 18.31it/s][A
+Inferring patches:  64%|██████▍   | 497/775 [00:29<00:16, 16.43it/s][A
+Inferring patches:  64%|██████▍   | 499/775 [00:29<00:16, 17.12it/s][A
+Inferring patches:  65%|██████▍   | 501/775 [00:29<00:15, 17.57it/s][A
+Inferring patches:  65%|██████▍   | 503/775 [00:29<00:15, 17.93it/s][A
+Inferring patches:  65%|██████▌   | 505/775 [00:29<00:14, 18.14it/s][A
+Inferring patches:  65%|██████▌   | 507/775 [00:29<00:14, 18.28it/s][A
+Inferring patches:  66%|██████▌   | 509/775 [00:29<00:14, 18.42it/s][A
+Inferring patches:  66%|██████▌   | 511/775 [00:29<00:14, 18.46it/s][A
+Inferring patches:  66%|██████▌   | 513/775 [00:29<00:14, 18.51it/s][A
+Inferring patches:  66%|██████▋   | 515/775 [00:30<00:14, 18.53it/s][A
+Inferring patches:  67%|██████▋   | 517/775 [00:30<00:13, 18.49it/s][A
+Inferring patches:  67%|██████▋   | 519/775 [00:30<00:13, 18.48it/s][A
+Inferring patches:  67%|██████▋   | 521/775 [00:30<00:13, 18.39it/s][A
+Inferring patches:  67%|██████▋   | 523/775 [00:30<00:13, 18.36it/s][A
+Inferring patches:  68%|██████▊   | 525/775 [00:30<00:13, 18.29it/s][A
+Inferring patches:  68%|██████▊   | 527/775 [00:30<00:13, 17.72it/s][A
+Inferring patches:  68%|██████▊   | 529/775 [00:30<00:14, 16.65it/s][A
+Inferring patches:  69%|██████▊   | 531/775 [00:30<00:14, 17.22it/s][A
+Inferring patches:  69%|██████▉   | 533/775 [00:31<00:13, 17.69it/s][A
+Inferring patches:  69%|██████▉   | 535/775 [00:31<00:13, 18.03it/s][A
+Inferring patches:  69%|██████▉   | 537/775 [00:31<00:13, 18.20it/s][A
+Inferring patches:  70%|██████▉   | 539/775 [00:31<00:12, 18.38it/s][A
+Inferring patches:  70%|██████▉   | 541/775 [00:31<00:12, 18.49it/s][A
+Inferring patches:  70%|███████   | 543/775 [00:31<00:12, 18.47it/s][A
+Inferring patches:  70%|███████   | 545/775 [00:31<00:12, 18.49it/s][A
+Inferring patches:  71%|███████   | 547/775 [00:31<00:12, 18.46it/s][A
+Inferring patches:  71%|███████   | 549/775 [00:31<00:12, 18.45it/s][A
+Inferring patches:  71%|███████   | 551/775 [00:32<00:12, 18.45it/s][A
+Inferring patches:  71%|███████▏  | 553/775 [00:32<00:12, 18.38it/s][A
+Inferring patches:  72%|███████▏  | 555/775 [00:32<00:11, 18.39it/s][A
+Inferring patches:  72%|███████▏  | 557/775 [00:32<00:11, 18.36it/s][A
+Inferring patches:  72%|███████▏  | 559/775 [00:32<00:13, 16.44it/s][A
+Inferring patches:  72%|███████▏  | 561/775 [00:32<00:12, 17.13it/s][A
+Inferring patches:  73%|███████▎  | 563/775 [00:32<00:12, 17.63it/s][A
+Inferring patches:  73%|███████▎  | 565/775 [00:32<00:11, 17.97it/s][A
+Inferring patches:  73%|███████▎  | 567/775 [00:32<00:11, 18.19it/s][A
+Inferring patches:  73%|███████▎  | 569/775 [00:33<00:11, 18.33it/s][A
+Inferring patches:  74%|███████▎  | 571/775 [00:33<00:11, 18.42it/s][A
+Inferring patches:  74%|███████▍  | 573/775 [00:33<00:10, 18.51it/s][A
+Inferring patches:  74%|███████▍  | 575/775 [00:33<00:10, 18.46it/s][A
+Inferring patches:  74%|███████▍  | 577/775 [00:33<00:10, 18.47it/s][A
+Inferring patches:  75%|███████▍  | 579/775 [00:33<00:10, 18.37it/s][A
+Inferring patches:  75%|███████▍  | 581/775 [00:33<00:10, 18.40it/s][A
+Inferring patches:  75%|███████▌  | 583/775 [00:33<00:10, 18.38it/s][A
+Inferring patches:  75%|███████▌  | 585/775 [00:33<00:10, 18.40it/s][A
+Inferring patches:  76%|███████▌  | 587/775 [00:33<00:10, 18.37it/s][A
+Inferring patches:  76%|███████▌  | 589/775 [00:34<00:10, 17.77it/s][A
+Inferring patches:  76%|███████▋  | 591/775 [00:34<00:11, 16.72it/s][A
+Inferring patches:  77%|███████▋  | 593/775 [00:34<00:10, 17.30it/s][A
+Inferring patches:  77%|███████▋  | 595/775 [00:34<00:10, 17.75it/s][A
+Inferring patches:  77%|███████▋  | 597/775 [00:34<00:09, 17.96it/s][A
+Inferring patches:  77%|███████▋  | 599/775 [00:34<00:09, 18.23it/s][A
+Inferring patches:  78%|███████▊  | 601/775 [00:34<00:09, 18.36it/s][A
+Inferring patches:  78%|███████▊  | 603/775 [00:34<00:09, 18.50it/s][A
+Inferring patches:  78%|███████▊  | 605/775 [00:34<00:09, 18.53it/s][A
+Inferring patches:  78%|███████▊  | 607/775 [00:35<00:09, 18.53it/s][A
+Inferring patches:  79%|███████▊  | 609/775 [00:35<00:08, 18.55it/s][A
+Inferring patches:  79%|███████▉  | 611/775 [00:35<00:08, 18.55it/s][A
+Inferring patches:  79%|███████▉  | 613/775 [00:35<00:08, 18.47it/s][A
+Inferring patches:  79%|███████▉  | 615/775 [00:35<00:08, 18.33it/s][A
+Inferring patches:  80%|███████▉  | 617/775 [00:35<00:08, 18.35it/s][A
+Inferring patches:  80%|███████▉  | 619/775 [00:35<00:08, 18.33it/s][A
+Inferring patches:  80%|████████  | 621/775 [00:35<00:09, 16.50it/s][A
+Inferring patches:  80%|████████  | 623/775 [00:36<00:08, 17.19it/s][A
+Inferring patches:  81%|████████  | 625/775 [00:36<00:08, 17.66it/s][A
+Inferring patches:  81%|████████  | 627/775 [00:36<00:08, 18.03it/s][A
+Inferring patches:  81%|████████  | 629/775 [00:36<00:08, 18.25it/s][A
+Inferring patches:  81%|████████▏ | 631/775 [00:36<00:07, 18.40it/s][A
+Inferring patches:  82%|████████▏ | 633/775 [00:36<00:07, 18.42it/s][A
+Inferring patches:  82%|████████▏ | 635/775 [00:36<00:07, 18.52it/s][A
+Inferring patches:  82%|████████▏ | 637/775 [00:36<00:07, 18.57it/s][A
+Inferring patches:  82%|████████▏ | 639/775 [00:36<00:07, 18.58it/s][A
+Inferring patches:  83%|████████▎ | 641/775 [00:36<00:07, 18.58it/s][A
+Inferring patches:  83%|████████▎ | 643/775 [00:37<00:07, 18.48it/s][A
+Inferring patches:  83%|████████▎ | 645/775 [00:37<00:07, 18.44it/s][A
+Inferring patches:  83%|████████▎ | 647/775 [00:37<00:06, 18.40it/s][A
+Inferring patches:  84%|████████▎ | 649/775 [00:37<00:06, 18.40it/s][A
+Inferring patches:  84%|████████▍ | 651/775 [00:37<00:06, 17.73it/s][A
+Inferring patches:  84%|████████▍ | 653/775 [00:37<00:07, 16.68it/s][A
+Inferring patches:  85%|████████▍ | 655/775 [00:37<00:06, 17.31it/s][A
+Inferring patches:  85%|████████▍ | 657/775 [00:37<00:06, 17.71it/s][A
+Inferring patches:  85%|████████▌ | 659/775 [00:37<00:06, 17.93it/s][A
+Inferring patches:  85%|████████▌ | 661/775 [00:38<00:06, 18.13it/s][A
+Inferring patches:  86%|████████▌ | 663/775 [00:38<00:06, 18.26it/s][A
+Inferring patches:  86%|████████▌ | 665/775 [00:38<00:05, 18.38it/s][A
+Inferring patches:  86%|████████▌ | 667/775 [00:38<00:05, 18.46it/s][A
+Inferring patches:  86%|████████▋ | 669/775 [00:38<00:05, 18.39it/s][A
+Inferring patches:  87%|████████▋ | 671/775 [00:38<00:05, 18.43it/s][A
+Inferring patches:  87%|████████▋ | 673/775 [00:38<00:05, 18.40it/s][A
+Inferring patches:  87%|████████▋ | 675/775 [00:38<00:05, 18.45it/s][A
+Inferring patches:  87%|████████▋ | 677/775 [00:38<00:05, 18.41it/s][A
+Inferring patches:  88%|████████▊ | 679/775 [00:39<00:05, 18.42it/s][A
+Inferring patches:  88%|████████▊ | 681/775 [00:39<00:05, 18.40it/s][A
+Inferring patches:  88%|████████▊ | 683/775 [00:39<00:05, 16.77it/s][A
+Inferring patches:  88%|████████▊ | 685/775 [00:39<00:05, 17.39it/s][A
+Inferring patches:  89%|████████▊ | 687/775 [00:39<00:04, 17.70it/s][A
+Inferring patches:  89%|████████▉ | 689/775 [00:39<00:04, 18.05it/s][A
+Inferring patches:  89%|████████▉ | 691/775 [00:39<00:04, 18.24it/s][A
+Inferring patches:  89%|████████▉ | 693/775 [00:39<00:04, 18.41it/s][A
+Inferring patches:  90%|████████▉ | 695/775 [00:39<00:04, 18.51it/s][A
+Inferring patches:  90%|████████▉ | 697/775 [00:40<00:04, 18.46it/s][A
+Inferring patches:  90%|█████████ | 699/775 [00:40<00:04, 18.48it/s][A
+Inferring patches:  90%|█████████ | 701/775 [00:40<00:04, 18.44it/s][A
+Inferring patches:  91%|█████████ | 703/775 [00:40<00:03, 18.44it/s][A
+Inferring patches:  91%|█████████ | 705/775 [00:40<00:03, 18.44it/s][A
+Inferring patches:  91%|█████████ | 707/775 [00:40<00:03, 18.41it/s][A
+Inferring patches:  91%|█████████▏| 709/775 [00:40<00:03, 18.33it/s][A
+Inferring patches:  92%|█████████▏| 711/775 [00:40<00:03, 18.34it/s][A
+Inferring patches:  92%|█████████▏| 713/775 [00:40<00:03, 18.18it/s][A
+Inferring patches:  92%|█████████▏| 715/775 [00:41<00:03, 16.87it/s][A
+Inferring patches:  93%|█████████▎| 717/775 [00:41<00:03, 17.46it/s][A
+Inferring patches:  93%|█████████▎| 719/775 [00:41<00:03, 17.83it/s][A
+Inferring patches:  93%|█████████▎| 721/775 [00:41<00:02, 18.10it/s][A
+Inferring patches:  93%|█████████▎| 723/775 [00:41<00:02, 18.28it/s][A
+Inferring patches:  94%|█████████▎| 725/775 [00:41<00:02, 18.42it/s][A
+Inferring patches:  94%|█████████▍| 727/775 [00:41<00:02, 18.53it/s][A
+Inferring patches:  94%|█████████▍| 729/775 [00:41<00:02, 18.54it/s][A
+Inferring patches:  94%|█████████▍| 731/775 [00:41<00:02, 18.57it/s][A
+Inferring patches:  95%|█████████▍| 733/775 [00:42<00:02, 18.58it/s][A
+Inferring patches:  95%|█████████▍| 735/775 [00:42<00:02, 18.53it/s][A
+Inferring patches:  95%|█████████▌| 737/775 [00:42<00:02, 18.47it/s][A
+Inferring patches:  95%|█████████▌| 739/775 [00:42<00:01, 18.41it/s][A
+Inferring patches:  96%|█████████▌| 741/775 [00:42<00:01, 18.40it/s][A
+Inferring patches:  96%|█████████▌| 743/775 [00:42<00:01, 18.30it/s][A
+Inferring patches:  96%|█████████▌| 745/775 [00:42<00:01, 16.75it/s][A
+Inferring patches:  96%|█████████▋| 747/775 [00:42<00:01, 17.37it/s][A
+Inferring patches:  97%|█████████▋| 749/775 [00:42<00:01, 17.80it/s][A
+Inferring patches:  97%|█████████▋| 751/775 [00:43<00:01, 18.14it/s][A
+Inferring patches:  97%|█████████▋| 753/775 [00:43<00:01, 18.34it/s][A
+Inferring patches:  97%|█████████▋| 755/775 [00:43<00:01, 18.51it/s][A
+Inferring patches:  98%|█████████▊| 757/775 [00:43<00:00, 18.60it/s][A
+Inferring patches:  98%|█████████▊| 759/775 [00:43<00:00, 18.66it/s][A
+Inferring patches:  98%|█████████▊| 761/775 [00:43<00:00, 18.66it/s][A
+Inferring patches:  98%|█████████▊| 763/775 [00:43<00:00, 18.66it/s][A
+Inferring patches:  99%|█████████▊| 765/775 [00:43<00:00, 18.67it/s][A
+Inferring patches:  99%|█████████▉| 767/775 [00:43<00:00, 18.63it/s][A
+Inferring patches:  99%|█████████▉| 769/775 [00:44<00:00, 18.58it/s][A
+Inferring patches:  99%|█████████▉| 771/775 [00:44<00:00, 18.52it/s][A
+Inferring patches: 100%|█████████▉| 773/775 [00:44<00:00, 18.51it/s][A
+Inferring patches: 100%|██████████| 775/775 [00:44<00:00, 18.46it/s][A
+                                                                    [A
+Merging rows:   0%|          | 0/25 [00:00<?, ?it/s][A
+Merging rows:  12%|█▏        | 3/25 [00:00<00:00, 22.18it/s][A
+Merging rows:  24%|██▍       | 6/25 [00:00<00:00, 23.87it/s][A
+Merging rows:  36%|███▌      | 9/25 [00:00<00:00, 24.71it/s][A
+Merging rows:  48%|████▊     | 12/25 [00:00<00:00, 25.08it/s][A
+Merging rows:  60%|██████    | 15/25 [00:00<00:00, 25.29it/s][A
+Merging rows:  72%|███████▏  | 18/25 [00:00<00:00, 25.38it/s][A
+Merging rows:  84%|████████▍ | 21/25 [00:00<00:00, 25.53it/s][A
+Merging rows:  96%|█████████▌| 24/25 [00:00<00:00, 26.03it/s][A
+                                                             [A
+Computing Centroids:   0%|          | 0/381 [00:00<?, ?it/s][A
+Computing Centroids:  35%|███▌      | 134/381 [00:00<00:00, 1339.69it/s][A
+Computing Centroids:  70%|███████   | 268/381 [00:00<00:00, 1325.36it/s][A|2026-08-26|13:52:26.693| [WARNING] /local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tiatoolbox/models/architecture/utils.py:505: FutureWarning: `RegionProperties['mean_intensity']` is deprecated starting in version 0.26 and will be removed in version 2.0. Use `RegionProperties['intensity_mean']` instead. 
+  peak["mean_intensity"],
+
+
+                                                                        [A
+Processing detection blocks:   0%|          | 0/3 [00:00<?, ?it/s][A
+Processing detection blocks:  33%|███▎      | 1/3 [00:00<00:00,  3.04it/s][A
+Processing detection blocks:  67%|██████▋   | 2/3 [00:00<00:00,  3.04it/s][A
+Processing detection blocks: 100%|██████████| 3/3 [00:00<00:00,  3.16it/s][A
+                                                                          [A|2026-08-26|13:52:37.518| [WARNING] SQLite math functions are not enabled. This may cause problems with some queries. For example, floor division (//) will not work. For a full list see https://tia-toolbox.readthedocs.io/en/v2.1.0/_autosummary/tiatoolbox.annotation.dsl.html
+
+Writing detections to store:   0%|          | 0/3 [00:00<?, ?it/s][A
+Writing detections to store:  33%|███▎      | 1/3 [00:00<00:00,  4.52it/s][A
+Writing detections to store:  67%|██████▋   | 2/3 [00:00<00:00,  3.13it/s][A
+Writing detections to store: 100%|██████████| 3/3 [00:00<00:00,  3.61it/s][A
+                                                                          [AProcessing WSIs: 100%|██████████| 1/1 [01:01<00:00, 61.02s/it]                                                              

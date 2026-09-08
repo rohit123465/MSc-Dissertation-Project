@@ -1,0 +1,24 @@
+{
+  "task_id": "semantic_001",
+  "function": "predict_semantic_segmentation",
+  "status": "execution_error",
+  "started_at_unix": 1787687718.4682662,
+  "runtime_seconds": 48.3847839969967,
+  "input_task_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/tasks/semantic_001.json",
+  "function_arguments": {
+    "wsi_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/files_mock_claude_response/nucleii.ome.tif",
+    "output_json_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/evaluation/results/semantic_001/run_summary.json",
+    "model_name": "fcn_resnet50_unet-bcss",
+    "batch_size": 1,
+    "device": "cuda",
+    "save_dir": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/evaluation/results/semantic_001/annotationstore",
+    "output_type": "annotationstore",
+    "patch_mode": false,
+    "auto_get_mask": false,
+    "num_workers": 1,
+    "overwrite": true
+  },
+  "error_type": "RuntimeError",
+  "error": "Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx",
+  "traceback": "Traceback (most recent call last):\n  File \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/run_tool.py\", line 157, in main\n    function_result = function(**function_arguments)\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/files_mock_claude_response/tia_tools.py\", line 2729, in tool_predict_semantic_segmentation\n    segmentor = SemanticSegmentor(\n                ^^^^^^^^^^^^^^^^^^\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tiatoolbox/models/engine/semantic_segmentor.py\", line 302, in __init__\n    super().__init__(\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tiatoolbox/models/engine/patch_predictor.py\", line 312, in __init__\n    super().__init__(\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tiatoolbox/models/engine/engine_abc.py\", line 315, in __init__\n    self.model.to(device=self.device)\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tiatoolbox/models/models_abc.py\", line 230, in to\n    model = super().to(torch_device, dtype=dtype, non_blocking=non_blocking)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 1383, in to\n    return self._apply(convert)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 933, in _apply\n    module._apply(fn)\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 933, in _apply\n    module._apply(fn)\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 964, in _apply\n    param_applied = fn(param)\n                    ^^^^^^^^^\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/torch/nn/modules/module.py\", line 1369, in convert\n    return t.to(\n           ^^^^^\n  File \"/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/torch/cuda/__init__.py\", line 491, in _lazy_init\n    torch._C._cuda_init()\nRuntimeError: Found no NVIDIA driver on your system. Please check that you have an NVIDIA GPU and installed a driver from http://www.nvidia.com/Download/index.aspx\n"
+}

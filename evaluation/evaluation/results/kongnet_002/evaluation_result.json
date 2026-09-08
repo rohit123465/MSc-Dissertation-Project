@@ -1,0 +1,45 @@
+{
+  "task_id": "kongnet_002",
+  "function": "predict_kongnet_nucleus_detection",
+  "status": "passed",
+  "started_at_unix": 1787746844.9876976,
+  "runtime_seconds": 240.2003950930084,
+  "input_task_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/tasks/kongnet_002.json",
+  "function_arguments": {
+    "wsi_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/wsi4_12k_12k.svs",
+    "output_json_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/run_summary.json",
+    "model_name": "KongNet_PanNuke_1",
+    "batch_size": 1,
+    "device": "cuda",
+    "save_dir": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore",
+    "output_type": "annotationstore",
+    "patch_mode": false,
+    "auto_get_mask": false,
+    "num_workers": 1,
+    "overwrite": true
+  },
+  "function_result": "WSI nucleus detection completed successfully.\nModel: KongNet_PanNuke_1\nWSI: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/wsi4_12k_12k.svs\nAnnotationStore output saved to: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore\nDetected output DBs: 1\nDevice: cuda\nWorkers: 1\n\nOpen in TIAViz with:\ntiatoolbox visualize --slides \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures\" --overlays \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore\"\n\nAnnotationStore files:\n/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore/wsi4_12k_12k.db\n\nRun summary saved to: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/run_summary.json\n\nImportant: this output is not a clinical diagnosis.",
+  "output_validation": {
+    "passed": true,
+    "required_files_found": [
+      "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/run_summary.json"
+    ],
+    "missing_files": [],
+    "invalid_json_files": [],
+    "annotationstore_files": [
+      "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_002/annotationstore/wsi4_12k_12k.db"
+    ],
+    "annotationstore_missing": false
+  },
+  "environment": {
+    "python_version": "3.12.13 (main, Jul 10 2026, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-14)]",
+    "python_executable": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python",
+    "platform": "Linux-5.14.0-687.39.1.el9_8.x86_64-x86_64-with-glibc2.34",
+    "tiatoolbox_version": "2.1.0",
+    "torch_version": "2.12.0+cu130",
+    "torch_cuda_build": "13.0",
+    "cuda_available": true,
+    "visible_gpu_count": 1,
+    "gpu_name": "NVIDIA RTX A5000"
+  }
+}

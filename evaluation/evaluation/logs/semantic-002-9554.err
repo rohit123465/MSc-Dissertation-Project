@@ -1,0 +1,32 @@
+|2026-08-26|09:24:12.009| [WARNING] GPU is not compatible with torch.compile. Compatible GPUs include NVIDIA V100, A100, and H100. Speedup numbers may be lower than expected.
+Processing WSIs:   0%|          | 0/1 [00:00<?, ?it/s]|2026-08-26|09:24:12.050| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|09:24:12.051| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U5'), dtype('<U5'), dtype('<U10'))
+|2026-08-26|09:24:12.051| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|09:24:12.051| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|09:24:12.051| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+
+Inferring patches:   0%|          | 0/16 [00:00<?, ?it/s][A|2026-08-26|09:24:12.070| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|09:24:12.071| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U5'), dtype('<U5'), dtype('<U10'))
+|2026-08-26|09:24:12.071| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|09:24:12.071| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|09:24:12.071| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+|2026-08-26|09:24:12.098| [WARNING] OME objective power extraction failed: 'NoneType' object has no attribute 'attrib'
+|2026-08-26|09:24:12.099| [WARNING] Failed to infer objective power from MPP: the resolved dtypes are not compatible with add.reduce. Resolved (dtype('<U5'), dtype('<U5'), dtype('<U10'))
+|2026-08-26|09:24:12.099| [WARNING] Objective power could not be determined from OME-XML.
+|2026-08-26|09:24:12.099| [WARNING] Metadata: Objective power inferred from microns-per-pixel (MPP).
+|2026-08-26|09:24:12.099| [WARNING] Read: Scale > 1.This means that the desired resolution is higher than the WSI baseline (maximum encoded resolution). Interpolation of read regions may occur.
+
+Inferring patches:   6%|▋         | 1/16 [00:00<00:09,  1.58it/s][A
+Inferring patches:  25%|██▌       | 4/16 [00:00<00:01,  6.65it/s][A
+Inferring patches:  44%|████▍     | 7/16 [00:00<00:00, 10.84it/s][A
+Inferring patches:  62%|██████▎   | 10/16 [00:00<00:00, 14.28it/s][A
+Inferring patches:  81%|████████▏ | 13/16 [00:01<00:00, 17.02it/s][A
+Inferring patches: 100%|██████████| 16/16 [00:01<00:00, 19.72it/s][A
+                                                                  [A
+Merging rows:   0%|          | 0/4 [00:00<?, ?it/s][A
+                                                   [A|2026-08-26|09:24:13.612| [WARNING] SQLite math functions are not enabled. This may cause problems with some queries. For example, floor division (//) will not work. For a full list see https://tia-toolbox.readthedocs.io/en/v2.1.0/_autosummary/tiatoolbox.annotation.dsl.html
+
+Converting outputs to AnnotationStore.:   0%|          | 0/4 [00:00<?, ?it/s][A|2026-08-26|09:24:13.645| [WARNING] Invalid geometry found, fix using buffer().
+
+Converting outputs to AnnotationStore.:  25%|██▌       | 1/4 [00:00<00:00,  7.66it/s][A
+                                                                                     [AProcessing WSIs: 100%|██████████| 1/1 [00:02<00:00,  2.02s/it]                                                              

@@ -1,0 +1,46 @@
+{
+  "mode": "wsi_nucleus_detection_annotationstore",
+  "model_name": "KongNet_PanNuke_1",
+  "model_description": "Nucleus detection model for connective, neoplastic, epithelial, dead, and inflammatory nuclei across multiple cancers.",
+  "primary_site": "multiple",
+  "input_resolution_mpp": null,
+  "model_metadata": {
+    "model_name": "KongNet_PanNuke_1",
+    "model_type": "nucleus_detection",
+    "target_node": "Nucleus Detection",
+    "class_mapping": {
+      "Neoplastic": 0,
+      "Inflammatory": 1,
+      "Connective": 2,
+      "Dead": 3,
+      "Epithelial": 4
+    },
+    "description": "Nucleus detection model for connective, neoplastic, epithelial, dead, and inflammatory nuclei across multiple cancers.",
+    "primary_site": "multiple",
+    "input_resolution": null,
+    "patch_shape": null,
+    "stride_shape": null,
+    "limitation": "Research output only; not a clinical diagnosis."
+  },
+  "wsi_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/demo.ome.tif",
+  "save_dir": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_001/annotationstore",
+  "annotationstore_paths": [
+    "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_001/annotationstore/demo.ome.db"
+  ],
+  "output_type": "annotationstore",
+  "device": "cuda",
+  "num_workers": 1,
+  "batch_size": 1,
+  "patch_mode": false,
+  "auto_get_mask": false,
+  "class_dict": {
+    "0": "Neoplastic",
+    "1": "Inflammatory",
+    "2": "Connective",
+    "3": "Dead",
+    "4": "Epithelial"
+  },
+  "tiaviz_command": "tiatoolbox visualize --slides \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures\" --overlays \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_001/annotationstore\"",
+  "tiatoolbox_output": "{PosixPath('/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/fixtures/demo.ome.tif'): PosixPath('/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/results/kongnet_001/annotationstore/demo.ome.db')}",
+  "clinical_warning": "This is model-derived nucleus detection/classification output, not a clinical diagnosis."
+}

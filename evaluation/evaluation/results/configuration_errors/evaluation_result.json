@@ -1,0 +1,7 @@
+{
+  "status": "task_configuration_error",
+  "input_task_path": "/dcs/22/u2265464/Documents/MSc-Dissertation-Project/tasks/semantic_001.json",
+  "error_type": "FileNotFoundError",
+  "error": "Task specification does not exist: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/tasks/semantic_001.json",
+  "traceback": "Traceback (most recent call last):\n  File \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/run_tool.py\", line 278, in main\n    task = load_task(task_path)\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/run_tool.py\", line 55, in load_task\n    raise FileNotFoundError(\nFileNotFoundError: Task specification does not exist: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/tasks/semantic_001.json\n"
+}

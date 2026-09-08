@@ -1,0 +1,63 @@
+========================================
+Semantic-segmentation functional test
+========================================
+Job ID: 9562
+Job name: semantic-003
+Compute node: falcon-01
+Start time: 2026-08-26T10:27:15+01:00
+Project: /dcs/22/u2265464/Documents/MSc-Dissertation-Project
+Task: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/evaluation/tasks/semantic_003.json
+CUDA_VISIBLE_DEVICES: 0
+Python: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python
+Python version: Python 3.12.13
+Loaded modules:
+Currently Loaded Modulefiles:
+ 1) CUDA/12.2-cudnn9 <aL>           3) tiatoolbox/2.1.0  
+ 2) NCCL/2.20.3_for_CUDA12.2 <aL>  
+
+Key:
+<module-tag>  <aL>=auto-loaded  
+Original LD_LIBRARY_PATH:
+/local/java/python-pip-packages.tiatoolbox-2.1.0/lib/python3.12/site-packages/tensorrt_libs/:/local/java/nccl_2.20.3-1+cuda12.2_x86_64/lib/:/local/java/cuda-12.2/lib64/:/local/java/cudnn-linux-x86_64-9.0.0.312_cuda12-archive/lib:/local/java/cuda-12.2/extras/CUPTI/lib64/
+Cleaned LD_LIBRARY_PATH:
+not-set
+GPU information:
+Wed Aug 26 10:27:17 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.173.02             Driver Version: 580.173.02     CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA RTX A5000               Off |   00000000:01:00.0 Off |                  Off |
+| 30%   56C    P0             62W /  230W |       0MiB /  24564MiB |      5%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+Running CUDA and cuDNN preflight test...
+Python: 3.12.13 (main, Jul 10 2026, 00:00:00) [GCC 11.5.0 20240719 (Red Hat 11.5.0-14)]
+Python executable: /dcs/22/u2265464/Documents/MSc-Dissertation-Project/.venv-tia210/bin/python
+TIAToolbox: 2.1.0
+Torch: 2.12.0+cu130
+TorchVision: 0.27.0+cu130
+Torch CUDA build: 13.0
+CUDA available: True
+Visible GPU count: 1
+cuDNN available: True
+cuDNN version: 92000
+GPU: NVIDIA RTX A5000
+cuDNN convolution succeeded
+Output shape: (2, 16, 224, 224)
+Output mean: -0.03609834983944893
+CUDA and cuDNN preflight passed.
+Starting semantic-segmentation function...
+|2026-08-26|10:27:57.497| [INFO] HTTP Request: HEAD https://huggingface.co/TIACentre/TIAToolbox_pretrained_weights/resolve/main/fcn_resnet50_unet-bcss.pth "HTTP/1.1 302 Found"
+|2026-08-26|10:27:58.947| [INFO] When providing multiple whole slide images, the outputs will be saved and the locations of outputs will be returned to the calling function when `run()` finishes successfully.
