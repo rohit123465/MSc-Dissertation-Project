@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T010",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-31",
+  "rubric_version": "1.0",
+  "source_request": "Using C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\common_spatial_features.json, compute normalized ROI-level spatial entropy for Epithelial, Lymphocyte, Macrophage, and Neutrophil using natural-log entropy, a low threshold of 0.4, and a high threshold of 0.7. Save JSON, CSV, and text results under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\entropy_results_T010. Report the total analysed ROIs and the numbers classified as low, intermediate, and high entropy. Verify that the output files are readable and that category counts sum to the total ROI count. Do not rebuild or modify the dataset, rerun segmentation, or use QuPath GeoJSON. Report unsupported outputs without fabrication. Treat the results as represented-ROI research statistics, not whole-slide or clinical conclusions.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\common_spatial_features.json directly as the entropy-analysis input.",
+      "importance": "essential",
+      "success_evidence": "The execution trace and generated artifacts identify the exact requested common spatial-feature file."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Compute ROI-level spatial entropy using Epithelial, Lymphocyte, Macrophage, and Neutrophil.",
+      "importance": "essential",
+      "success_evidence": "The computation parameters contain exactly the four requested classes and produce an entropy value for each analysed ROI."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Use normalized Shannon entropy with the natural logarithm, a low threshold of 0.4, and a high threshold of 0.7.",
+      "importance": "essential",
+      "success_evidence": "The generated result records normalize=true, entropy base e, low_threshold=0.4, and high_threshold=0.7."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Save readable JSON, CSV, and text results under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\entropy_results_T010.",
+      "importance": "essential",
+      "success_evidence": "All three requested output formats exist in the exact output directory and contain readable entropy results."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Report the total number of analysed ROIs and the numbers classified as low, intermediate, and high entropy.",
+      "importance": "essential",
+      "success_evidence": "The final response reports all four requested counts based on the complete per-ROI results."
+    },
+    {
+      "requirement_id": "R6",
+      "description": "Verify output readability and confirm that low, intermediate, and high category counts sum to the total analysed ROI count.",
+      "importance": "essential",
+      "success_evidence": "The files are successfully read and the category-count sum is explicitly checked against the total ROI count."
+    },
+    {
+      "requirement_id": "R7",
+      "description": "Do not rebuild or modify the common dataset, rerun segmentation, or use QuPath GeoJSON.",
+      "importance": "essential",
+      "success_evidence": "The trace contains no prohibited rebuilding, input modification, segmentation, or GeoJSON operation."
+    },
+    {
+      "requirement_id": "R8",
+      "description": "Treat the results as represented-ROI statistics rather than whole-slide or clinical conclusions.",
+      "importance": "essential",
+      "success_evidence": "The final response clearly limits interpretation to the 21 represented ROIs and includes a non-clinical research warning."
+    },
+    {
+      "requirement_id": "R9",
+      "description": "Report unsupported or unavailable outputs without fabrication.",
+      "importance": "secondary",
+      "success_evidence": "The workflow accurately distinguishes initially unavailable summary information and obtains it from readable artifacts rather than inventing values."
+    },
+    {
+      "requirement_id": "R10",
+      "description": "Preserve accurate source-model provenance where it is reported.",
+      "importance": "secondary",
+      "success_evidence": "The workflow does not incorrectly describe the HoVer-Net-derived common dataset as originating from a different model family."
+    }
+  ],
+  "explicitly_not_required": [
+    "Whole-slide entropy inference",
+    "Clinical diagnosis",
+    "New nucleus segmentation",
+    "QuPath processing",
+    "An AnnotationStore overlay"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All essential requirements are satisfied and no material output or provenance issue prevents direct use. A purely cosmetic internal label may be noted without changing the outcome.",
+    "partially_successful": "All essential requirements are satisfied and the entropy results are usable, but a minor secondary reporting or provenance issue remains.",
+    "failed": "Any essential requirement is demonstrably unmet, or the entropy results are missing, unreadable, computed with incorrect parameters, or have inconsistent category totals."
+  },
+  "annotation_notes": "The numerical results and category totals are complete. The generated JSON uses analysis='kongnet_spatial_entropy' and the TXT title says 'KongNet ROI Spatial Entropy Report' because the common entropy implementation reuses a KongNet function, despite the common dataset being HoVer-Net-derived. This is evaluated as a secondary provenance issue rather than a numerical failure."
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T002",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-30",
+  "rubric_version": "1.0",
+  "source_request": "Compute model-independent nucleus-level Local Moran’s I for Lymphocytes versus other classes using: AnnotationStore: C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\CMU-1-Small-Region.db Matching slide: C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\datasets\\CMU-1-Small-Region.svs Existing common dataset: C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\common_spatial_features.json The annotations are from hovernet_fast-monusac. Use the existing common dataset if compatible; otherwise adapt the AnnotationStore first. This is not a QuPath GeoJSON workflow. Use radius 50 µm, sigma 0.02 µm⁻¹, minimum probability 0.5, 999 permutations, alpha 0.05, and seed 42. Retain isolated nuclei as “not computed—no neighbours.”",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use the specified common spatial dataset if it is compatible; otherwise adapt the specified AnnotationStore using the matching slide and HoVer-Net fast MoNuSAC provenance.",
+      "importance": "essential",
+      "success_evidence": "The computation uses the specified common dataset after compatibility is established, or an adapter step creates a compatible dataset from the specified AnnotationStore and slide."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Compute model-independent nucleus-level Local Moran's I using Lymphocyte as the selected class and all other retained nucleus classes as the comparison group.",
+      "importance": "essential",
+      "success_evidence": "The result identifies common nucleus-level local Moran's I, encodes Lymphocyte as the selected class, and treats other retained classes as the alternative group."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Do not use a QuPath GeoJSON workflow.",
+      "importance": "essential",
+      "success_evidence": "The computation uses the common spatial JSON or an AnnotationStore adapter path and does not use a QuPath GeoJSON input."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Use a 50 micrometre distance threshold and distance-decay sigma of 0.02 inverse micrometres.",
+      "importance": "essential",
+      "success_evidence": "The execution request or result records distance_threshold 50, distance_decay_sigma 0.02, and distance units of microns."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Use minimum probability 0.5, 999 permutations, alpha 0.05, and seed 42.",
+      "importance": "essential",
+      "success_evidence": "The execution request and generated result record all four exact statistical parameters."
+    },
+    {
+      "requirement_id": "R6",
+      "description": "Retain isolated nuclei and mark their local statistic as not computed because they have no neighbours.",
+      "importance": "essential",
+      "success_evidence": "Isolated nuclei remain in the result with null local statistics and a distinct not-computed-no-neighbours status or equivalent label."
+    },
+    {
+      "requirement_id": "R7",
+      "description": "Produce a readable, usable result containing the nucleus-level Local Moran's I outputs.",
+      "importance": "essential",
+      "success_evidence": "A readable result artefact exists and contains parameters, per-nucleus statistics, computation statuses, and summary counts."
+    }
+  ],
+  "explicitly_not_required": [
+    "Global Moran's I",
+    "A QuPath GeoJSON input or output",
+    "Launching TIAViz",
+    "An AnnotationStore overlay",
+    "A specific output filename",
+    "Clinical interpretation"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All seven essential requirements are satisfied and the Local Moran's I result is directly usable.",
+    "partially_successful": "The principal Local Moran's I result is usable, but a minor non-essential defect or uncertainty remains and no essential requirement is demonstrably unmet.",
+    "failed": "Any essential requirement is demonstrably unmet, or the requested statistical result is missing, unreadable, materially incorrect, or unusable. Missing evidence must be distinguished from demonstrated failure."
+  },
+  "annotation_notes": "Requirements were extracted only from the original request. Extra JSON, CSV, TXT, and overlay outputs introduced by the agent were not treated as user requirements."
+}

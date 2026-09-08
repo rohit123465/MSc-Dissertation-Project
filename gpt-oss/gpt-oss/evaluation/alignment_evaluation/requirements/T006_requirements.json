@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T006",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-30",
+  "rubric_version": "1.0",
+  "source_request": "Perform semantic segmentation on the WSI at: C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\datasets\\CMU-1-Small-Region.svs Primary requirement: Run the registered fcn_resnet50_unet-bcss semantic-segmentation model and save a readable TIAViz-compatible AnnotationStore under: C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\semantic_results_T006 Secondary requirements: 1. Save a PNG preview or overlay of the segmentation. 2. Report a concise per-class area or region-count summary. 3. Provide the exact TIAViz command for opening the slide with the generated AnnotationStore. 4. Verify the generated files before giving the final response. The semantic-segmentation AnnotationStore is the essential deliverable. The preview, class summary, TIAViz command, and independent file verification are secondary deliverables: their absence should not make the core segmentation unusable, but should be reported as incomplete. Use the specified model exactly and clearly report any failed or unavailable secondary operation. This is research output, not a clinical diagnosis.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\datasets\\CMU-1-Small-Region.svs as the input WSI.",
+      "importance": "essential",
+      "success_evidence": "The execution request identifies this exact WSI path and the resulting artefact is reliably associated with this slide."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Run semantic segmentation using the registered fcn_resnet50_unet-bcss model exactly.",
+      "importance": "essential",
+      "success_evidence": "The prediction tool configuration or trustworthy run metadata identifies fcn_resnet50_unet-bcss and semantic segmentation as the executed operation."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Produce a readable TIAViz-compatible semantic-segmentation AnnotationStore under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\semantic_results_T006.",
+      "importance": "essential",
+      "success_evidence": "An AnnotationStore exists inside the requested directory, passes a database integrity check, and contains semantic-region annotations."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Save a PNG preview or overlay of the semantic segmentation.",
+      "importance": "secondary",
+      "success_evidence": "A readable PNG showing a segmentation preview or overlay exists in the output directory and is linked to this run."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Report a concise per-class area or region-count summary.",
+      "importance": "secondary",
+      "success_evidence": "The workflow output or final response provides quantitative area or region counts for the semantic classes."
+    },
+    {
+      "requirement_id": "R6",
+      "description": "Provide the exact TIAViz command for opening the slide with the generated AnnotationStore.",
+      "importance": "secondary",
+      "success_evidence": "The final response contains a usable TIAToolbox visualization command referencing the appropriate slide and overlay locations."
+    },
+    {
+      "requirement_id": "R7",
+      "description": "Verify the generated files before giving the final response.",
+      "importance": "secondary",
+      "success_evidence": "The trace contains an independent directory listing or equivalent file check performed after generation and before the final response."
+    },
+    {
+      "requirement_id": "R8",
+      "description": "Clearly report unavailable or failed secondary operations without claiming they succeeded.",
+      "importance": "secondary",
+      "success_evidence": "The final response accurately distinguishes completed deliverables from the missing PNG preview and per-class summary."
+    }
+  ],
+  "explicitly_not_required": [
+    "Clinical diagnosis or clinical interpretation",
+    "Launching TIAViz automatically",
+    "A particular AnnotationStore filename",
+    "Treating missing secondary deliverables as failure of the core segmentation",
+    "Regenerating or modifying any existing nucleus-instance AnnotationStore"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All three essential requirements and all five secondary requirements are satisfied.",
+    "partially_successful": "All essential requirements are satisfied and the semantic AnnotationStore is usable, but one or more secondary requirements are unmet or incomplete.",
+    "failed": "Any essential requirement is demonstrably unmet, or the semantic AnnotationStore is missing, unreadable, empty, materially incorrect, or stored outside the requested directory. Missing secondary deliverables alone must not produce a FAILED label."
+  },
+  "annotation_notes": "The primary-versus-secondary distinction was explicitly stated in the original request before execution. The expected classification must be determined from observed evidence rather than assigned in advance."
+}

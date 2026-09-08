@@ -1,0 +1,66 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T003",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-30",
+  "rubric_version": "1.0",
+  "source_request": "Inspect the WSI at C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\datasets\\CMU-1-Small-Region.svs. First report its WSI metadata. Then perform a preprocessing workflow consisting of: generate a morphological tissue mask at 2.0 mpp; save both the binary tissue mask and its overlay; extract a maximum of 25 tissue patches from level 0 using patch size 224 pixels, stride 224 pixels, and minimum tissue fraction 0.15. Save all generated outputs under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\preprocessing_results_T003, with extracted patches in a subfolder named patches. Do not run segmentation or classification models. At the end, verify the generated files and report the WSI metadata, tissue fraction, number of patches saved, and output paths.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Inspect the specified WSI and report its metadata.",
+      "importance": "essential",
+      "success_evidence": "The workflow uses the exact requested WSI and reports reliable metadata such as dimensions, level count, MPP, reader, or objective power."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Generate a morphological whole-slide tissue mask at 2.0 mpp.",
+      "importance": "essential",
+      "success_evidence": "A successful tissue-mask execution records method morphological and mpp 2.0."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Save both the binary tissue mask and a tissue-mask overlay.",
+      "importance": "essential",
+      "success_evidence": "Readable binary-mask and overlay image files exist in the requested output directory."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Extract at most 25 tissue patches from level 0 using patch size 224 pixels, stride 224 pixels, and minimum tissue fraction 0.15.",
+      "importance": "essential",
+      "success_evidence": "The execution request and resulting patches demonstrate the exact level, patch size, stride, tissue threshold, and maximum patch count."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Save all outputs under the requested preprocessing_results_T003 directory and put patches in its patches subfolder.",
+      "importance": "essential",
+      "success_evidence": "Generated artefacts exist at the requested output paths."
+    },
+    {
+      "requirement_id": "R6",
+      "description": "Do not run segmentation or classification models.",
+      "importance": "essential",
+      "success_evidence": "The tool trace contains no segmentation or classification model execution."
+    },
+    {
+      "requirement_id": "R7",
+      "description": "Verify the generated files and report WSI metadata, whole-slide tissue fraction, number of saved patches, and output paths.",
+      "importance": "essential",
+      "success_evidence": "The workflow independently lists or inspects the generated artefacts and the final response reports all requested values and paths."
+    }
+  ],
+  "explicitly_not_required": [
+    "Nucleus instance segmentation",
+    "Semantic segmentation",
+    "Patch classification",
+    "A diagnostic or clinical interpretation",
+    "More than 25 patches"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All seven essential requirements are satisfied and the complete preprocessing result is directly usable.",
+    "partially_successful": "A substantial, usable portion of the requested preprocessing workflow is completed, but one or more requested deliverables or reporting elements are missing. The remaining output requires only a bounded follow-up operation rather than complete re-execution.",
+    "failed": "The specified WSI is not processed, no usable preprocessing output is produced, or the result requires substantial re-execution. A tool failure that prevents only one component should be distinguished from total workflow failure."
+  },
+  "annotation_notes": "Requirements were extracted from the original request before evaluator judgment. Internal masking performed during patch extraction does not satisfy the separately requested saved binary mask and overlay."
+}

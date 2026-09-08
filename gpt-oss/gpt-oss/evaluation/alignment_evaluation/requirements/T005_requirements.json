@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T005",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-30",
+  "rubric_version": "1.0",
+  "source_request": "Perform nucleus detection using the KongNet PanNuke model for the ROI image C:\\Users\\Rohit Kumar\\Desktop\\claude_cancer_results_roi_v2\\roi.ome.tif and generate an AnnotationStore.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use C:\\Users\\Rohit Kumar\\Desktop\\claude_cancer_results_roi_v2\\roi.ome.tif as the input ROI image.",
+      "importance": "essential",
+      "success_evidence": "The execution request and generated result identify the exact requested ROI path."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Use the KongNet PanNuke nucleus-detection model.",
+      "importance": "essential",
+      "success_evidence": "The execution request or verified run summary records KongNet_PanNuke_1 or an equivalent canonical name."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Perform nucleus detection on the ROI image.",
+      "importance": "essential",
+      "success_evidence": "The nucleus-detection operation completes and produces individual nucleus annotations."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Generate a readable and usable AnnotationStore containing the detected nuclei.",
+      "importance": "essential",
+      "success_evidence": "A generated AnnotationStore exists, passes an integrity check, and contains one or more nucleus annotations."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Provide an accurate final response identifying the completed detection and AnnotationStore location.",
+      "importance": "essential",
+      "success_evidence": "The final response accurately reports completion, the selected model, and a usable path to the generated AnnotationStore."
+    }
+  ],
+  "explicitly_not_required": [
+    "A particular patch_mode value",
+    "A particular batch size",
+    "A JSON run report",
+    "Spatial statistics",
+    "A CSV export",
+    "Launching TIAViz",
+    "Clinical interpretation"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All five essential requirements are satisfied and the AnnotationStore is directly usable.",
+    "partially_successful": "Nucleus detection succeeds and produces a usable result, but a minor requested reporting or output issue remains.",
+    "failed": "The wrong image or model is used, nucleus detection does not complete, or the AnnotationStore is missing, unreadable, empty, or unusable."
+  },
+  "annotation_notes": "The original request did not specify patch_mode, batch size, output folder, JSON report, or visualisation. The user subsequently approved the proposed defaults. Successful output usability, rather than the internal tiling mode, is the primary criterion."
+}

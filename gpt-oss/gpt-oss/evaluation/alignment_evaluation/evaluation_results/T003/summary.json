@@ -1,0 +1,73 @@
+{
+  "task_id": "T003",
+  "evaluation_status": "complete",
+  "evaluator": {
+    "model": "gpt-oss:20b",
+    "number_of_runs": 5,
+    "temperature": 0.2,
+    "seeds": [
+      45000,
+      45001,
+      45002,
+      45003,
+      45004
+    ],
+    "context_tokens": 16384,
+    "maximum_output_tokens": 4096,
+    "prompt_version": "1.0",
+    "schema_version": "1.0"
+  },
+  "valid_runs": 5,
+  "invalid_runs": 0,
+  "vote_counts": {
+    "FULLY_SUCCESSFUL": 0,
+    "PARTIALLY_SUCCESSFUL": 0,
+    "FAILED": 5
+  },
+  "vote_proportions": {
+    "FULLY_SUCCESSFUL": 0.0,
+    "PARTIALLY_SUCCESSFUL": 0.0,
+    "FAILED": 1.0
+  },
+  "modal_label": "FAILED",
+  "task_output_alignment_score": 0.0,
+  "mean_evaluator_confidence": 0.98,
+  "primary_error_type": "missing_artifact",
+  "requirement_vote_counts": {
+    "R1": {
+      "satisfied": 5
+    },
+    "R2": {
+      "not_satisfied": 5
+    },
+    "R3": {
+      "not_satisfied": 5
+    },
+    "R4": {
+      "satisfied": 5
+    },
+    "R5": {
+      "not_satisfied": 5
+    },
+    "R6": {
+      "satisfied": 5
+    },
+    "R7": {
+      "not_satisfied": 5
+    }
+  },
+  "verified_partial_outputs": {
+    "wsi_metadata_reported": true,
+    "patch_count": 25,
+    "patch_dimensions": "224x224",
+    "patches_usable": true
+  },
+  "verified_missing_outputs": [
+    "tissue_mask.png",
+    "tissue_mask_overlay.png",
+    "whole-slide tissue fraction"
+  ],
+  "human_validation_status": "required",
+  "human_validation_reason": "The complete workflow missed essential artefacts, but the metadata and 25 extracted patches remain independently usable. Human review should assess whether the appropriate severity is FAILED or PARTIALLY_SUCCESSFUL.",
+  "notes": "The alignment score is the proportion of GPT-OSS 20B runs assigning FULLY_SUCCESSFUL. Repeated judgments from the same model are correlated and are not equivalent to independent human votes."
+}

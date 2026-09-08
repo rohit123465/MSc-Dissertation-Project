@@ -1,0 +1,97 @@
+{
+  "task_id": "T003",
+  "run_number": 2,
+  "status": "valid",
+  "error": null,
+  "configuration": {
+    "model": "gpt-oss:20b",
+    "base_url": "http://127.0.0.1:11434",
+    "temperature": 0.2,
+    "seed": 45001,
+    "prompt_version": "1.0",
+    "num_ctx": 16384,
+    "num_predict": 4096,
+    "schema_version": "1.0",
+    "requirements_sha256": "289a4f4d6182bd6b3d7c5894d33a7ce18f0fc64ed295001f0dc958aed2f47d0b",
+    "workflow_sha256": "1708688940017ef1e4105d781fe86b61884b86f5aa8409b3481190d72f972e99",
+    "prompt_sha256": "d6ea5fdd3ca13ca11d006c11b4b503a1c8236a8dc3472645d9ef018739d67fab",
+    "schema_sha256": "0f9eba7872d360862a29e9a1c3ece4156e4fdeaa89bba362ca71f925cbbd8056",
+    "python": "3.9.25",
+    "platform": "Linux-5.14.0-687.39.1.el9_8.x86_64-x86_64-with-glibc2.34"
+  },
+  "started_at": "2026-08-30T13:26:54.149375+00:00",
+  "completed_at": "2026-08-30T13:27:47.248730+00:00",
+  "judgment": {
+    "task_id": "T003",
+    "rubric_version": "1.0",
+    "requirement_results": [
+      {
+        "requirement_id": "R1",
+        "status": "satisfied",
+        "evidence": "Tool call 3 executed wsi_metadata and returned reader, dimensions, level count, mpp, and objective power values, confirming metadata reporting.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R2",
+        "status": "not_satisfied",
+        "evidence": "Tool call 4 failed with governance error: \"tissue_mask\" was outside the approved plan, so no mask was generated.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R3",
+        "status": "not_satisfied",
+        "evidence": "Missing_requested_artifacts lists tissue_mask.png and tissue_mask_overlay.png as non‑existent, confirming they were not saved.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R4",
+        "status": "satisfied",
+        "evidence": "Tool call 7 extracted 25 patches with the specified level, size, stride, and tissue fraction, and saved them to the patches directory.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R5",
+        "status": "not_satisfied",
+        "evidence": "Only the patches directory exists; the required mask files are missing, so the full set of outputs is incomplete.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R6",
+        "status": "satisfied",
+        "evidence": "No segmentation or classification tool calls appear in the trace; only wsi_metadata and extract_patches were used.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R7",
+        "status": "not_satisfied",
+        "evidence": "Final response states tissue fraction was not delivered and no file verification was performed, so the reporting requirement is unmet.",
+        "confidence": 0.95
+      }
+    ],
+    "dimension_scores": {
+      "request_interpretation": 1,
+      "tool_selection": 1,
+      "tool_arguments": 1,
+      "execution": 1,
+      "artifact_quality": 1,
+      "final_response_faithfulness": 1
+    },
+    "overall_label": "FAILED",
+    "critical_error": true,
+    "primary_error_type": "missing_artifact",
+    "confidence": 0.95,
+    "justification": "The workflow failed to generate and save the required tissue mask and overlay, and did not report the whole‑slide tissue fraction. These unmet essential requirements render the overall result unusable, leading to a failed evaluation."
+  },
+  "ollama_response_metadata": {
+    "model": "gpt-oss:20b",
+    "created_at": "2026-08-30T13:27:47.246139124Z",
+    "done_reason": "stop",
+    "total_duration": 53095933878,
+    "load_duration": 2904736,
+    "prompt_eval_count": 4993,
+    "prompt_eval_duration": 35058000,
+    "eval_count": 625,
+    "eval_duration": 30324233000
+  },
+  "raw_model_content": "{\n  \"task_id\": \"T003\",\n  \"rubric_version\": \"1.0\",\n  \"requirement_results\": [\n    {\n      \"requirement_id\": \"R1\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Tool call 3 executed wsi_metadata and returned reader, dimensions, level count, mpp, and objective power values, confirming metadata reporting.\",\n      \"confidence\": 0.95\n    },\n    {\n      \"requirement_id\": \"R2\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Tool call 4 failed with governance error: \\\"tissue_mask\\\" was outside the approved plan, so no mask was generated.\",\n      \"confidence\": 0.95\n    },\n    {\n      \"requirement_id\": \"R3\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Missing_requested_artifacts lists tissue_mask.png and tissue_mask_overlay.png as non‑existent, confirming they were not saved.\",\n      \"confidence\": 0.95\n    },\n    {\n      \"requirement_id\": \"R4\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Tool call 7 extracted 25 patches with the specified level, size, stride, and tissue fraction, and saved them to the patches directory.\",\n      \"confidence\": 0.95\n    },\n    {\n      \"requirement_id\": \"R5\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Only the patches directory exists; the required mask files are missing, so the full set of outputs is incomplete.\",\n      \"confidence\": 0.95\n    },\n    {\n      \"requirement_id\": \"R6\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"No segmentation or classification tool calls appear in the trace; only wsi_metadata and extract_patches were used.\",\n      \"confidence\": 0.95\n    },\n    {\n      \"requirement_id\": \"R7\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Final response states tissue fraction was not delivered and no file verification was performed, so the reporting requirement is unmet.\",\n      \"confidence\": 0.95\n    }\n  ],\n  \"dimension_scores\": {\n    \"request_interpretation\": 1,\n    \"tool_selection\": 1,\n    \"tool_arguments\": 1,\n    \"execution\": 1,\n    \"artifact_quality\": 1,\n    \"final_response_faithfulness\": 1\n  },\n  \"overall_label\": \"FAILED\",\n  \"critical_error\": true,\n  \"primary_error_type\": \"missing_artifact\",\n  \"confidence\": 0.95,\n  \"justification\": \"The workflow failed to generate and save the required tissue mask and overlay, and did not report the whole‑slide tissue fraction. These unmet essential requirements render the overall result unusable, leading to a failed evaluation.\"\n}"
+}

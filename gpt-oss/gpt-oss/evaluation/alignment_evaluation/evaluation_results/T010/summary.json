@@ -1,0 +1,187 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T010",
+  "workflow_name": "Common ROI-level normalized spatial entropy",
+  "evaluation_status": "complete",
+  "evaluator": {
+    "model": "gpt-oss:20b",
+    "runs": 5,
+    "temperature": 0.2,
+    "base_seed": 52000
+  },
+  "vote_distribution": {
+    "FULLY_SUCCESSFUL": {
+      "count": 2,
+      "proportion": 0.4
+    },
+    "PARTIALLY_SUCCESSFUL": {
+      "count": 3,
+      "proportion": 0.6
+    },
+    "FAILED": {
+      "count": 0,
+      "proportion": 0.0
+    }
+  },
+  "modal_label": "PARTIALLY_SUCCESSFUL",
+  "unanimous": false,
+  "modal_vote_agreement": 0.6,
+  "task_output_alignment_score": 0.4,
+  "weighted_workflow_score": 0.7,
+  "mean_evaluator_confidence": 0.99,
+  "scoring_definitions": {
+    "task_output_alignment_score": "Proportion of evaluator votes labelled FULLY_SUCCESSFUL.",
+    "weighted_workflow_score": "Mean score using FULLY_SUCCESSFUL=1.0, PARTIALLY_SUCCESSFUL=0.5, and FAILED=0.0.",
+    "modal_vote_agreement": "Proportion of evaluator votes matching the most frequent overall label."
+  },
+  "requirement_votes": {
+    "R1": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R2": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R3": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R4": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R5": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R6": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R7": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R8": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R9": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R10": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    }
+  },
+  "requirement_outcomes": {
+    "essential": {
+      "requirements": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7",
+        "R8"
+      ],
+      "all_satisfied": true
+    },
+    "secondary_satisfied": [
+      "R9"
+    ],
+    "secondary_not_satisfied": [
+      "R10"
+    ]
+  },
+  "artifact_outcome": {
+    "output_directory": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\entropy_results_T010",
+    "files": [
+      "common_roi_entropy.json",
+      "common_roi_entropy.csv",
+      "common_roi_entropy.txt"
+    ],
+    "all_files_present": true,
+    "all_files_readable": true,
+    "region_count": 21,
+    "computed_region_count": 21,
+    "category_counts": {
+      "low": 6,
+      "intermediate": 6,
+      "high": 9
+    },
+    "category_count_sum": 21,
+    "category_count_sum_matches_total": true,
+    "mean_entropy": 0.5436613823051263,
+    "median_entropy": 0.6252624052234231,
+    "minimum_entropy": 0.0,
+    "maximum_entropy": 0.9509560484549724
+  },
+  "provenance_issue": {
+    "requirement_id": "R10",
+    "status": "not_satisfied",
+    "description": "The generated JSON analysis label and text-report title refer to KongNet even though the input common spatial dataset was derived from HoVer-Net fast MoNuSAC.",
+    "severity": "minor",
+    "numerical_impact": "none demonstrated",
+    "usability_impact": "The numerical entropy results remain usable, but the model-family label is inaccurate."
+  },
+  "individual_run_outcomes": [
+    {
+      "run": "run_01.json",
+      "label": "PARTIALLY_SUCCESSFUL"
+    },
+    {
+      "run": "run_02.json",
+      "label": "PARTIALLY_SUCCESSFUL"
+    },
+    {
+      "run": "run_03.json",
+      "label": "FULLY_SUCCESSFUL"
+    },
+    {
+      "run": "run_04.json",
+      "label": "FULLY_SUCCESSFUL"
+    },
+    {
+      "run": "run_05.json",
+      "label": "PARTIALLY_SUCCESSFUL"
+    }
+  ],
+  "justifications": [
+    {
+      "run": "run_01.json",
+      "text": "All essential requirements R1–R9 are reliably met with readable artifacts and correct counts. A secondary provenance inconsistency R10 is present but does not affect numerical results, so the workflow is partially successful."
+    },
+    {
+      "run": "run_02.json",
+      "text": "All essential requirements are satisfied and the entropy results are usable. The only issue is a minor provenance-label inconsistency between KongNet and HoVer-Net that does not affect numerical validity. Therefore the workflow is partially successful."
+    },
+    {
+      "run": "run_03.json",
+      "text": "All essential requirements R1–R8 are fully met with reliable evidence. The secondary provenance mismatch R10 is cosmetic and does not affect numerical results or usability. No material issue prevents direct use of the entropy statistics. Therefore the workflow is fully successful."
+    },
+    {
+      "run": "run_04.json",
+      "text": "All essential requirements R1–R8 are fully met with verifiable evidence. The only shortfall is a secondary provenance mismatch R10, which does not affect numerical correctness or usability. Therefore the workflow satisfies the user request and is fully successful."
+    },
+    {
+      "run": "run_05.json",
+      "text": "All essential requirements R1–R8 are met with reliable evidence. The only shortfall is a secondary provenance inconsistency R10, which does not affect numerical results or usability. Therefore the workflow is partially successful."
+    }
+  ],
+  "interpretation": "The entropy workflow completed its essential objective and generated complete, internally consistent JSON, CSV, and text results. Evaluators unanimously detected the incorrect KongNet provenance label but differed on whether this cosmetic secondary defect warranted downgrading the overall workflow. The modal outcome is partially successful.",
+  "reporting_note": "Report the full 2-to-3 vote split rather than presenting T010 as unanimous. This disagreement demonstrates evaluator variability at the boundary between fully and partially successful workflows."
+}

@@ -1,0 +1,61 @@
+{
+  "task_id": "T011",
+  "runs": 5,
+  "vote_distribution": {
+    "FULLY_SUCCESSFUL": {
+      "count": 5,
+      "percentage": 100.0
+    },
+    "PARTIALLY_SUCCESSFUL": {
+      "count": 0,
+      "percentage": 0.0
+    },
+    "FAILED": {
+      "count": 0,
+      "percentage": 0.0
+    }
+  },
+  "modal_outcome": "FULLY_SUCCESSFUL",
+  "task_output_alignment_score": 1.0,
+  "weighted_workflow_score": 1.0,
+  "mean_evaluator_confidence": 1.0,
+  "requirement_votes": {
+    "R1": {
+      "satisfied": 5
+    },
+    "R2": {
+      "satisfied": 5
+    },
+    "R3": {
+      "satisfied": 5
+    },
+    "R4": {
+      "satisfied": 5
+    },
+    "R5": {
+      "satisfied": 5
+    },
+    "R6": {
+      "satisfied": 5
+    },
+    "R7": {
+      "satisfied": 5
+    },
+    "R8": {
+      "satisfied": 5
+    },
+    "R9": {
+      "satisfied": 5
+    },
+    "R10": {
+      "satisfied": 5
+    }
+  },
+  "justifications": {
+    "run_01.json": "All essential requirements are met with reliable evidence. The analysis used the correct dataset, parameters, and workflow; result files are present, readable, and internally consistent; and the final report accurately reflects the findings and limitations. No contradictions or missing essential outputs exist.",
+    "run_02.json": "All essential requirements are met with reliable evidence. The analysis used the specified dataset and parameters, computed regional proximity, produced readable JSON/CSV files in the correct location, and the reported statistics match the artifacts. Verification confirms consistency between files and headline values. No prohibited operations were performed, and the limitations are clearly stated. Therefore the workflow is fully successful.",
+    "run_03.json": "All essential requirements are met with reliable evidence. The workflow used the correct input file, parameters, and supported analysis type. Result artifacts exist, are readable, and match across JSON and CSV. Reported statistics align with artifact contents. No prohibited operations were performed. The limitations and explanations were clearly stated. Therefore the task is fully successful.",
+    "run_04.json": "All essential requirements are met with reliable evidence from workflow metadata, artifact verification, and final response. No contradictions or missing outputs exist, and the results are usable and correctly reported.",
+    "run_05.json": "All essential requirements are met: the correct input file and parameters were used, the common tumour-immune interaction workflow was executed, and readable JSON/CSV outputs were produced in the specified directory. Artifact verification confirms matching region counts and field values, and the reported statistics match the generated data. The limitations and final response clearly state the model-derived nature of Epithelial and the research-statistic interpretation. No essential requirement is unmet, so the workflow is fully successful."
+  }
+}

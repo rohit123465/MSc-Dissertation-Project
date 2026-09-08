@@ -1,0 +1,65 @@
+{
+  "task_id": "T002",
+  "evaluation_status": "complete",
+  "evaluator": {
+    "model": "gpt-oss:20b",
+    "number_of_runs": 5,
+    "temperature": 0.2,
+    "seeds": [
+      44000,
+      44001,
+      44002,
+      44003,
+      44004
+    ],
+    "context_tokens": 16384,
+    "maximum_output_tokens": 4096,
+    "prompt_version": "1.0",
+    "schema_version": "1.0"
+  },
+  "valid_runs": 5,
+  "invalid_runs": 0,
+  "vote_counts": {
+    "FULLY_SUCCESSFUL": 5,
+    "PARTIALLY_SUCCESSFUL": 0,
+    "FAILED": 0
+  },
+  "vote_proportions": {
+    "FULLY_SUCCESSFUL": 1.0,
+    "PARTIALLY_SUCCESSFUL": 0.0,
+    "FAILED": 0.0
+  },
+  "modal_label": "FULLY_SUCCESSFUL",
+  "task_output_alignment_score": 1.0,
+  "mean_evaluator_confidence": 0.99,
+  "requirement_vote_counts": {
+    "R1": {
+      "satisfied": 5
+    },
+    "R2": {
+      "satisfied": 5
+    },
+    "R3": {
+      "satisfied": 5
+    },
+    "R4": {
+      "satisfied": 5
+    },
+    "R5": {
+      "satisfied": 5
+    },
+    "R6": {
+      "satisfied": 5
+    },
+    "R7": {
+      "satisfied": 5
+    }
+  },
+  "recovered_workflow_issue": {
+    "present": true,
+    "description": "The first plan approval failed because the parameters were not baked into the plan. The agent finalized and approved a corrected plan before executing the computation.",
+    "effect_on_outcome": "No material effect on the final result."
+  },
+  "human_validation_status": "pending",
+  "notes": "The alignment score is the proportion of GPT-OSS 20B runs assigning FULLY_SUCCESSFUL. Repeated judgments from the same model are correlated and are not equivalent to independent human votes."
+}

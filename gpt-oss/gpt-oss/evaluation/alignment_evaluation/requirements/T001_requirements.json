@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T001",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-29",
+  "rubric_version": "1.0",
+  "source_request": "Perform nucleus instance segmentation using the hovernet fast monusac model on the WSI present at \"C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\datasets\\CMU-1-Small-Region.svs\" and save the result as an annotationstore in the output folder C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use the WSI at C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\datasets\\CMU-1-Small-Region.svs as the input.",
+      "importance": "essential",
+      "success_evidence": "The execution trace identifies this exact input path, or the resulting artefact is reliably linked to this slide."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Perform nucleus instance segmentation rather than a different pathology analysis.",
+      "importance": "essential",
+      "success_evidence": "The selected operation is nucleus instance segmentation and produces individual nucleus annotations."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Use the HoVer-Net fast MoNuSAC model.",
+      "importance": "essential",
+      "success_evidence": "The execution configuration or trustworthy run metadata identifies hovernet_fast-monusac or an equivalent canonical spelling."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Produce an AnnotationStore containing the segmentation result.",
+      "importance": "essential",
+      "success_evidence": "A readable AnnotationStore exists, passes an integrity check, and contains nucleus annotations."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Save the AnnotationStore in C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results.",
+      "importance": "essential",
+      "success_evidence": "The generated AnnotationStore exists within the exact requested output directory."
+    }
+  ],
+  "explicitly_not_required": [
+    "A predictions JSON file",
+    "A run-report JSON file",
+    "Launching TIAViz",
+    "Providing a visualization command",
+    "A particular AnnotationStore filename",
+    "Clinical interpretation of the segmentation"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All five essential requirements are satisfied and the AnnotationStore is directly usable.",
+    "partially_successful": "The principal segmentation result is usable, but a minor, non-essential issue or an uncertainty not affecting intended use remains.",
+    "failed": "Any essential requirement is demonstrably unmet, or the AnnotationStore is missing, unreadable, empty, materially incorrect, or saved outside the requested directory. Lack of evidence should be reported separately and must not automatically be treated as proof of failure."
+  },
+  "annotation_notes": "Requirements were extracted from the original request only. Features introduced by the agent's plan or final response were not converted into user requirements."
+}

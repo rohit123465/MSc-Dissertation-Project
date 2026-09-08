@@ -1,0 +1,179 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T009",
+  "workflow_name": "Kather patch-prediction aggregation and confidence summary",
+  "evaluation_status": "complete",
+  "evaluator": {
+    "model": "gpt-oss:20b",
+    "runs": 5,
+    "temperature": 0.2,
+    "base_seed": 51000
+  },
+  "vote_distribution": {
+    "FULLY_SUCCESSFUL": {
+      "count": 0,
+      "proportion": 0.0
+    },
+    "PARTIALLY_SUCCESSFUL": {
+      "count": 0,
+      "proportion": 0.0
+    },
+    "FAILED": {
+      "count": 5,
+      "proportion": 1.0
+    }
+  },
+  "modal_label": "FAILED",
+  "unanimous": true,
+  "task_output_alignment_score": 0.0,
+  "weighted_workflow_score": 0.0,
+  "mean_evaluator_confidence": 0.92,
+  "scoring_definitions": {
+    "task_output_alignment_score": "Proportion of evaluator votes labelled FULLY_SUCCESSFUL.",
+    "weighted_workflow_score": "Mean score using FULLY_SUCCESSFUL=1.0, PARTIALLY_SUCCESSFUL=0.5, and FAILED=0.0."
+  },
+  "requirement_votes": {
+    "R1": {
+      "satisfied": 0,
+      "partially_satisfied": 3,
+      "not_satisfied": 2,
+      "insufficient_evidence": 0
+    },
+    "R2": {
+      "satisfied": 0,
+      "partially_satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R3": {
+      "satisfied": 0,
+      "partially_satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R4": {
+      "satisfied": 0,
+      "partially_satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R5": {
+      "satisfied": 0,
+      "partially_satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R6": {
+      "satisfied": 0,
+      "partially_satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R7": {
+      "satisfied": 0,
+      "partially_satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R8": {
+      "satisfied": 0,
+      "partially_satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R9": {
+      "satisfied": 5,
+      "partially_satisfied": 0,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R10": {
+      "satisfied": 0,
+      "partially_satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R11": {
+      "satisfied": 5,
+      "partially_satisfied": 0,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    }
+  },
+  "requirement_outcomes": {
+    "essential_not_satisfied": [
+      "R2",
+      "R3",
+      "R7",
+      "R8",
+      "R10"
+    ],
+    "essential_satisfied": [
+      "R9"
+    ],
+    "essential_mixed": [
+      "R1"
+    ],
+    "secondary_not_satisfied": [
+      "R4",
+      "R5",
+      "R6"
+    ],
+    "secondary_satisfied": [
+      "R11"
+    ]
+  },
+  "source_artifact_truth": {
+    "raw_prediction_file": "C:\\Users\\Rohit Kumar\\Desktop\\claude_cancer_results_V3\\0.raw.json",
+    "actual_predictions": 2658,
+    "actual_probability_vectors": 2658,
+    "actual_coordinates": 2658,
+    "parallel_arrays_aligned": true,
+    "number_of_registered_classes": 9
+  },
+  "generated_output_outcome": {
+    "output_directory": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\patch_summary_results_T009",
+    "files": [
+      "patch_summary.json",
+      "patch_summary_per_class.csv",
+      "patch_summary_overall.csv"
+    ],
+    "files_readable": true,
+    "reported_total_records": 0,
+    "reported_total_classified_patches": 0,
+    "reported_classes": 0,
+    "per_class_data_rows": 0,
+    "confidence_statistics_present": false,
+    "materially_correct": false
+  },
+  "primary_error": {
+    "error_type": "output_format_or_parsing_error",
+    "description": "The fallback parser did not recognize that 0.raw.json contains parallel top-level predictions, probabilities, and coordinates arrays.",
+    "contributing_error": "The planner routed the request to spatial analysis and prevented the registered Kather aggregation tools from running.",
+    "impact": "The generated JSON and CSV files were readable but empty and materially incorrect."
+  },
+  "justifications": [
+    {
+      "run": "run_01.json",
+      "text": "The workflow failed to parse the raw prediction arrays, producing empty summaries and incorrect totals. Essential metrics such as total patches, class counts, and confidences were not computed, and the generated files did not contain the required quantitative data. Therefore the essential requirements are unmet, leading to a FAILED outcome."
+    },
+    {
+      "run": "run_02.json",
+      "text": "Essential requirements R2–R8 and R10 are demonstrably unmet; the produced summaries are empty and incorrect. The workflow failed to parse the raw predictions and misrepresented parsing success, violating the core objective. Therefore the overall outcome is a failure."
+    },
+    {
+      "run": "run_03.json",
+      "text": "Essential requirements R1, R2, R3, R7, R8, and R10 are not met; the generated summaries are empty and materially incorrect, so the workflow fails to satisfy the user's request."
+    },
+    {
+      "run": "run_04.json",
+      "text": "All essential requirements R1, R2, R3, R4, R5, R6, R7, R8, and R10 are demonstrably unmet; the generated summaries are empty and materially incorrect. The workflow failed to parse the source data, so the overall result is unusable."
+    },
+    {
+      "run": "run_05.json",
+      "text": "The workflow failed to parse the raw prediction file, producing empty summaries and incorrect totals. Several essential requirements R2–R8 and R10 were not met, and the generated JSON and CSV files are materially incorrect. Although no inference was rerun and a research disclaimer was included, the lack of accurate quantitative results renders the task incomplete. Therefore the overall outcome is FAILED."
+    }
+  ],
+  "interpretation": "The workflow was unanimously judged failed because the generated summaries contained zero records despite the source raw prediction file containing 2658 valid and aligned patch predictions. Producing readable files did not satisfy the task because their quantitative contents were materially incorrect.",
+  "reporting_note": "Some evaluator justifications referred to R4–R6 as essential even though the frozen rubric classifies them as secondary. This wording inconsistency does not affect the FAILED modal label because multiple genuinely essential requirements were unanimously unmet."
+}

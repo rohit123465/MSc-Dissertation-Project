@@ -1,0 +1,13 @@
+2026-08-30T12:18:48+01:00
+gecko-02
+ollama version is 0.33.2
+NAME           ID              SIZE     MODIFIED     
+gpt-oss:20b    17052f91a42e    13 GB    15 hours ago    
+Python 3.9.25
+name, memory.total [MiB], driver_version
+NVIDIA A10, 23028 MiB, 580.173.02
+54741a3727b6dcf5d6e0d27d1ab6ce1be0a30ebde96fbdd62e89093be471bc8c  workflows/T001.json
+324310d5fc773f504b5a6e59ef0cbe3dcd7d6504b4e0513fdf6c3d5a5ac09d0b  requirements/T001_requirements.json
+d6ea5fdd3ca13ca11d006c11b4b503a1c8236a8dc3472645d9ef018739d67fab  evaluator/evaluator_prompt_v1.txt
+0f9eba7872d360862a29e9a1c3ece4156e4fdeaa89bba362ca71f925cbbd8056  evaluator/evaluator_output_schema_v1.json
+9e14e0be4249ad6633c396f9b54b0dc94a99f72b9c642b292cb0a3985481879a  run_evaluator.py

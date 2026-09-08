@@ -1,0 +1,130 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T006",
+  "workflow_name": "Semantic segmentation with secondary deliverables",
+  "evaluation_status": "complete",
+  "evaluator": {
+    "model": "gpt-oss:20b",
+    "runs": 5,
+    "temperature": 0.2,
+    "base_seed": 48000
+  },
+  "vote_distribution": {
+    "FULLY_SUCCESSFUL": {
+      "count": 0,
+      "proportion": 0.0
+    },
+    "PARTIALLY_SUCCESSFUL": {
+      "count": 5,
+      "proportion": 1.0
+    },
+    "FAILED": {
+      "count": 0,
+      "proportion": 0.0
+    }
+  },
+  "modal_label": "PARTIALLY_SUCCESSFUL",
+  "unanimous": true,
+  "task_output_alignment_score": 0.0,
+  "weighted_workflow_score": 0.5,
+  "mean_evaluator_confidence": 0.99,
+  "scoring_definitions": {
+    "task_output_alignment_score": "Proportion of evaluator votes labelled FULLY_SUCCESSFUL.",
+    "weighted_workflow_score": "Mean score using FULLY_SUCCESSFUL=1.0, PARTIALLY_SUCCESSFUL=0.5, and FAILED=0.0."
+  },
+  "requirement_votes": {
+    "R1": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "uncertain": 0
+    },
+    "R2": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "uncertain": 0
+    },
+    "R3": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "uncertain": 0
+    },
+    "R4": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "uncertain": 0
+    },
+    "R5": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "uncertain": 0
+    },
+    "R6": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "uncertain": 0
+    },
+    "R7": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "uncertain": 0
+    },
+    "R8": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "uncertain": 0
+    }
+  },
+  "requirement_outcomes": {
+    "essential": {
+      "requirements": [
+        "R1",
+        "R2",
+        "R3"
+      ],
+      "all_satisfied": true
+    },
+    "secondary_satisfied": [
+      "R6",
+      "R7",
+      "R8"
+    ],
+    "secondary_not_satisfied": [
+      "R4",
+      "R5"
+    ]
+  },
+  "missing_secondary_deliverables": [
+    {
+      "requirement_id": "R4",
+      "deliverable": "PNG preview or overlay of the semantic segmentation"
+    },
+    {
+      "requirement_id": "R5",
+      "deliverable": "Per-class area or region-count summary"
+    }
+  ],
+  "justifications": [
+    {
+      "run": "run_01.json",
+      "text": "All essential requirements (R1–R3) are met and the AnnotationStore is usable. Secondary requirements R4 and R5 are missing, but R6–R8 are satisfied, meeting the criteria for a partially successful outcome."
+    },
+    {
+      "run": "run_02.json",
+      "text": "All essential requirements R1–R3 are met: the exact WSI path, model, and AnnotationStore were produced and verified. Secondary deliverables R4 and R5 were not generated, while R6–R8 were satisfied. Because the core segmentation artifact is usable and only non-essential outputs are missing, the workflow is judged partially successful."
+    },
+    {
+      "run": "run_03.json",
+      "text": "All essential requirements (R1–R3) are met and the AnnotationStore is usable. Two secondary requirements (R4, R5) are missing, but the core deliverable is intact and secondary failures are clearly reported. Thus the workflow is partially successful."
+    },
+    {
+      "run": "run_04.json",
+      "text": "All essential requirements (R1–R3) are satisfied with verified artifacts. Secondary requirements R4 and R5 are missing, but R6–R8 are fulfilled. The core segmentation AnnotationStore is usable and verified, meeting the primary objective. Therefore the workflow is partially successful."
+    },
+    {
+      "run": "run_05.json",
+      "text": "All essential requirements (R1–R3) are met with verified artifacts. Secondary deliverables R4 and R5 are missing, but R6–R8 are satisfied and clearly reported. The core segmentation AnnotationStore is usable, meeting the primary objective, so the workflow is partially successful."
+    }
+  ],
+  "interpretation": "The workflow achieved its essential objective by generating a usable and verified semantic-segmentation AnnotationStore. It was unanimously classified as partially successful because two explicitly secondary deliverables were not produced.",
+  "reporting_note": "T006 was a predefined boundary or stress-test case designed to test whether the evaluation framework distinguishes usable-but-incomplete workflows from complete failures. It should not be described as a randomly sampled workflow failure."
+}

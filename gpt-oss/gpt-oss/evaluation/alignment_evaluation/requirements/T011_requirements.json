@@ -1,0 +1,62 @@
+{
+  "task_id": "T011",
+  "task_name": "Regional tumour-immune proximity analysis",
+  "evaluation_scope": "Evaluate whether the observed workflow correctly computed and verified regional Epithelial-Lymphocyte proximity statistics from the existing common spatial-feature dataset.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use the existing common_spatial_features.json file at C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\common_spatial_features.json as the analysis input.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Use Epithelial as the explicit model-derived tumour-proxy class and Lymphocyte as the immune class.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Use a 50-micron interaction radius, a 256-micron region size, and minimum probability 0.0.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Compute regional Epithelial-Lymphocyte proximity using the supported common tumour-immune interaction workflow.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Save readable JSON and CSV result files under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\interaction_results_T011.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R6",
+      "description": "Accurately report 21 analysed regions, 2886 total Epithelial-Lymphocyte proximity pairs, 16 regions containing both populations, and R11 as the region with the highest interaction strength at approximately 648.73 pairs per 100 cells.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R7",
+      "description": "Verify that the JSON and CSV files are readable and that their per-region values and headline statistics agree.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R8",
+      "description": "Do not rebuild or modify the common spatial-feature dataset, rerun segmentation, or use QuPath GeoJSON.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R9",
+      "description": "Clearly state that Epithelial is only a model-derived proxy for tumour and that the results are represented-region research statistics, not evidence of biological interaction or a clinical diagnosis.",
+      "essential": true
+    },
+    {
+      "requirement_id": "R10",
+      "description": "Explain that interaction strength is expressed as distinct proximity pairs per 100 retained cells, is not a percentage, and can therefore exceed 100.",
+      "essential": false
+    }
+  ],
+  "decision_rules": {
+    "FULLY_SUCCESSFUL": "All essential requirements are satisfied with reliable evidence, the result files are usable and verified, and no material error or contradiction is present.",
+    "PARTIALLY_SUCCESSFUL": "All essential computational requirements are satisfied and the results remain usable, but one or more secondary reporting or verification details are missing or contain a minor non-material defect.",
+    "FAILED": "One or more essential requirements are unmet, the computation uses materially incorrect inputs or parameters, required result files are missing or unreadable, reported statistics contradict the artifacts, or the result is otherwise unusable."
+  }
+}

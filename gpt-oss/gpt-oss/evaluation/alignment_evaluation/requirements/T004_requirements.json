@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T004",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-30",
+  "rubric_version": "1.0",
+  "source_request": "Analyze the WSI at C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\datasets\\TCGA-B3-3925-01Z-00-DX1.cb28f651-66c0-4746-a5df-b382d9d267c2.svs, perform patch prediction, and save it in C:\\Users\\Rohit Kumar\\Desktop\\claude_cancer_results_V3.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use the specified TCGA WSI as the input.",
+      "importance": "essential",
+      "success_evidence": "The prediction execution and generated result identify the exact requested WSI path."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Perform patch-level prediction on the WSI using an appropriate registered patch-classification model.",
+      "importance": "essential",
+      "success_evidence": "A patch-prediction tool successfully executes on the WSI and records the selected registered model."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Produce usable patch-prediction results.",
+      "importance": "essential",
+      "success_evidence": "Readable raw per-patch predictions or an equivalent prediction result exists and contains patch-class outputs."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Save the patch-prediction result in C:\\Users\\Rohit Kumar\\Desktop\\claude_cancer_results_V3.",
+      "importance": "essential",
+      "success_evidence": "The generated prediction files exist inside the exact requested output directory."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Provide an accurate final response describing the completed patch prediction, principal output locations, and any material failures.",
+      "importance": "essential",
+      "success_evidence": "The final response correctly reports the completed core prediction, gives usable output paths, and does not conceal failed operations."
+    }
+  ],
+  "explicitly_not_required": [
+    "A specific patch-classification model, because the original request did not name one",
+    "Kather aggregate metrics",
+    "A confidence histogram",
+    "A plain-text Kather summary",
+    "A JSON run report",
+    "A specific AnnotationStore filename",
+    "A clinical diagnosis"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All five essential requirements are satisfied and the patch-prediction result is directly usable. Failure of optional post-processing does not prevent full success if it was not requested and the core result remains usable.",
+    "partially_successful": "The core prediction is usable, but a minor requested reporting or output issue remains.",
+    "failed": "The specified WSI is not processed, the patch prediction fails, the core result is missing or unreadable, or it is saved outside the requested directory."
+  },
+  "annotation_notes": "The user requested patch prediction but did not specify a model or downstream metrics. ResNet18-Kather100K was proposed by the agent and approved by the user. Optional post-processing introduced after prediction is not treated as an original requirement."
+}

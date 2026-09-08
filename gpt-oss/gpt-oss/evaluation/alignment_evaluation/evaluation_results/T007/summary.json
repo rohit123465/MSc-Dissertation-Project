@@ -1,0 +1,142 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T007",
+  "workflow_name": "AnnotationStore nucleus export to CSV",
+  "evaluation_status": "complete",
+  "evaluator": {
+    "model": "gpt-oss:20b",
+    "runs": 5,
+    "temperature": 0.2,
+    "base_seed": 49000
+  },
+  "vote_distribution": {
+    "FULLY_SUCCESSFUL": {
+      "count": 0,
+      "proportion": 0.0
+    },
+    "PARTIALLY_SUCCESSFUL": {
+      "count": 0,
+      "proportion": 0.0
+    },
+    "FAILED": {
+      "count": 5,
+      "proportion": 1.0
+    }
+  },
+  "modal_label": "FAILED",
+  "unanimous": true,
+  "task_output_alignment_score": 0.0,
+  "weighted_workflow_score": 0.0,
+  "mean_evaluator_confidence": 0.96,
+  "scoring_definitions": {
+    "task_output_alignment_score": "Proportion of evaluator votes labelled FULLY_SUCCESSFUL.",
+    "weighted_workflow_score": "Mean score using FULLY_SUCCESSFUL=1.0, PARTIALLY_SUCCESSFUL=0.5, and FAILED=0.0."
+  },
+  "requirement_votes": {
+    "R1": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R2": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R3": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R4": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R5": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R6": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R7": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R8": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R9": {
+      "satisfied": 0,
+      "not_satisfied": 4,
+      "insufficient_evidence": 1
+    }
+  },
+  "requirement_outcomes": {
+    "essential_satisfied": [
+      "R4"
+    ],
+    "essential_not_satisfied": [
+      "R1",
+      "R2",
+      "R3"
+    ],
+    "secondary_not_satisfied": [
+      "R5",
+      "R6",
+      "R7",
+      "R8"
+    ],
+    "secondary_mixed": [
+      "R9"
+    ]
+  },
+  "artifact_outcome": {
+    "source_annotationstore": {
+      "path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\CMU-1-Small-Region.db",
+      "exists": true,
+      "integrity": "ok",
+      "annotation_count": 914,
+      "modified_by_workflow": false
+    },
+    "requested_output_directory": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\export_results_T007",
+    "output_item_count": 0,
+    "csv_generated": false
+  },
+  "primary_error": {
+    "error_type": "tool_selection_or_planner_routing",
+    "description": "The planner repeatedly classified the existing-AnnotationStore export request as a nucleus-segmentation prediction task. The resulting approval token did not authorize the CSV export tool.",
+    "impact": "The essential nucleus-level CSV was not generated."
+  },
+  "justifications": [
+    {
+      "run": "run_01.json",
+      "text": "The workflow failed to produce the required nucleus-level CSV; essential requirements R1–R3 were not met. Consequently the overall outcome is FAILED."
+    },
+    {
+      "run": "run_02.json",
+      "text": "The workflow failed to produce the required nucleus-level CSV, leaving essential requirements R1, R2, and R3 unmet. While the source database remained unmodified, the absence of any exported data and verification steps means the deliverable is incomplete, rendering the overall outcome a failure."
+    },
+    {
+      "run": "run_03.json",
+      "text": "The workflow failed to produce the required nucleus-level CSV in the specified directory, violating essential requirements R1, R2, and R3. No evidence of a successful export exists, so the overall result is a failure."
+    },
+    {
+      "run": "run_04.json",
+      "text": "The workflow failed to produce the required nucleus-level CSV in the specified directory, violating essential requirements R1, R2, and R3. While the source database was left intact, the absence of any export operation means the essential deliverable was not met."
+    },
+    {
+      "run": "run_05.json",
+      "text": "The workflow failed to produce the required nucleus-level CSV, leaving essential requirements R1, R2, and R3 unmet. The source database was not used for export, no file was written, and no counts or summaries were generated. Consequently, the overall result is a failure."
+    }
+  ],
+  "interpretation": "The workflow was unanimously judged failed because it did not generate the essential nucleus-level CSV. Correctly preserving the source AnnotationStore and accurately reporting the limitation did not compensate for the missing primary deliverable.",
+  "reporting_note": "T007 is a naturally observed workflow failure caused by planner and approval-scope routing. It should be retained without rerunning or weakening its original requirements."
+}

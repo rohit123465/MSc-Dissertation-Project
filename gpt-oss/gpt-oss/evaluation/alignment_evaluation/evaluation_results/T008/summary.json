@@ -1,0 +1,182 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T008",
+  "workflow_name": "Lymphocyte–Epithelial nucleus co-occurrence",
+  "evaluation_status": "complete",
+  "evaluator": {
+    "model": "gpt-oss:20b",
+    "runs": 5,
+    "temperature": 0.2,
+    "base_seed": 50000
+  },
+  "final_approved_parameters": {
+    "cell_types": [
+      "Lymphocyte",
+      "Epithelial"
+    ],
+    "radius": 50.0,
+    "distance_units": "microns",
+    "min_probability": 0.0,
+    "radius_amendment": "The user explicitly changed the original distance request by stating: take 50 um."
+  },
+  "vote_distribution": {
+    "FULLY_SUCCESSFUL": {
+      "count": 0,
+      "proportion": 0.0
+    },
+    "PARTIALLY_SUCCESSFUL": {
+      "count": 5,
+      "proportion": 1.0
+    },
+    "FAILED": {
+      "count": 0,
+      "proportion": 0.0
+    }
+  },
+  "modal_label": "PARTIALLY_SUCCESSFUL",
+  "unanimous": true,
+  "task_output_alignment_score": 0.0,
+  "weighted_workflow_score": 0.5,
+  "mean_evaluator_confidence": 0.98,
+  "scoring_definitions": {
+    "task_output_alignment_score": "Proportion of evaluator votes labelled FULLY_SUCCESSFUL.",
+    "weighted_workflow_score": "Mean score using FULLY_SUCCESSFUL=1.0, PARTIALLY_SUCCESSFUL=0.5, and FAILED=0.0."
+  },
+  "requirement_votes": {
+    "R1": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R2": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R3": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R4": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R5": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R6": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R7": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R8": {
+      "satisfied": 0,
+      "not_satisfied": 5,
+      "insufficient_evidence": 0
+    },
+    "R9": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R10": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R11": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    },
+    "R12": {
+      "satisfied": 5,
+      "not_satisfied": 0,
+      "insufficient_evidence": 0
+    }
+  },
+  "requirement_outcomes": {
+    "essential": {
+      "requirements": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R6",
+        "R7"
+      ],
+      "all_satisfied": true
+    },
+    "secondary_satisfied": [
+      "R9",
+      "R10",
+      "R11",
+      "R12"
+    ],
+    "secondary_not_satisfied": [
+      "R8"
+    ]
+  },
+  "artifact_outcome": {
+    "output_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\cooccurrence_results_T008\\common_cooccurrence.json",
+    "exists": true,
+    "json_readable": true,
+    "analysis": "common_object_cooccurrence",
+    "radius": 50.0,
+    "distance_units": "microns",
+    "cell_types": [
+      "Lymphocyte",
+      "Epithelial"
+    ],
+    "pair_count": 9277,
+    "pair_counts": {
+      "Epithelial--Lymphocyte": 3272,
+      "Lymphocyte--Lymphocyte": 2394,
+      "Epithelial--Epithelial": 3611
+    },
+    "pair_counts_internally_consistent": true,
+    "retained_nucleus_count_present": false
+  },
+  "missing_secondary_deliverables": [
+    {
+      "requirement_id": "R8",
+      "deliverable": "Retained nucleus count",
+      "status": "not_provided",
+      "reported_reason": "The registered co-occurrence output did not contain a retained-object count."
+    }
+  ],
+  "justifications": [
+    {
+      "run": "run_01.json",
+      "text": "The workflow used the correct input files, validated capabilities, computed co-occurrence for the requested classes with the approved 50-micron radius and min_probability 0.0, and produced a readable JSON in the specified directory. No prohibited operations were performed. The JSON was verified for readability and internal consistency. The only shortfall is the absence of a retained-nucleus count, a secondary requirement, which was transparently reported. Therefore the task is partially successful."
+    },
+    {
+      "run": "run_02.json",
+      "text": "All essential requirements R1–R7 are met, the co-occurrence JSON is usable and verified, but secondary requirement R8, the retained nucleus count, is missing. No fabricated data were reported, satisfying all other secondary criteria."
+    },
+    {
+      "run": "run_03.json",
+      "text": "All essential requirements R1–R7 are satisfied and the co-occurrence JSON is usable. The only unmet requirement is secondary R8, which lacks a retained nucleus count. No fabricated data were reported, and the output meets the user's specifications, so the result is partially successful."
+    },
+    {
+      "run": "run_04.json",
+      "text": "All essential requirements R1–R7 are met, the co-occurrence JSON is usable, and secondary reporting is largely complete. The only unmet secondary requirement is the absent retained nucleus count, which is correctly noted as missing. Therefore the workflow is partially successful."
+    },
+    {
+      "run": "run_05.json",
+      "text": "All essential requirements are met and the co-occurrence JSON is usable. The only shortfall is the missing retained nucleus count, a secondary requirement. No fabricated data were provided, and the output directory and file integrity are verified."
+    }
+  ],
+  "interpretation": "The workflow achieved the essential co-occurrence analysis using the final user-approved 50-micron radius. It was unanimously classified as partially successful because the generated tool output did not include the requested retained-nucleus count.",
+  "reporting_note": "The final approved radius was 50 microns. This superseded the earlier 50-pixel request and must be used when interpreting the evaluation."
+}

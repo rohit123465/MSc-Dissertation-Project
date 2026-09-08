@@ -1,0 +1,103 @@
+{
+  "task_id": "T006",
+  "run_number": 2,
+  "status": "valid",
+  "error": null,
+  "configuration": {
+    "model": "gpt-oss:20b",
+    "base_url": "http://127.0.0.1:11434",
+    "temperature": 0.2,
+    "seed": 48001,
+    "prompt_version": "1.0",
+    "num_ctx": 16384,
+    "num_predict": 4096,
+    "schema_version": "1.0",
+    "requirements_sha256": "a789691cd52e402568d6d63314f0a746a35b6c558e55bbb30a23b89930a0c238",
+    "workflow_sha256": "23e21843e424949c80fae18401e9e179474703b6b8886564d7a423e5bf1f1e2d",
+    "prompt_sha256": "d6ea5fdd3ca13ca11d006c11b4b503a1c8236a8dc3472645d9ef018739d67fab",
+    "schema_sha256": "0f9eba7872d360862a29e9a1c3ece4156e4fdeaa89bba362ca71f925cbbd8056",
+    "python": "3.9.25",
+    "platform": "Linux-5.14.0-687.39.1.el9_8.x86_64-x86_64-with-glibc2.34"
+  },
+  "started_at": "2026-08-30T15:47:51.972088+00:00",
+  "completed_at": "2026-08-30T15:49:55.489227+00:00",
+  "judgment": {
+    "task_id": "T006",
+    "rubric_version": "1.0",
+    "requirement_results": [
+      {
+        "requirement_id": "R1",
+        "status": "satisfied",
+        "evidence": "The prediction request includes the exact WSI path and the run_report references it; artifacts are in same directory. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R2",
+        "status": "satisfied",
+        "evidence": "The predict_semantic_segmentation tool call lists model_name fcn_resnet50_unet-bcss and run_report confirms same. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R3",
+        "status": "satisfied",
+        "evidence": "CMU-1-Small-Region.db exists in requested dir, SQLite integrity ok, 3094 annotations. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R4",
+        "status": "not_satisfied",
+        "evidence": "No PNG preview or overlay artifact was produced; missing. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R5",
+        "status": "not_satisfied",
+        "evidence": "No per-class area or region-count summary artifact was produced; missing. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R6",
+        "status": "satisfied",
+        "evidence": "TIAViz command provided in final response and run_report.json. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R7",
+        "status": "satisfied",
+        "evidence": "Independent list_files verification performed before final response, confirming files. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R8",
+        "status": "satisfied",
+        "evidence": "Final response clearly reports missing secondary outputs without claiming success. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total",
+        "confidence": 1.0
+      }
+    ],
+    "dimension_scores": {
+      "request_interpretation": 1,
+      "tool_selection": 1,
+      "tool_arguments": 1,
+      "execution": 1,
+      "artifact_quality": 1,
+      "final_response_faithfulness": 1
+    },
+    "overall_label": "PARTIALLY_SUCCESSFUL",
+    "critical_error": false,
+    "primary_error_type": "none",
+    "confidence": 1.0,
+    "justification": "All essential requirements R1–R3 are met: the exact WSI path, model, and AnnotationStore were produced and verified. Secondary deliverables R4 and R5 were not generated, while R6–R8 were satisfied. Because the core segmentation artifact is usable and only non‑essential outputs are missing, the workflow is judged partially successful."
+  },
+  "ollama_response_metadata": {
+    "model": "gpt-oss:20b",
+    "created_at": "2026-08-30T15:49:55.485614207Z",
+    "done_reason": "stop",
+    "total_duration": 123512707584,
+    "load_duration": 2401406,
+    "prompt_eval_count": 6103,
+    "prompt_eval_duration": 65834999,
+    "eval_count": 1654,
+    "eval_duration": 78288883000
+  },
+  "raw_model_content": "{\n  \"task_id\": \"T006\",\n  \"rubric_version\": \"1.0\",\n  \"requirement_results\": [\n    {\n      \"requirement_id\": \"R1\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"The prediction request includes the exact WSI path and the run_report references it; artifacts are in same directory. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within limit. 18 words total, within\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R2\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"The predict_semantic_segmentation tool call lists model_name fcn_resnet50_unet-bcss and run_report confirms same. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11 words total. 11\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R3\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"CMU-1-Small-Region.db exists in requested dir, SQLite integrity ok, 3094 annotations. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R4\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"No PNG preview or overlay artifact was produced; missing. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R5\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"No per-class area or region-count summary artifact was produced; missing. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R6\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"TIAViz command provided in final response and run_report.json. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total. 8 words total\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R7\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Independent list_files verification performed before final response, confirming files. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total. 9 words total\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R8\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Final response clearly reports missing secondary outputs without claiming success. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total. 10 words total\",\n      \"confidence\": 1.0\n    }\n  ],\n  \"dimension_scores\": {\n    \"request_interpretation\": 1,\n    \"tool_selection\": 1,\n    \"tool_arguments\": 1,\n    \"execution\": 1,\n    \"artifact_quality\": 1,\n    \"final_response_faithfulness\": 1\n  },\n  \"overall_label\": \"PARTIALLY_SUCCESSFUL\",\n  \"critical_error\": false,\n  \"primary_error_type\": \"none\",\n  \"confidence\": 1.0,\n  \"justification\": \"All essential requirements R1–R3 are met: the exact WSI path, model, and AnnotationStore were produced and verified. Secondary deliverables R4 and R5 were not generated, while R6–R8 were satisfied. Because the core segmentation artifact is usable and only non‑essential outputs are missing, the workflow is judged partially successful.\"\n}"
+}

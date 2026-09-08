@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T009",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-31",
+  "rubric_version": "1.0",
+  "source_request": "Using the existing Kather patch-classification outputs under C:\\Users\\Rohit Kumar\\Desktop\\claude_cancer_results_V3, generate a quantitative summary of the patch predictions without rerunning model inference. Use the existing prediction files, including kather_predictions.json and the associated raw patch-prediction output, to calculate the total number of classified patches, patch counts and percentages for each predicted tissue class, mean prediction confidence for each class where available, overall mean/minimum/maximum winning-class confidence where supported, and the number of records that cannot be parsed or assigned to a registered class. Save the complete summary as readable JSON and CSV files under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\patch_summary_results_T009. Verify that the generated files exist, are readable, and that per-class patch counts sum to the reported total. Do not rerun classification, modify the original files, or fabricate unavailable statistics. Clearly report parsing, format, class-mapping, or confidence limitations. This is research output, not a clinical diagnosis.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use the existing kather_predictions.json and associated raw patch-prediction output under C:\\Users\\Rohit Kumar\\Desktop\\claude_cancer_results_V3.",
+      "importance": "essential",
+      "success_evidence": "The workflow reads the metadata file and its referenced raw prediction file as the source of class mappings and per-patch predictions."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Report the correct total number of classified patches.",
+      "importance": "essential",
+      "success_evidence": "The reported total agrees with the number of entries in the raw predictions, probabilities, and coordinates arrays."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Calculate patch counts and percentages for every observed predicted tissue class.",
+      "importance": "essential",
+      "success_evidence": "All classified patches are grouped using the registered class mapping, and class counts and percentages are reported."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Calculate the mean winning-class prediction confidence for each tissue class where probability values are available.",
+      "importance": "secondary",
+      "success_evidence": "Per-class mean confidence values are derived from the winning probabilities in the raw output."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Calculate the overall mean, minimum, and maximum winning-class confidence where supported.",
+      "importance": "secondary",
+      "success_evidence": "The three overall confidence statistics are computed from the winning probability for every successfully classified patch."
+    },
+    {
+      "requirement_id": "R6",
+      "description": "Report the number of records that cannot be parsed or assigned to a registered class.",
+      "importance": "secondary",
+      "success_evidence": "A count of unparsed or unmapped records is explicitly reported and is consistent with the source arrays and class mapping."
+    },
+    {
+      "requirement_id": "R7",
+      "description": "Save a complete readable JSON summary and readable CSV result files under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\patch_summary_results_T009.",
+      "importance": "essential",
+      "success_evidence": "The requested output directory contains non-empty, readable JSON and CSV summaries with the calculated results."
+    },
+    {
+      "requirement_id": "R8",
+      "description": "Verify the generated files and confirm that per-class counts sum to the total classified-patch count.",
+      "importance": "essential",
+      "success_evidence": "Post-generation checks establish file existence and readability, and the class-count sum equals the independently established source patch total."
+    },
+    {
+      "requirement_id": "R9",
+      "description": "Do not rerun patch classification or modify the original prediction files.",
+      "importance": "essential",
+      "success_evidence": "The trace contains only read-only post-processing operations and no inference or source-file modification."
+    },
+    {
+      "requirement_id": "R10",
+      "description": "Do not fabricate unavailable statistics and clearly report format, parsing, class-mapping, or confidence limitations.",
+      "importance": "essential",
+      "success_evidence": "Reported statistics are supported by source data, and any limitation is accurately disclosed without presenting a misleading empty result as a valid quantitative summary."
+    },
+    {
+      "requirement_id": "R11",
+      "description": "Identify the output as research data rather than a clinical diagnosis.",
+      "importance": "secondary",
+      "success_evidence": "The final response or generated summary includes an appropriate research-use disclaimer."
+    }
+  ],
+  "explicitly_not_required": [
+    "Rerunning ResNet18-Kather100K inference",
+    "Generating a new AnnotationStore",
+    "Spatial point-pattern analysis",
+    "Clinical diagnosis or interpretation",
+    "Statistics unsupported because confidence values are genuinely absent"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All essential and secondary requirements are satisfied and the generated summaries accurately represent all source patch predictions.",
+    "partially_successful": "All essential requirements are satisfied and the patch summary is usable, but one or more secondary confidence statistics or reporting details are incomplete.",
+    "failed": "Any essential requirement is demonstrably unmet. A readable but empty or materially incorrect summary is failed when the source contains valid patch predictions that were not parsed."
+  },
+  "annotation_notes": "The source raw file contains parallel top-level predictions, probabilities, and coordinates arrays. Success requires interpreting that actual format rather than reporting a zero-record summary. A zero-equals-zero internal check does not establish correctness against the source data."
+}

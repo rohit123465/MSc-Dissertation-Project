@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T008",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-31",
+  "rubric_version": "1.0",
+  "source_request": "Using the common spatial-feature dataset at C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\common_spatial_features.json, compute nucleus co-occurrence between Lymphocyte and Epithelial nuclei. Use C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\spatial_capabilities.json for validation, save a readable JSON under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\cooccurrence_results_T008, report the selected classes, effective radius and units, retained nucleus count, total qualifying pair count and class-pair counts, verify the JSON, and report unsupported outputs without fabrication. Do not rebuild the dataset, rerun segmentation, use QuPath GeoJSON, or modify either input file.",
+  "request_amendments": [
+    {
+      "sequence": 1,
+      "user_message": "take 50 um.",
+      "effect": "Overrides the original 50-pixel distance. The final required radius is exactly 50 microns and the 0.499 microns-per-pixel scale is not applied."
+    }
+  ],
+  "final_effective_request": {
+    "source_data": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\common_spatial_features.json",
+    "capability_data": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\spatial_capabilities.json",
+    "cell_types": [
+      "Lymphocyte",
+      "Epithelial"
+    ],
+    "radius": 50.0,
+    "distance_units": "microns",
+    "min_probability": 0.0,
+    "output_directory": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\cooccurrence_results_T008"
+  },
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\common_spatial_features.json as the co-occurrence computation input.",
+      "importance": "essential",
+      "success_evidence": "The computation directly uses the specified common spatial-feature file."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Use C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\spatial_capabilities.json to validate that co-occurrence is supported.",
+      "importance": "essential",
+      "success_evidence": "A successful capability-validation operation uses the specified capability file and validates co-occurrence."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Compute co-occurrence for Lymphocyte and Epithelial nuclei.",
+      "importance": "essential",
+      "success_evidence": "The computation selects Lymphocyte and Epithelial and returns their available unordered class-pair counts."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Use a radius of exactly 50 microns, following the user's explicit amendment.",
+      "importance": "essential",
+      "success_evidence": "The execution arguments and generated result record a radius of 50.0 with distance units of microns."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Use a minimum object probability of 0.0.",
+      "importance": "essential",
+      "success_evidence": "The approved plan and computation configuration use min_probability 0.0."
+    },
+    {
+      "requirement_id": "R6",
+      "description": "Save a readable JSON result under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\cooccurrence_results_T008.",
+      "importance": "essential",
+      "success_evidence": "A readable co-occurrence JSON exists within the exact requested output directory."
+    },
+    {
+      "requirement_id": "R7",
+      "description": "Do not rebuild the common dataset, rerun segmentation, use QuPath GeoJSON, or modify either input file.",
+      "importance": "essential",
+      "success_evidence": "The trace contains no prohibited conversion, segmentation, GeoJSON, or input-modification operation."
+    },
+    {
+      "requirement_id": "R8",
+      "description": "Report the retained nucleus count.",
+      "importance": "secondary",
+      "success_evidence": "The final response provides the number of selected nuclei retained in the computation."
+    },
+    {
+      "requirement_id": "R9",
+      "description": "Report the selected classes, effective radius, and distance units.",
+      "importance": "secondary",
+      "success_evidence": "The final response accurately identifies Lymphocyte, Epithelial, a radius of 50.0, and microns."
+    },
+    {
+      "requirement_id": "R10",
+      "description": "Report the total qualifying pair count and available class-pair counts.",
+      "importance": "secondary",
+      "success_evidence": "The final response reports the total pair count and the available Epithelial–Lymphocyte, Lymphocyte–Lymphocyte, and Epithelial–Epithelial counts."
+    },
+    {
+      "requirement_id": "R11",
+      "description": "Verify that the generated JSON exists, is readable, and contains internally consistent pair counts.",
+      "importance": "secondary",
+      "success_evidence": "The file is read successfully and the sum of class-pair counts equals the reported total pair count."
+    },
+    {
+      "requirement_id": "R12",
+      "description": "Clearly report unsupported or absent outputs instead of fabricating them.",
+      "importance": "secondary",
+      "success_evidence": "The final response explicitly identifies the absent retained-nucleus field and does not invent a value."
+    }
+  ],
+  "explicitly_not_required": [
+    "A CSV result",
+    "Directional source-to-target co-occurrence",
+    "Conversion of 50 microns into pixels",
+    "Normalized enrichment or expected-pair statistics not supported by the tool",
+    "Clinical interpretation"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All essential and secondary requirements are satisfied.",
+    "partially_successful": "All essential requirements are satisfied and the co-occurrence JSON is usable, but one or more secondary reporting or verification requirements are incomplete.",
+    "failed": "Any essential requirement is demonstrably unmet, or the generated JSON is missing, unreadable, computed for the wrong classes, or computed with a radius other than the final approved 50 microns."
+  },
+  "annotation_notes": "The user's later instruction 'take 50 um.' explicitly superseded the original 50-pixel specification before computation. The absence of a retained-nucleus count remains a secondary omission because the final output and response did not provide the requested number, although the omission was accurately disclosed."
+}

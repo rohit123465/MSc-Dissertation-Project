@@ -1,0 +1,121 @@
+{
+  "task_id": "T009",
+  "run_number": 5,
+  "status": "valid",
+  "error": null,
+  "configuration": {
+    "model": "gpt-oss:20b",
+    "base_url": "http://127.0.0.1:11434",
+    "temperature": 0.2,
+    "seed": 51004,
+    "prompt_version": "1.0",
+    "num_ctx": 16384,
+    "num_predict": 4096,
+    "schema_version": "1.0",
+    "requirements_sha256": "f9eef751db835ebccdc38845cb971a09bc2e46997743b9f7f14386bc090ed7e1",
+    "workflow_sha256": "b04ac6edb200520b62e1a8bf2ff99b0cabe832347a7d0c67afb054cab7947566",
+    "prompt_sha256": "d6ea5fdd3ca13ca11d006c11b4b503a1c8236a8dc3472645d9ef018739d67fab",
+    "schema_sha256": "0f9eba7872d360862a29e9a1c3ece4156e4fdeaa89bba362ca71f925cbbd8056",
+    "python": "3.9.25",
+    "platform": "Linux-5.14.0-687.42.1.el9_8.x86_64-x86_64-with-glibc2.34"
+  },
+  "started_at": "2026-08-31T10:49:46.478928+00:00",
+  "completed_at": "2026-08-31T10:51:07.112188+00:00",
+  "judgment": {
+    "task_id": "T009",
+    "rubric_version": "1.0",
+    "requirement_results": [
+      {
+        "requirement_id": "R1",
+        "status": "partially_satisfied",
+        "evidence": "Files located and referenced, but raw prediction data not consumed. (13 words).",
+        "confidence": 0.8
+      },
+      {
+        "requirement_id": "R2",
+        "status": "not_satisfied",
+        "evidence": "Workflow reported 0 classified patches while source contains 2658 predictions. (15 words).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R3",
+        "status": "not_satisfied",
+        "evidence": "No class counts or percentages were generated; per-class data missing. (12 words).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R4",
+        "status": "not_satisfied",
+        "evidence": "Per-class confidence values available but not calculated; no mean confidences reported. (15 words).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R5",
+        "status": "not_satisfied",
+        "evidence": "Overall mean/min/max winning confidence not computed; summary shows nulls. (13 words).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R6",
+        "status": "not_satisfied",
+        "evidence": "Output reported zero unparsed records despite failing to parse all 2658 source records. (16 words).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R7",
+        "status": "not_satisfied",
+        "evidence": "JSON and CSV files exist but contain no quantitative summary; empty outputs. (13 words).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R8",
+        "status": "not_satisfied",
+        "evidence": "Zero-equals-zero check did not validate against source total of 2658. (13 words).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R9",
+        "status": "satisfied",
+        "evidence": "No inference rerun; original prediction files unchanged. (10 words).",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R10",
+        "status": "not_satisfied",
+        "evidence": "Limitations disclosed, but outputs misleading by reporting zero unparsed records after parsing none. (18 words).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R11",
+        "status": "satisfied",
+        "evidence": "Summary and final response identify output as research data, not clinical diagnosis. (15 words).",
+        "confidence": 1.0
+      }
+    ],
+    "dimension_scores": {
+      "request_interpretation": 1,
+      "tool_selection": 1,
+      "tool_arguments": 1,
+      "execution": 1,
+      "artifact_quality": 1,
+      "final_response_faithfulness": 1
+    },
+    "overall_label": "FAILED",
+    "critical_error": true,
+    "primary_error_type": "missing_parameter",
+    "confidence": 0.9,
+    "justification": "The workflow failed to parse the raw prediction file, producing empty summaries and incorrect totals. Several essential requirements (R2–R8, R10) were not met, and the generated JSON/CSV files are materially incorrect. Although no inference was rerun and a research disclaimer was included, the lack of accurate quantitative results renders the task incomplete. Therefore the overall outcome is FAILED."
+  },
+  "ollama_response_metadata": {
+    "model": "gpt-oss:20b",
+    "created_at": "2026-08-31T10:51:07.104387621Z",
+    "done_reason": "stop",
+    "total_duration": 80624776719,
+    "load_duration": 2223463,
+    "prompt_eval_count": 6677,
+    "prompt_eval_duration": 24538000,
+    "eval_count": 850,
+    "eval_duration": 41632784000
+  },
+  "raw_model_content": "{\n  \"task_id\": \"T009\",\n  \"rubric_version\": \"1.0\",\n  \"requirement_results\": [\n    {\n      \"requirement_id\": \"R1\",\n      \"status\": \"partially_satisfied\",\n      \"evidence\": \"Files located and referenced, but raw prediction data not consumed. (13 words).\",\n      \"confidence\": 0.8\n    },\n    {\n      \"requirement_id\": \"R2\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Workflow reported 0 classified patches while source contains 2658 predictions. (15 words).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R3\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"No class counts or percentages were generated; per-class data missing. (12 words).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R4\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Per-class confidence values available but not calculated; no mean confidences reported. (15 words).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R5\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Overall mean/min/max winning confidence not computed; summary shows nulls. (13 words).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R6\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Output reported zero unparsed records despite failing to parse all 2658 source records. (16 words).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R7\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"JSON and CSV files exist but contain no quantitative summary; empty outputs. (13 words).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R8\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Zero-equals-zero check did not validate against source total of 2658. (13 words).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R9\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"No inference rerun; original prediction files unchanged. (10 words).\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R10\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Limitations disclosed, but outputs misleading by reporting zero unparsed records after parsing none. (18 words).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R11\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Summary and final response identify output as research data, not clinical diagnosis. (15 words).\",\n      \"confidence\": 1.0\n    }\n  ],\n  \"dimension_scores\": {\n    \"request_interpretation\": 1,\n    \"tool_selection\": 1,\n    \"tool_arguments\": 1,\n    \"execution\": 1,\n    \"artifact_quality\": 1,\n    \"final_response_faithfulness\": 1\n  },\n  \"overall_label\": \"FAILED\",\n  \"critical_error\": true,\n  \"primary_error_type\": \"missing_parameter\",\n  \"confidence\": 0.9,\n  \"justification\": \"The workflow failed to parse the raw prediction file, producing empty summaries and incorrect totals. Several essential requirements (R2–R8, R10) were not met, and the generated JSON/CSV files are materially incorrect. Although no inference was rerun and a research disclaimer was included, the lack of accurate quantitative results renders the task incomplete. Therefore the overall outcome is FAILED.\"\n}"
+}

@@ -1,0 +1,121 @@
+{
+  "task_id": "T009",
+  "run_number": 1,
+  "status": "valid",
+  "error": null,
+  "configuration": {
+    "model": "gpt-oss:20b",
+    "base_url": "http://127.0.0.1:11434",
+    "temperature": 0.2,
+    "seed": 51000,
+    "prompt_version": "1.0",
+    "num_ctx": 16384,
+    "num_predict": 4096,
+    "schema_version": "1.0",
+    "requirements_sha256": "f9eef751db835ebccdc38845cb971a09bc2e46997743b9f7f14386bc090ed7e1",
+    "workflow_sha256": "b04ac6edb200520b62e1a8bf2ff99b0cabe832347a7d0c67afb054cab7947566",
+    "prompt_sha256": "d6ea5fdd3ca13ca11d006c11b4b503a1c8236a8dc3472645d9ef018739d67fab",
+    "schema_sha256": "0f9eba7872d360862a29e9a1c3ece4156e4fdeaa89bba362ca71f925cbbd8056",
+    "python": "3.9.25",
+    "platform": "Linux-5.14.0-687.42.1.el9_8.x86_64-x86_64-with-glibc2.34"
+  },
+  "started_at": "2026-08-31T10:45:10.345454+00:00",
+  "completed_at": "2026-08-31T10:46:35.076712+00:00",
+  "judgment": {
+    "task_id": "T009",
+    "rubric_version": "1.0",
+    "requirement_results": [
+      {
+        "requirement_id": "R1",
+        "status": "not_satisfied",
+        "evidence": "Files were located but the raw prediction data were not parsed.",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R2",
+        "status": "not_satisfied",
+        "evidence": "Reported 0 classified patches while source contains 2658.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R3",
+        "status": "not_satisfied",
+        "evidence": "No class counts or percentages were generated.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R4",
+        "status": "not_satisfied",
+        "evidence": "Per-class mean confidence values were not calculated.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R5",
+        "status": "not_satisfied",
+        "evidence": "Overall confidence statistics were not computed.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R6",
+        "status": "not_satisfied",
+        "evidence": "Output reported zero unparsed records despite failing to parse all 2658 source records.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R7",
+        "status": "not_satisfied",
+        "evidence": "JSON and CSV files exist but contain no quantitative summary.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R8",
+        "status": "not_satisfied",
+        "evidence": "Zero‑equals‑zero check did not validate against the source total of 2658.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R9",
+        "status": "satisfied",
+        "evidence": "No inference rerun and original files unchanged.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R10",
+        "status": "not_satisfied",
+        "evidence": "Generated outputs were misleading; limitations were disclosed but not accurately reflected.",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R11",
+        "status": "satisfied",
+        "evidence": "Summary identified as research data.",
+        "confidence": 1.0
+      }
+    ],
+    "dimension_scores": {
+      "request_interpretation": 0,
+      "tool_selection": 0,
+      "tool_arguments": 0,
+      "execution": 0,
+      "artifact_quality": 0,
+      "final_response_faithfulness": 0
+    },
+    "overall_label": "FAILED",
+    "critical_error": true,
+    "primary_error_type": "missing_parameter",
+    "confidence": 0.9,
+    "justification": "The workflow failed to parse the raw prediction arrays, producing empty summaries and incorrect totals. Essential metrics (total patches, class counts, confidences) were not computed, and the generated files did not contain the required quantitative data. Therefore the essential requirements are unmet, leading to a FAILED outcome."
+  },
+  "ollama_response_metadata": {
+    "model": "gpt-oss:20b",
+    "created_at": "2026-08-31T10:46:35.049639547Z",
+    "done_reason": "stop",
+    "total_duration": 84701716943,
+    "load_duration": 4283188174,
+    "prompt_eval_count": 6896,
+    "prompt_eval_duration": 38653000,
+    "eval_count": 598,
+    "eval_duration": 30087829000
+  },
+  "raw_model_content": "{\n  \"task_id\": \"T009\",\n  \"rubric_version\": \"1.0\",\n  \"requirement_results\": [\n    {\"requirement_id\":\"R1\",\"status\":\"not_satisfied\",\"evidence\":\"Files were located but the raw prediction data were not parsed.\", \"confidence\":0.9},\n    {\"requirement_id\":\"R2\",\"status\":\"not_satisfied\",\"evidence\":\"Reported 0 classified patches while source contains 2658.\",\"confidence\":0.95},\n    {\"requirement_id\":\"R3\",\"status\":\"not_satisfied\",\"evidence\":\"No class counts or percentages were generated.\",\"confidence\":0.95},\n    {\"requirement_id\":\"R4\",\"status\":\"not_satisfied\",\"evidence\":\"Per-class mean confidence values were not calculated.\",\"confidence\":0.95},\n    {\"requirement_id\":\"R5\",\"status\":\"not_satisfied\",\"evidence\":\"Overall confidence statistics were not computed.\",\"confidence\":0.95},\n    {\"requirement_id\":\"R6\",\"status\":\"not_satisfied\",\"evidence\":\"Output reported zero unparsed records despite failing to parse all 2658 source records.\",\"confidence\":0.95},\n    {\"requirement_id\":\"R7\",\"status\":\"not_satisfied\",\"evidence\":\"JSON and CSV files exist but contain no quantitative summary.\",\"confidence\":0.95},\n    {\"requirement_id\":\"R8\",\"status\":\"not_satisfied\",\"evidence\":\"Zero‑equals‑zero check did not validate against the source total of 2658.\",\"confidence\":0.95},\n    {\"requirement_id\":\"R9\",\"status\":\"satisfied\",\"evidence\":\"No inference rerun and original files unchanged.\",\"confidence\":1.0},\n    {\"requirement_id\":\"R10\",\"status\":\"not_satisfied\",\"evidence\":\"Generated outputs were misleading; limitations were disclosed but not accurately reflected.\",\"confidence\":0.95},\n    {\"requirement_id\":\"R11\",\"status\":\"satisfied\",\"evidence\":\"Summary identified as research data.\",\"confidence\":1.0}\n  ],\n  \"dimension_scores\": {\n    \"request_interpretation\": 0,\n    \"tool_selection\": 0,\n    \"tool_arguments\": 0,\n    \"execution\": 0,\n    \"artifact_quality\": 0,\n    \"final_response_faithfulness\": 0\n  },\n  \"overall_label\": \"FAILED\",\n  \"critical_error\": true,\n  \"primary_error_type\": \"missing_parameter\",\n  \"confidence\": 0.9,\n  \"justification\": \"The workflow failed to parse the raw prediction arrays, producing empty summaries and incorrect totals. Essential metrics (total patches, class counts, confidences) were not computed, and the generated files did not contain the required quantitative data. Therefore the essential requirements are unmet, leading to a FAILED outcome.\"\n}"
+}

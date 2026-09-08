@@ -1,0 +1,115 @@
+{
+  "task_id": "T010",
+  "run_number": 1,
+  "status": "valid",
+  "error": null,
+  "configuration": {
+    "model": "gpt-oss:20b",
+    "base_url": "http://127.0.0.1:11434",
+    "temperature": 0.2,
+    "seed": 52000,
+    "prompt_version": "1.0",
+    "num_ctx": 16384,
+    "num_predict": 4096,
+    "schema_version": "1.0",
+    "requirements_sha256": "ad3c25ea5beda88feaf18e8288a1bfb1937f62584f011d55f22cad8e3ec07419",
+    "workflow_sha256": "eb7ceea69a03c54c079e91262deda24b02cc3110496d986a50c63f10fb1f3fdc",
+    "prompt_sha256": "d6ea5fdd3ca13ca11d006c11b4b503a1c8236a8dc3472645d9ef018739d67fab",
+    "schema_sha256": "0f9eba7872d360862a29e9a1c3ece4156e4fdeaa89bba362ca71f925cbbd8056",
+    "python": "3.9.25",
+    "platform": "Linux-5.14.0-687.42.1.el9_8.x86_64-x86_64-with-glibc2.34"
+  },
+  "started_at": "2026-08-31T15:14:08.537592+00:00",
+  "completed_at": "2026-08-31T15:15:39.128531+00:00",
+  "judgment": {
+    "task_id": "T010",
+    "rubric_version": "1.0",
+    "requirement_results": [
+      {
+        "requirement_id": "R1",
+        "status": "satisfied",
+        "evidence": "Input artifact path matches requested file and verification shows existence and correct format in the common spatial features JSON.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R2",
+        "status": "satisfied",
+        "evidence": "compute_common_roi_entropy called with the four specified cell types and JSON contains per‑ROI entropy for all 21 ROIs.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R3",
+        "status": "satisfied",
+        "evidence": "Arguments include normalize=true, entropy_base=2.718..., low_threshold=0.4, high_threshold=0.7; JSON verification confirms these values.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R4",
+        "status": "satisfied",
+        "evidence": "Generated JSON, CSV, and TXT exist in the target directory and are readable per verification.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R5",
+        "status": "satisfied",
+        "evidence": "Final response lists 21 total ROIs, 6 low, 6 intermediate, 9 high.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R6",
+        "status": "satisfied",
+        "evidence": "Directory verification shows all files readable; category verification sum matches total 21.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R7",
+        "status": "satisfied",
+        "evidence": "No rebuild, segmentation, or QuPath GeoJSON operations appear in tool calls.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R8",
+        "status": "satisfied",
+        "evidence": "Final response explicitly limits interpretation to represented ROIs and avoids clinical conclusions.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R9",
+        "status": "satisfied",
+        "evidence": "Missing summary info obtained from supplied artifacts; no fabricated values.",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R10",
+        "status": "not_satisfied",
+        "evidence": "JSON analysis_label and text title reference KongNet, while source_model_family is hovernet, indicating inconsistent provenance.",
+        "confidence": 1.0
+      }
+    ],
+    "dimension_scores": {
+      "request_interpretation": 1,
+      "tool_selection": 1,
+      "tool_arguments": 1,
+      "execution": 1,
+      "artifact_quality": 1,
+      "final_response_faithfulness": 1
+    },
+    "overall_label": "PARTIALLY_SUCCESSFUL",
+    "critical_error": false,
+    "primary_error_type": "none",
+    "confidence": 0.95,
+    "justification": "All essential requirements (R1–R9) are reliably met with readable artifacts and correct counts. A secondary provenance inconsistency (R10) is present but does not affect numerical results, so the workflow is partially successful."
+  },
+  "ollama_response_metadata": {
+    "model": "gpt-oss:20b",
+    "created_at": "2026-08-31T15:15:39.121964217Z",
+    "done_reason": "stop",
+    "total_duration": 90582519612,
+    "load_duration": 18057523753,
+    "prompt_eval_count": 6539,
+    "prompt_eval_duration": 22438000,
+    "eval_count": 757,
+    "eval_duration": 36833699000
+  },
+  "raw_model_content": "{\n  \"task_id\": \"T010\",\n  \"rubric_version\": \"1.0\",\n  \"requirement_results\": [\n    {\n      \"requirement_id\": \"R1\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Input artifact path matches requested file and verification shows existence and correct format in the common spatial features JSON.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R2\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"compute_common_roi_entropy called with the four specified cell types and JSON contains per‑ROI entropy for all 21 ROIs.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R3\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Arguments include normalize=true, entropy_base=2.718..., low_threshold=0.4, high_threshold=0.7; JSON verification confirms these values.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R4\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Generated JSON, CSV, and TXT exist in the target directory and are readable per verification.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R5\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Final response lists 21 total ROIs, 6 low, 6 intermediate, 9 high.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R6\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Directory verification shows all files readable; category verification sum matches total 21.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R7\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"No rebuild, segmentation, or QuPath GeoJSON operations appear in tool calls.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R8\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Final response explicitly limits interpretation to represented ROIs and avoids clinical conclusions.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R9\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Missing summary info obtained from supplied artifacts; no fabricated values.\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R10\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"JSON analysis_label and text title reference KongNet, while source_model_family is hovernet, indicating inconsistent provenance.\",\n      \"confidence\": 1.0\n    }\n  ],\n  \"dimension_scores\": {\n    \"request_interpretation\": 1,\n    \"tool_selection\": 1,\n    \"tool_arguments\": 1,\n    \"execution\": 1,\n    \"artifact_quality\": 1,\n    \"final_response_faithfulness\": 1\n  },\n  \"overall_label\": \"PARTIALLY_SUCCESSFUL\",\n  \"critical_error\": false,\n  \"primary_error_type\": \"none\",\n  \"confidence\": 0.95,\n  \"justification\": \"All essential requirements (R1–R9) are reliably met with readable artifacts and correct counts. A secondary provenance inconsistency (R10) is present but does not affect numerical results, so the workflow is partially successful.\"\n}"
+}

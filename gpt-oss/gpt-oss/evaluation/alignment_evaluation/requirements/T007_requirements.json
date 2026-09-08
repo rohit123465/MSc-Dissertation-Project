@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "task_id": "T007",
+  "annotation_status": "frozen",
+  "approved_by": "user",
+  "frozen_at": "2026-08-30",
+  "rubric_version": "1.0",
+  "source_request": "Export all nucleus annotations from the existing TIAToolbox AnnotationStore at: C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\CMU-1-Small-Region.db Save the exported nucleus-level data as a readable CSV under: C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\export_results_T007 Requirements: 1. Use the specified AnnotationStore as the input. 2. Export one record per nucleus. 3. Include the nucleus identifier, class label or class identifier, centroid coordinates, geometry-related measurements, and probability or confidence values wherever these fields are available in the source AnnotationStore. 4. Save the CSV inside the specified output directory. 5. Report the total number of exported nuclei. 6. Report a concise count of nuclei by class. 7. Verify that the generated CSV exists, is readable, and contains the expected number of data rows before providing the final response. 8. Clearly identify any requested field that is unavailable in the source AnnotationStore rather than fabricating values. The essential deliverable is a readable nucleus-level CSV generated from the specified AnnotationStore. The requested field coverage, total count, per-class summary, and file verification should also be completed where supported by the available tools. Do not modify or overwrite the source AnnotationStore. This is research output, not a clinical diagnosis.",
+  "requirements": [
+    {
+      "requirement_id": "R1",
+      "description": "Use C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\NIS_results\\CMU-1-Small-Region.db as the source AnnotationStore.",
+      "importance": "essential",
+      "success_evidence": "The export operation identifies this exact AnnotationStore as its input."
+    },
+    {
+      "requirement_id": "R2",
+      "description": "Export the nucleus annotations as a readable nucleus-level CSV with one record per nucleus.",
+      "importance": "essential",
+      "success_evidence": "A readable CSV is produced and its data rows represent individual nucleus annotations."
+    },
+    {
+      "requirement_id": "R3",
+      "description": "Save the exported CSV under C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\export_results_T007.",
+      "importance": "essential",
+      "success_evidence": "The generated CSV exists within the exact requested output directory."
+    },
+    {
+      "requirement_id": "R4",
+      "description": "Do not modify or overwrite the source AnnotationStore.",
+      "importance": "essential",
+      "success_evidence": "The workflow performs a read-only export and contains no operation that modifies or replaces the source database."
+    },
+    {
+      "requirement_id": "R5",
+      "description": "Include nucleus identifier, class information, centroid coordinates, geometry measurements, and probability or confidence fields wherever available.",
+      "importance": "secondary",
+      "success_evidence": "The CSV contains the requested available fields, while unavailable fields are explicitly identified."
+    },
+    {
+      "requirement_id": "R6",
+      "description": "Report the total number of exported nuclei.",
+      "importance": "secondary",
+      "success_evidence": "The final response reports a total derived from the generated CSV or source AnnotationStore."
+    },
+    {
+      "requirement_id": "R7",
+      "description": "Report a concise nucleus count by class.",
+      "importance": "secondary",
+      "success_evidence": "The final response or generated report provides counts grouped by nucleus class."
+    },
+    {
+      "requirement_id": "R8",
+      "description": "Verify that the CSV exists, is readable, and contains the expected number of data rows.",
+      "importance": "secondary",
+      "success_evidence": "The trace contains a post-export existence, readability, and row-count check."
+    },
+    {
+      "requirement_id": "R9",
+      "description": "Clearly identify unavailable requested fields instead of fabricating values.",
+      "importance": "secondary",
+      "success_evidence": "Any unavailable source fields are explicitly reported and no unsupported values are claimed."
+    }
+  ],
+  "explicitly_not_required": [
+    "Running a new nucleus-segmentation model",
+    "Treating the AnnotationStore as a WSI",
+    "Modifying the source AnnotationStore",
+    "Clinical interpretation",
+    "Micron-coordinate conversion when slide calibration is unavailable"
+  ],
+  "overall_decision_rule": {
+    "fully_successful": "All essential and secondary requirements are satisfied, producing a verified and complete nucleus-level CSV.",
+    "partially_successful": "All essential requirements are satisfied and the CSV is usable, but one or more secondary fields, summaries, or verification details are incomplete.",
+    "failed": "Any essential requirement is demonstrably unmet. In particular, failure to generate a readable CSV in the requested directory makes the workflow failed even if the limitation is accurately explained."
+  },
+  "annotation_notes": "Requirements were frozen from the original request. The planner-routing failure is execution evidence and was not used to weaken the rubric."
+}

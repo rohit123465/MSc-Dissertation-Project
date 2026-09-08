@@ -1,0 +1,121 @@
+{
+  "task_id": "T009",
+  "run_number": 4,
+  "status": "valid",
+  "error": null,
+  "configuration": {
+    "model": "gpt-oss:20b",
+    "base_url": "http://127.0.0.1:11434",
+    "temperature": 0.2,
+    "seed": 51003,
+    "prompt_version": "1.0",
+    "num_ctx": 16384,
+    "num_predict": 4096,
+    "schema_version": "1.0",
+    "requirements_sha256": "f9eef751db835ebccdc38845cb971a09bc2e46997743b9f7f14386bc090ed7e1",
+    "workflow_sha256": "b04ac6edb200520b62e1a8bf2ff99b0cabe832347a7d0c67afb054cab7947566",
+    "prompt_sha256": "d6ea5fdd3ca13ca11d006c11b4b503a1c8236a8dc3472645d9ef018739d67fab",
+    "schema_sha256": "0f9eba7872d360862a29e9a1c3ece4156e4fdeaa89bba362ca71f925cbbd8056",
+    "python": "3.9.25",
+    "platform": "Linux-5.14.0-687.42.1.el9_8.x86_64-x86_64-with-glibc2.34"
+  },
+  "started_at": "2026-08-31T10:48:47.443816+00:00",
+  "completed_at": "2026-08-31T10:49:46.476716+00:00",
+  "judgment": {
+    "task_id": "T009",
+    "rubric_version": "1.0",
+    "requirement_results": [
+      {
+        "requirement_id": "R1",
+        "status": "not_satisfied",
+        "evidence": "Files were located but the raw prediction data were not parsed; the workflow did not read the parallel arrays in 0.raw.json as required for class mapping and per‑patch predictions (Evidence: tool call 1 lists files; tool call 8 shows zero records parsed).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R2",
+        "status": "not_satisfied",
+        "evidence": "The summary reports 0 classified patches, whereas the source contains 2658 predictions (Evidence: generated artifact verification shows reported_total_classified_patches = 0; source verification shows 2658).",
+        "confidence": 0.95
+      },
+      {
+        "requirement_id": "R3",
+        "status": "not_satisfied",
+        "evidence": "No class counts or percentages appear in the output; per‑class array is empty (Evidence: patch_summary.json per_class list is empty).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R4",
+        "status": "not_satisfied",
+        "evidence": "Mean confidence per class was not computed; output contains null values (Evidence: patch_summary.json mean_confidence = null).",
+        "confidence": 0.85
+      },
+      {
+        "requirement_id": "R5",
+        "status": "not_satisfied",
+        "evidence": "Overall mean/min/max winning confidence are missing (Evidence: patch_summary.json confidence fields are null).",
+        "confidence": 0.85
+      },
+      {
+        "requirement_id": "R6",
+        "status": "not_satisfied",
+        "evidence": "Unparsed record count reported as 0 despite all 2658 records failing to parse (Evidence: patch_summary.json limitation notes and reported_total_records = 0).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R7",
+        "status": "not_satisfied",
+        "evidence": "JSON and CSV files exist but contain no meaningful summary; per‑class CSV has 0 rows, overall CSV reports zero records (Evidence: artifact verification shows empty data).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R8",
+        "status": "not_satisfied",
+        "evidence": "Class‑count sum equals reported total (both zero), but this does not match the source total of 2658 (Evidence: source verification shows 2658, output shows 0).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R9",
+        "status": "satisfied",
+        "evidence": "No inference was rerun and original files were not modified (Evidence: tool calls show only read operations; no write to source paths).",
+        "confidence": 1.0
+      },
+      {
+        "requirement_id": "R10",
+        "status": "not_satisfied",
+        "evidence": "Limitations were disclosed, but the output misleadingly reports zero unparsed records after parsing none (Evidence: limitation note in patch_summary.json).",
+        "confidence": 0.9
+      },
+      {
+        "requirement_id": "R11",
+        "status": "satisfied",
+        "evidence": "Final response labels the output as research data, not a clinical diagnosis (Evidence: final_response contains disclaimer).",
+        "confidence": 1.0
+      }
+    ],
+    "dimension_scores": {
+      "request_interpretation": 1,
+      "tool_selection": 0,
+      "tool_arguments": 0,
+      "execution": 0,
+      "artifact_quality": 0,
+      "final_response_faithfulness": 0
+    },
+    "overall_label": "FAILED",
+    "critical_error": true,
+    "primary_error_type": "misleading_final_response",
+    "confidence": 0.95,
+    "justification": "All essential requirements R1, R2, R3, R4, R5, R6, R7, R8, and R10 are demonstrably unmet; the generated summaries are empty and materially incorrect. The workflow failed to parse the source data, so the overall result is unusable."
+  },
+  "ollama_response_metadata": {
+    "model": "gpt-oss:20b",
+    "created_at": "2026-08-31T10:49:46.468264729Z",
+    "done_reason": "stop",
+    "total_duration": 59023858589,
+    "load_duration": 2932157,
+    "prompt_eval_count": 6032,
+    "prompt_eval_duration": 24252000,
+    "eval_count": 985,
+    "eval_duration": 46765726000
+  },
+  "raw_model_content": "{\n  \"task_id\": \"T009\",\n  \"rubric_version\": \"1.0\",\n  \"requirement_results\": [\n    {\n      \"requirement_id\": \"R1\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Files were located but the raw prediction data were not parsed; the workflow did not read the parallel arrays in 0.raw.json as required for class mapping and per‑patch predictions (Evidence: tool call 1 lists files; tool call 8 shows zero records parsed).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R2\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"The summary reports 0 classified patches, whereas the source contains 2658 predictions (Evidence: generated artifact verification shows reported_total_classified_patches = 0; source verification shows 2658).\",\n      \"confidence\": 0.95\n    },\n    {\n      \"requirement_id\": \"R3\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"No class counts or percentages appear in the output; per‑class array is empty (Evidence: patch_summary.json per_class list is empty).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R4\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Mean confidence per class was not computed; output contains null values (Evidence: patch_summary.json mean_confidence = null).\",\n      \"confidence\": 0.85\n    },\n    {\n      \"requirement_id\": \"R5\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Overall mean/min/max winning confidence are missing (Evidence: patch_summary.json confidence fields are null).\",\n      \"confidence\": 0.85\n    },\n    {\n      \"requirement_id\": \"R6\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Unparsed record count reported as 0 despite all 2658 records failing to parse (Evidence: patch_summary.json limitation notes and reported_total_records = 0).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R7\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"JSON and CSV files exist but contain no meaningful summary; per‑class CSV has 0 rows, overall CSV reports zero records (Evidence: artifact verification shows empty data).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R8\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Class‑count sum equals reported total (both zero), but this does not match the source total of 2658 (Evidence: source verification shows 2658, output shows 0).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R9\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"No inference was rerun and original files were not modified (Evidence: tool calls show only read operations; no write to source paths).\",\n      \"confidence\": 1.0\n    },\n    {\n      \"requirement_id\": \"R10\",\n      \"status\": \"not_satisfied\",\n      \"evidence\": \"Limitations were disclosed, but the output misleadingly reports zero unparsed records after parsing none (Evidence: limitation note in patch_summary.json).\",\n      \"confidence\": 0.9\n    },\n    {\n      \"requirement_id\": \"R11\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"Final response labels the output as research data, not a clinical diagnosis (Evidence: final_response contains disclaimer).\",\n      \"confidence\": 1.0\n    }\n  ],\n  \"dimension_scores\": {\n    \"request_interpretation\": 1,\n    \"tool_selection\": 0,\n    \"tool_arguments\": 0,\n    \"execution\": 0,\n    \"artifact_quality\": 0,\n    \"final_response_faithfulness\": 0\n  },\n  \"overall_label\": \"FAILED\",\n  \"critical_error\": true,\n  \"primary_error_type\": \"misleading_final_response\",\n  \"confidence\": 0.95,\n  \"justification\": \"All essential requirements R1, R2, R3, R4, R5, R6, R7, R8, and R10 are demonstrably unmet; the generated summaries are empty and materially incorrect. The workflow failed to parse the source data, so the overall result is unusable.\"\n}"
+}
