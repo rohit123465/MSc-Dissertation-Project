@@ -1,0 +1,5 @@
+case,status,expected_pair_count,observed_pair_count,expected_pair_counts,observed_pair_counts
+cooccurrence_hand,passed,3,3,"{'Type_A--Type_A': 1, 'Type_A--Type_B': 2}","{'Type_A--Type_A': 1, 'Type_A--Type_B': 2}"
+cooccurrence_at_radius,passed,1,1,{'Type_A--Type_B': 1},{'Type_A--Type_B': 1}
+cooccurrence_beyond_radius,passed,0,0,{},{}
+cooccurrence_three_types,passed,5,5,"{'Type_A--Type_B': 2, 'Type_A--Type_C': 2, 'Type_B--Type_C': 1}","{'Type_A--Type_B': 2, 'Type_B--Type_C': 1, 'Type_A--Type_C': 2}"

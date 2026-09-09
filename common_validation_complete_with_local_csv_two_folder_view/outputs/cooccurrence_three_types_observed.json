@@ -1,0 +1,18 @@
+{
+  "analysis": "common_object_cooccurrence",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "radius": 2.0,
+  "distance_units": "microns",
+  "cell_types": [
+    "Type_A",
+    "Type_B",
+    "Type_C"
+  ],
+  "pair_count": 5,
+  "pair_counts": {
+    "Type_A--Type_B": 2,
+    "Type_B--Type_C": 1,
+    "Type_A--Type_C": 2
+  }
+}

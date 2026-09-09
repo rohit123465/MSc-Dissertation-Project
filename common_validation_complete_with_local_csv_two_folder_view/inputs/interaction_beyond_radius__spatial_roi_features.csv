@@ -1,0 +1,11 @@
+region_id,model_family,model_name,grid_x,grid_y,x_min,y_min,x_max,y_max,area,feature_name,feature_value
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,object_count,2.0
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,object_density,0.0002
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,covered_area,0.0
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,covered_area_percentage,0.0
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,Inflammatory_count,1.0
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,Inflammatory_percentage,50.0
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,Inflammatory_mean_probability,1.0
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,Neoplastic_count,1.0
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,Neoplastic_percentage,50.0
+R1,annotation_objects,synthetic_reference,0,0,20.0,20.0,120.0,120.0,10000.0,Neoplastic_mean_probability,1.0

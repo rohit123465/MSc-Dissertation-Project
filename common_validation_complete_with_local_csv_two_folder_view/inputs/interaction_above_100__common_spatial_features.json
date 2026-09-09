@@ -1,0 +1,52 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\interaction_above_100_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "aggregation_mode": "centroid_count",
+  "region_size": 100.0,
+  "distance_units": "microns",
+  "scale": {
+    "units": "microns",
+    "x_scale": 0.5,
+    "y_scale": 0.5,
+    "source": "mpp"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 20.0,
+      "y_min": 20.0,
+      "x_max": 120.0,
+      "y_max": 120.0,
+      "area_square_units": 10000.0,
+      "cell_count": 6.0,
+      "cell_density_per_square_unit": 0.0006,
+      "class_counts": {
+        "Inflammatory": 3.0,
+        "Neoplastic": 3.0
+      },
+      "class_percentages": {
+        "Inflammatory": 50.0,
+        "Neoplastic": 50.0
+      },
+      "object_count": 6.0,
+      "object_density": 0.0006,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Inflammatory_count": 3.0,
+      "Inflammatory_percentage": 50.0,
+      "Inflammatory_mean_probability": 1.0,
+      "Neoplastic_count": 3.0,
+      "Neoplastic_percentage": 50.0,
+      "Neoplastic_mean_probability": 1.0
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_above_100\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_above_100\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_above_100\\spatial_capabilities.json"
+  }
+}

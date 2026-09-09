@@ -1,0 +1,3022 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_roi_moran_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "aggregation_mode": "centroid_count",
+  "region_size": 20.0,
+  "distance_units": "pixels",
+  "scale": {
+    "units": "pixels",
+    "x_scale": 1.0,
+    "y_scale": 1.0,
+    "source": "pixels"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 20.0,
+      "y_min": 20.0,
+      "x_max": 40.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R2",
+      "grid_x": 0,
+      "grid_y": 1,
+      "x_min": 20.0,
+      "y_min": 40.0,
+      "x_max": 40.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R3",
+      "grid_x": 0,
+      "grid_y": 2,
+      "x_min": 20.0,
+      "y_min": 60.0,
+      "x_max": 40.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R4",
+      "grid_x": 0,
+      "grid_y": 3,
+      "x_min": 20.0,
+      "y_min": 80.0,
+      "x_max": 40.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R5",
+      "grid_x": 0,
+      "grid_y": 4,
+      "x_min": 20.0,
+      "y_min": 100.0,
+      "x_max": 40.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R6",
+      "grid_x": 0,
+      "grid_y": 5,
+      "x_min": 20.0,
+      "y_min": 120.0,
+      "x_max": 40.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R7",
+      "grid_x": 0,
+      "grid_y": 6,
+      "x_min": 20.0,
+      "y_min": 140.0,
+      "x_max": 40.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R8",
+      "grid_x": 0,
+      "grid_y": 7,
+      "x_min": 20.0,
+      "y_min": 160.0,
+      "x_max": 40.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R9",
+      "grid_x": 0,
+      "grid_y": 8,
+      "x_min": 20.0,
+      "y_min": 180.0,
+      "x_max": 40.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R10",
+      "grid_x": 0,
+      "grid_y": 9,
+      "x_min": 20.0,
+      "y_min": 200.0,
+      "x_max": 40.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R11",
+      "grid_x": 1,
+      "grid_y": 0,
+      "x_min": 40.0,
+      "y_min": 20.0,
+      "x_max": 60.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R12",
+      "grid_x": 1,
+      "grid_y": 1,
+      "x_min": 40.0,
+      "y_min": 40.0,
+      "x_max": 60.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R13",
+      "grid_x": 1,
+      "grid_y": 2,
+      "x_min": 40.0,
+      "y_min": 60.0,
+      "x_max": 60.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R14",
+      "grid_x": 1,
+      "grid_y": 3,
+      "x_min": 40.0,
+      "y_min": 80.0,
+      "x_max": 60.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R15",
+      "grid_x": 1,
+      "grid_y": 4,
+      "x_min": 40.0,
+      "y_min": 100.0,
+      "x_max": 60.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R16",
+      "grid_x": 1,
+      "grid_y": 5,
+      "x_min": 40.0,
+      "y_min": 120.0,
+      "x_max": 60.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R17",
+      "grid_x": 1,
+      "grid_y": 6,
+      "x_min": 40.0,
+      "y_min": 140.0,
+      "x_max": 60.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R18",
+      "grid_x": 1,
+      "grid_y": 7,
+      "x_min": 40.0,
+      "y_min": 160.0,
+      "x_max": 60.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R19",
+      "grid_x": 1,
+      "grid_y": 8,
+      "x_min": 40.0,
+      "y_min": 180.0,
+      "x_max": 60.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R20",
+      "grid_x": 1,
+      "grid_y": 9,
+      "x_min": 40.0,
+      "y_min": 200.0,
+      "x_max": 60.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R21",
+      "grid_x": 2,
+      "grid_y": 0,
+      "x_min": 60.0,
+      "y_min": 20.0,
+      "x_max": 80.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R22",
+      "grid_x": 2,
+      "grid_y": 1,
+      "x_min": 60.0,
+      "y_min": 40.0,
+      "x_max": 80.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R23",
+      "grid_x": 2,
+      "grid_y": 2,
+      "x_min": 60.0,
+      "y_min": 60.0,
+      "x_max": 80.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R24",
+      "grid_x": 2,
+      "grid_y": 3,
+      "x_min": 60.0,
+      "y_min": 80.0,
+      "x_max": 80.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R25",
+      "grid_x": 2,
+      "grid_y": 4,
+      "x_min": 60.0,
+      "y_min": 100.0,
+      "x_max": 80.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R26",
+      "grid_x": 2,
+      "grid_y": 5,
+      "x_min": 60.0,
+      "y_min": 120.0,
+      "x_max": 80.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R27",
+      "grid_x": 2,
+      "grid_y": 6,
+      "x_min": 60.0,
+      "y_min": 140.0,
+      "x_max": 80.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R28",
+      "grid_x": 2,
+      "grid_y": 7,
+      "x_min": 60.0,
+      "y_min": 160.0,
+      "x_max": 80.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R29",
+      "grid_x": 2,
+      "grid_y": 8,
+      "x_min": 60.0,
+      "y_min": 180.0,
+      "x_max": 80.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R30",
+      "grid_x": 2,
+      "grid_y": 9,
+      "x_min": 60.0,
+      "y_min": 200.0,
+      "x_max": 80.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R31",
+      "grid_x": 3,
+      "grid_y": 0,
+      "x_min": 80.0,
+      "y_min": 20.0,
+      "x_max": 100.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R32",
+      "grid_x": 3,
+      "grid_y": 1,
+      "x_min": 80.0,
+      "y_min": 40.0,
+      "x_max": 100.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R33",
+      "grid_x": 3,
+      "grid_y": 2,
+      "x_min": 80.0,
+      "y_min": 60.0,
+      "x_max": 100.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R34",
+      "grid_x": 3,
+      "grid_y": 3,
+      "x_min": 80.0,
+      "y_min": 80.0,
+      "x_max": 100.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R35",
+      "grid_x": 3,
+      "grid_y": 4,
+      "x_min": 80.0,
+      "y_min": 100.0,
+      "x_max": 100.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R36",
+      "grid_x": 3,
+      "grid_y": 5,
+      "x_min": 80.0,
+      "y_min": 120.0,
+      "x_max": 100.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R37",
+      "grid_x": 3,
+      "grid_y": 6,
+      "x_min": 80.0,
+      "y_min": 140.0,
+      "x_max": 100.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R38",
+      "grid_x": 3,
+      "grid_y": 7,
+      "x_min": 80.0,
+      "y_min": 160.0,
+      "x_max": 100.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R39",
+      "grid_x": 3,
+      "grid_y": 8,
+      "x_min": 80.0,
+      "y_min": 180.0,
+      "x_max": 100.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R40",
+      "grid_x": 3,
+      "grid_y": 9,
+      "x_min": 80.0,
+      "y_min": 200.0,
+      "x_max": 100.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R41",
+      "grid_x": 4,
+      "grid_y": 0,
+      "x_min": 100.0,
+      "y_min": 20.0,
+      "x_max": 120.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R42",
+      "grid_x": 4,
+      "grid_y": 1,
+      "x_min": 100.0,
+      "y_min": 40.0,
+      "x_max": 120.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R43",
+      "grid_x": 4,
+      "grid_y": 2,
+      "x_min": 100.0,
+      "y_min": 60.0,
+      "x_max": 120.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R44",
+      "grid_x": 4,
+      "grid_y": 3,
+      "x_min": 100.0,
+      "y_min": 80.0,
+      "x_max": 120.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R45",
+      "grid_x": 4,
+      "grid_y": 4,
+      "x_min": 100.0,
+      "y_min": 100.0,
+      "x_max": 120.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R46",
+      "grid_x": 4,
+      "grid_y": 5,
+      "x_min": 100.0,
+      "y_min": 120.0,
+      "x_max": 120.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R47",
+      "grid_x": 4,
+      "grid_y": 6,
+      "x_min": 100.0,
+      "y_min": 140.0,
+      "x_max": 120.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R48",
+      "grid_x": 4,
+      "grid_y": 7,
+      "x_min": 100.0,
+      "y_min": 160.0,
+      "x_max": 120.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R49",
+      "grid_x": 4,
+      "grid_y": 8,
+      "x_min": 100.0,
+      "y_min": 180.0,
+      "x_max": 120.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R50",
+      "grid_x": 4,
+      "grid_y": 9,
+      "x_min": 100.0,
+      "y_min": 200.0,
+      "x_max": 120.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R51",
+      "grid_x": 5,
+      "grid_y": 0,
+      "x_min": 120.0,
+      "y_min": 20.0,
+      "x_max": 140.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R52",
+      "grid_x": 5,
+      "grid_y": 1,
+      "x_min": 120.0,
+      "y_min": 40.0,
+      "x_max": 140.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R53",
+      "grid_x": 5,
+      "grid_y": 2,
+      "x_min": 120.0,
+      "y_min": 60.0,
+      "x_max": 140.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R54",
+      "grid_x": 5,
+      "grid_y": 3,
+      "x_min": 120.0,
+      "y_min": 80.0,
+      "x_max": 140.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R55",
+      "grid_x": 5,
+      "grid_y": 4,
+      "x_min": 120.0,
+      "y_min": 100.0,
+      "x_max": 140.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R56",
+      "grid_x": 5,
+      "grid_y": 5,
+      "x_min": 120.0,
+      "y_min": 120.0,
+      "x_max": 140.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R57",
+      "grid_x": 5,
+      "grid_y": 6,
+      "x_min": 120.0,
+      "y_min": 140.0,
+      "x_max": 140.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R58",
+      "grid_x": 5,
+      "grid_y": 7,
+      "x_min": 120.0,
+      "y_min": 160.0,
+      "x_max": 140.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R59",
+      "grid_x": 5,
+      "grid_y": 8,
+      "x_min": 120.0,
+      "y_min": 180.0,
+      "x_max": 140.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R60",
+      "grid_x": 5,
+      "grid_y": 9,
+      "x_min": 120.0,
+      "y_min": 200.0,
+      "x_max": 140.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R61",
+      "grid_x": 6,
+      "grid_y": 0,
+      "x_min": 140.0,
+      "y_min": 20.0,
+      "x_max": 160.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R62",
+      "grid_x": 6,
+      "grid_y": 1,
+      "x_min": 140.0,
+      "y_min": 40.0,
+      "x_max": 160.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R63",
+      "grid_x": 6,
+      "grid_y": 2,
+      "x_min": 140.0,
+      "y_min": 60.0,
+      "x_max": 160.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R64",
+      "grid_x": 6,
+      "grid_y": 3,
+      "x_min": 140.0,
+      "y_min": 80.0,
+      "x_max": 160.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R65",
+      "grid_x": 6,
+      "grid_y": 4,
+      "x_min": 140.0,
+      "y_min": 100.0,
+      "x_max": 160.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R66",
+      "grid_x": 6,
+      "grid_y": 5,
+      "x_min": 140.0,
+      "y_min": 120.0,
+      "x_max": 160.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R67",
+      "grid_x": 6,
+      "grid_y": 6,
+      "x_min": 140.0,
+      "y_min": 140.0,
+      "x_max": 160.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R68",
+      "grid_x": 6,
+      "grid_y": 7,
+      "x_min": 140.0,
+      "y_min": 160.0,
+      "x_max": 160.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R69",
+      "grid_x": 6,
+      "grid_y": 8,
+      "x_min": 140.0,
+      "y_min": 180.0,
+      "x_max": 160.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R70",
+      "grid_x": 6,
+      "grid_y": 9,
+      "x_min": 140.0,
+      "y_min": 200.0,
+      "x_max": 160.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R71",
+      "grid_x": 7,
+      "grid_y": 0,
+      "x_min": 160.0,
+      "y_min": 20.0,
+      "x_max": 180.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R72",
+      "grid_x": 7,
+      "grid_y": 1,
+      "x_min": 160.0,
+      "y_min": 40.0,
+      "x_max": 180.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R73",
+      "grid_x": 7,
+      "grid_y": 2,
+      "x_min": 160.0,
+      "y_min": 60.0,
+      "x_max": 180.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R74",
+      "grid_x": 7,
+      "grid_y": 3,
+      "x_min": 160.0,
+      "y_min": 80.0,
+      "x_max": 180.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R75",
+      "grid_x": 7,
+      "grid_y": 4,
+      "x_min": 160.0,
+      "y_min": 100.0,
+      "x_max": 180.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R76",
+      "grid_x": 7,
+      "grid_y": 5,
+      "x_min": 160.0,
+      "y_min": 120.0,
+      "x_max": 180.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R77",
+      "grid_x": 7,
+      "grid_y": 6,
+      "x_min": 160.0,
+      "y_min": 140.0,
+      "x_max": 180.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R78",
+      "grid_x": 7,
+      "grid_y": 7,
+      "x_min": 160.0,
+      "y_min": 160.0,
+      "x_max": 180.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R79",
+      "grid_x": 7,
+      "grid_y": 8,
+      "x_min": 160.0,
+      "y_min": 180.0,
+      "x_max": 180.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R80",
+      "grid_x": 7,
+      "grid_y": 9,
+      "x_min": 160.0,
+      "y_min": 200.0,
+      "x_max": 180.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R81",
+      "grid_x": 8,
+      "grid_y": 0,
+      "x_min": 180.0,
+      "y_min": 20.0,
+      "x_max": 200.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R82",
+      "grid_x": 8,
+      "grid_y": 1,
+      "x_min": 180.0,
+      "y_min": 40.0,
+      "x_max": 200.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R83",
+      "grid_x": 8,
+      "grid_y": 2,
+      "x_min": 180.0,
+      "y_min": 60.0,
+      "x_max": 200.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R84",
+      "grid_x": 8,
+      "grid_y": 3,
+      "x_min": 180.0,
+      "y_min": 80.0,
+      "x_max": 200.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R85",
+      "grid_x": 8,
+      "grid_y": 4,
+      "x_min": 180.0,
+      "y_min": 100.0,
+      "x_max": 200.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R86",
+      "grid_x": 8,
+      "grid_y": 5,
+      "x_min": 180.0,
+      "y_min": 120.0,
+      "x_max": 200.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R87",
+      "grid_x": 8,
+      "grid_y": 6,
+      "x_min": 180.0,
+      "y_min": 140.0,
+      "x_max": 200.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R88",
+      "grid_x": 8,
+      "grid_y": 7,
+      "x_min": 180.0,
+      "y_min": 160.0,
+      "x_max": 200.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R89",
+      "grid_x": 8,
+      "grid_y": 8,
+      "x_min": 180.0,
+      "y_min": 180.0,
+      "x_max": 200.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R90",
+      "grid_x": 8,
+      "grid_y": 9,
+      "x_min": 180.0,
+      "y_min": 200.0,
+      "x_max": 200.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R91",
+      "grid_x": 9,
+      "grid_y": 0,
+      "x_min": 200.0,
+      "y_min": 20.0,
+      "x_max": 220.0,
+      "y_max": 40.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R92",
+      "grid_x": 9,
+      "grid_y": 1,
+      "x_min": 200.0,
+      "y_min": 40.0,
+      "x_max": 220.0,
+      "y_max": 60.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R93",
+      "grid_x": 9,
+      "grid_y": 2,
+      "x_min": 200.0,
+      "y_min": 60.0,
+      "x_max": 220.0,
+      "y_max": 80.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R94",
+      "grid_x": 9,
+      "grid_y": 3,
+      "x_min": 200.0,
+      "y_min": 80.0,
+      "x_max": 220.0,
+      "y_max": 100.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R95",
+      "grid_x": 9,
+      "grid_y": 4,
+      "x_min": 200.0,
+      "y_min": 100.0,
+      "x_max": 220.0,
+      "y_max": 120.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R96",
+      "grid_x": 9,
+      "grid_y": 5,
+      "x_min": 200.0,
+      "y_min": 120.0,
+      "x_max": 220.0,
+      "y_max": 140.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R97",
+      "grid_x": 9,
+      "grid_y": 6,
+      "x_min": 200.0,
+      "y_min": 140.0,
+      "x_max": 220.0,
+      "y_max": 160.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R98",
+      "grid_x": 9,
+      "grid_y": 7,
+      "x_min": 200.0,
+      "y_min": 160.0,
+      "x_max": 220.0,
+      "y_max": 180.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R99",
+      "grid_x": 9,
+      "grid_y": 8,
+      "x_min": 200.0,
+      "y_min": 180.0,
+      "x_max": 220.0,
+      "y_max": 200.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R100",
+      "grid_x": 9,
+      "grid_y": 9,
+      "x_min": 200.0,
+      "y_min": 200.0,
+      "x_max": 220.0,
+      "y_max": 220.0,
+      "area_square_units": 400.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\common_roi_moran\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\common_roi_moran\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\common_roi_moran\\spatial_capabilities.json"
+  }
+}

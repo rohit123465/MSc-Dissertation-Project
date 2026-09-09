@@ -1,0 +1,52 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\cross_g_one_to_many_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "aggregation_mode": "centroid_count",
+  "region_size": 100.0,
+  "distance_units": "microns",
+  "scale": {
+    "units": "microns",
+    "x_scale": 0.5,
+    "y_scale": 0.5,
+    "source": "mpp"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 10.0,
+      "y_min": 10.0,
+      "x_max": 110.0,
+      "y_max": 110.0,
+      "area_square_units": 10000.0,
+      "cell_count": 4.0,
+      "cell_density_per_square_unit": 0.0004,
+      "class_counts": {
+        "Connective": 3.0,
+        "Epithelial": 1.0
+      },
+      "class_percentages": {
+        "Connective": 75.0,
+        "Epithelial": 25.0
+      },
+      "object_count": 4.0,
+      "object_density": 0.0004,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 3.0,
+      "Connective_percentage": 75.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 1.0,
+      "Epithelial_percentage": 25.0,
+      "Epithelial_mean_probability": 1.0
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\cross_g_one_to_many\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\cross_g_one_to_many\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\cross_g_one_to_many\\spatial_capabilities.json"
+  }
+}

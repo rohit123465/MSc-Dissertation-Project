@@ -1,0 +1,58 @@
+{
+  "analysis": "common_nucleus_global_morans_i",
+  "method": {
+    "library": "PySAL ecosystem",
+    "statistic": "esda.moran.Moran",
+    "node": "individual nucleus centroid from canonical common objects",
+    "feature": "binary indicator: 1 for Epithelial, 0 for every other nucleus class",
+    "weights": {
+      "matrix_order": "Explicit input nucleus order; aligned with feature values and output IDs",
+      "node_definition": "one node per retained nucleus centroid",
+      "method": "truncated exponential nucleus-centroid distance decay",
+      "formula": "w_ij = exp(-sigma * r_ij) for 0 < r_ij <= distance_threshold; otherwise 0",
+      "distance_threshold": 21.0,
+      "distance_decay_sigma": 0.047619047619047616,
+      "sigma_selection": "user supplied",
+      "self_weights": 0.0,
+      "row_standardization": "Applied by the Global or Local Moran caller after matrix construction."
+    },
+    "weights_transform": "row-standardized",
+    "inference": "one global permutation test; no per-nucleus multiple-testing adjustment"
+  },
+  "parameters": {
+    "selected_class": "Epithelial",
+    "distance_threshold": 21.0,
+    "distance_decay_sigma": 0.047619047619047616,
+    "distance_units": "pixels",
+    "min_probability": 0.0,
+    "permutations": 999,
+    "alpha": 0.05,
+    "seed": 42
+  },
+  "nucleus_count": 100,
+  "selected_class_count": 50,
+  "other_class_count": 50,
+  "available_classes": [
+    "Connective",
+    "Epithelial"
+  ],
+  "neighbour_count_summary": {
+    "minimum": 2,
+    "mean": 3.6,
+    "maximum": 4
+  },
+  "result": {
+    "selected_class": "Epithelial",
+    "moran_i": 0.8933333333333333,
+    "expected_i": -0.010101010101010102,
+    "permutation_p_value": 0.001,
+    "permutation_z_score": 11.960911637823896,
+    "significant": true,
+    "alpha": 0.05,
+    "interpretation": "Significant positive global spatial autocorrelation: Epithelial identity tends to occur near the same binary class state under the approved nucleus graph."
+  },
+  "interpretation_warning": "Exploratory spatial analysis of supplied class labels; not validation of those labels or clinical significance.",
+  "common_spatial_json_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\grouped\\common_spatial_features.json",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference"
+}

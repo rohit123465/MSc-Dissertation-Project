@@ -1,0 +1,52 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\adapter_contract_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "numeric_synthetic",
+  "aggregation_mode": "centroid_count",
+  "region_size": 100.0,
+  "distance_units": "pixels",
+  "scale": {
+    "units": "pixels",
+    "x_scale": 1.0,
+    "y_scale": 1.0,
+    "source": "pixels"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 20.0,
+      "y_min": 20.0,
+      "x_max": 120.0,
+      "y_max": 120.0,
+      "area_square_units": 10000.0,
+      "cell_count": 3.0,
+      "cell_density_per_square_unit": 0.0003,
+      "class_counts": {
+        "3": 1.0,
+        "7": 2.0
+      },
+      "class_percentages": {
+        "3": 33.33333333333333,
+        "7": 66.66666666666666
+      },
+      "object_count": 3.0,
+      "object_density": 0.0003,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "3_count": 1.0,
+      "3_percentage": 33.33333333333333,
+      "3_mean_probability": 0.8,
+      "7_count": 2.0,
+      "7_percentage": 66.66666666666666,
+      "7_mean_probability": 0.55
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\adapter_contract_unmapped\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\adapter_contract_unmapped\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\adapter_contract_unmapped\\spatial_capabilities.json"
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "interaction_close": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 4,
+      "tumour_count": 2,
+      "immune_count": 2,
+      "tumour_immune_pair_count": 4,
+      "interaction_strength": 100.0,
+      "contact_fraction": 1.0
+    }
+  ],
+  "interaction_separated": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 4,
+      "tumour_count": 2,
+      "immune_count": 2,
+      "tumour_immune_pair_count": 0,
+      "interaction_strength": 0.0,
+      "contact_fraction": 0.0
+    }
+  ],
+  "interaction_at_radius": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 2,
+      "tumour_count": 1,
+      "immune_count": 1,
+      "tumour_immune_pair_count": 1,
+      "interaction_strength": 50.0,
+      "contact_fraction": 1.0
+    }
+  ],
+  "interaction_beyond_radius": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 2,
+      "tumour_count": 1,
+      "immune_count": 1,
+      "tumour_immune_pair_count": 0,
+      "interaction_strength": 0.0,
+      "contact_fraction": 0.0
+    }
+  ],
+  "interaction_epithelial_fallback": [],
+  "interaction_mixed_targets": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 3,
+      "tumour_count": 1,
+      "immune_count": 1,
+      "tumour_immune_pair_count": 0,
+      "interaction_strength": 0.0,
+      "contact_fraction": 0.0
+    }
+  ],
+  "interaction_no_immune": [],
+  "interaction_no_target": [],
+  "interaction_above_100": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 6,
+      "tumour_count": 3,
+      "immune_count": 3,
+      "tumour_immune_pair_count": 9,
+      "interaction_strength": 150.0,
+      "contact_fraction": 1.0
+    }
+  ],
+  "interaction_diluted": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 8,
+      "tumour_count": 2,
+      "immune_count": 2,
+      "tumour_immune_pair_count": 4,
+      "interaction_strength": 50.0,
+      "contact_fraction": 1.0
+    }
+  ],
+  "interaction_roi_boundary": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 2,
+      "tumour_count": 0,
+      "immune_count": 1,
+      "tumour_immune_pair_count": 0,
+      "interaction_strength": 0.0,
+      "contact_fraction": 0.0
+    },
+    {
+      "grid": [
+        1,
+        0
+      ],
+      "cell_count": 1,
+      "tumour_count": 1,
+      "immune_count": 0,
+      "tumour_immune_pair_count": 0,
+      "interaction_strength": 0.0,
+      "contact_fraction": 0.0
+    }
+  ],
+  "interaction_random_seed_42": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 32,
+      "tumour_count": 8,
+      "immune_count": 8,
+      "tumour_immune_pair_count": 2,
+      "interaction_strength": 6.25,
+      "contact_fraction": 0.03125
+    }
+  ],
+  "interaction_random_seed_43": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 32,
+      "tumour_count": 8,
+      "immune_count": 8,
+      "tumour_immune_pair_count": 0,
+      "interaction_strength": 0.0,
+      "contact_fraction": 0.0
+    }
+  ],
+  "interaction_random_seed_44": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 32,
+      "tumour_count": 8,
+      "immune_count": 8,
+      "tumour_immune_pair_count": 3,
+      "interaction_strength": 9.375,
+      "contact_fraction": 0.046875
+    }
+  ],
+  "interaction_random_seed_45": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 32,
+      "tumour_count": 8,
+      "immune_count": 8,
+      "tumour_immune_pair_count": 2,
+      "interaction_strength": 6.25,
+      "contact_fraction": 0.03125
+    }
+  ],
+  "interaction_random_seed_46": [
+    {
+      "grid": [
+        0,
+        0
+      ],
+      "cell_count": 32,
+      "tumour_count": 8,
+      "immune_count": 8,
+      "tumour_immune_pair_count": 1,
+      "interaction_strength": 3.125,
+      "contact_fraction": 0.015625
+    }
+  ]
+}

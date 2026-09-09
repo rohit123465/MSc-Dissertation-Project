@@ -1,0 +1,82 @@
+{
+  "started_utc": "2026-08-29T12:03:20.112285+00:00",
+  "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "python_executable": "C:\\Users\\Rohit Kumar\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\\python.exe",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "versions": {
+    "numpy": "2.0.2",
+    "scipy": "1.17.1",
+    "shapely": "2.1.2",
+    "tiatoolbox": "2.1.2",
+    "esda": "2.7.1",
+    "libpysal": "4.15.0",
+    "pointpats": "2.6.0"
+  },
+  "source": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\tia_tools.py",
+  "source_sha256": "a4c7b3a07ca311976fbb7d6e2c15bd3b6b19ff66e9edb4011d62c20625cd37a4",
+  "grid_side": 10,
+  "spacing_pixels": 20.0,
+  "distance_threshold_pixels": 21.0,
+  "seed": 42,
+  "permutations": 999,
+  "absolute_tolerance": 1e-09,
+  "input_route": "common",
+  "scope": "Numerical values, graph, class encoding, adapter preservation and input rejection; not p-value calibration",
+  "null_model": "Random class labels on fixed locations with fixed class counts; not point-process CSR",
+  "statistics": "all",
+  "runner_sha256": "c9923a9aa19d0ce9619bafb435ec8451716dc00f12208f4fe461f65fa0e3d017",
+  "ripley": {
+    "area_pixels_squared": 40000.0,
+    "radii_pixels": [
+      5.0,
+      10.0,
+      15.0,
+      30.0,
+      300.0
+    ],
+    "distance_units": "microns",
+    "k_units": "microns_squared",
+    "synthetic_mpp": 0.5,
+    "radii_microns": [
+      2.5,
+      5.0,
+      7.5,
+      15.0,
+      150.0
+    ],
+    "area_microns_squared": 10000.0,
+    "edge_correction": "none",
+    "normalization": "n*(n-1)",
+    "random_model": "100 uniform positions in fixed [0,200]^2 window",
+    "scope": "K numerical agreement and controlled behaviour only"
+  },
+  "cross_g": {
+    "synthetic_mpp": 0.5,
+    "radii_microns": [
+      1.0,
+      2.0,
+      5.0,
+      10.0,
+      25.0,
+      150.0
+    ],
+    "g_units": "dimensionless",
+    "scope": "Empirical CDF, nearest distance summaries and CSR expression; not significance",
+    "observation_area": "Bounding rectangle of all input coordinates"
+  },
+  "nni": {
+    "synthetic_mpp": 0.5,
+    "distance_units": "microns",
+    "index_units": "dimensionless",
+    "area_um2": 10000.0,
+    "formula": "mean nearest other same-class distance / (0.5 * sqrt(area/n))",
+    "scope": "Numerical agreement, controlled spacing, duplicate points, insufficient input and scale invariance"
+  },
+  "interaction": {
+    "synthetic_mpp": 0.5,
+    "radius_um": 10.0,
+    "score_units": "pairs per 100 ROI cells, not percent",
+    "region_size_um": "100 normally; 10 in boundary test",
+    "scope": "ROI pair counts, ranking score and production ROI Moran feature extraction; not biological interaction"
+  }
+}

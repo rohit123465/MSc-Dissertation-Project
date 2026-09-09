@@ -1,0 +1,75 @@
+{
+  "analysis": "common_object_cross_g",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "source_types": [
+    "Epithelial"
+  ],
+  "target_types": [
+    "Connective"
+  ],
+  "distance_units": "microns",
+  "radii": [
+    1.0,
+    2.0,
+    5.0,
+    10.0,
+    25.0,
+    150.0
+  ],
+  "statistics": {
+    "status": "computed",
+    "source_count": 3,
+    "target_count": 1,
+    "source_count_with_target_distance": 3,
+    "target_density_per_square_unit": 0.005,
+    "mean_nearest_target_distance": 15.50093846624295,
+    "median_nearest_target_distance": 14.142135623730951,
+    "minimum_nearest_target_distance": 10.0,
+    "maximum_nearest_target_distance": 22.360679774997898,
+    "curve": [
+      {
+        "radius": 1.0,
+        "empirical_cross_g": 0.0,
+        "csr_poisson_expected": 0.01558523664828626,
+        "difference_from_expected": -0.01558523664828626,
+        "interpretation": "below random expectation / spatial separation"
+      },
+      {
+        "radius": 2.0,
+        "empirical_cross_g": 0.0,
+        "csr_poisson_expected": 0.06089863257570738,
+        "difference_from_expected": -0.06089863257570738,
+        "interpretation": "below random expectation / spatial separation"
+      },
+      {
+        "radius": 5.0,
+        "empirical_cross_g": 0.0,
+        "csr_poisson_expected": 0.32476809334422285,
+        "difference_from_expected": -0.32476809334422285,
+        "interpretation": "below random expectation / spatial separation"
+      },
+      {
+        "radius": 10.0,
+        "empirical_cross_g": 0.3333333333333333,
+        "csr_poisson_expected": 0.7921204236492381,
+        "difference_from_expected": -0.45878709031590476,
+        "interpretation": "below random expectation / spatial separation"
+      },
+      {
+        "radius": 25.0,
+        "empirical_cross_g": 1.0,
+        "csr_poisson_expected": 0.9999455091108848,
+        "difference_from_expected": 5.449088911524402e-05,
+        "interpretation": "above random expectation / spatial proximity"
+      },
+      {
+        "radius": 150.0,
+        "empirical_cross_g": 1.0,
+        "csr_poisson_expected": 1.0,
+        "difference_from_expected": 0.0,
+        "interpretation": "near random expectation"
+      }
+    ]
+  }
+}

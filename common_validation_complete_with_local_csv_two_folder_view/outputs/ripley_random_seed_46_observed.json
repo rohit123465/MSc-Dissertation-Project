@@ -1,0 +1,228 @@
+{
+  "analysis": "common_object_point_pattern_statistics",
+  "common_spatial_json_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\ripley_random_seed_46\\common_spatial_features.json",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "parameters": {
+    "cell_types": [
+      "Epithelial"
+    ],
+    "source_types": [
+      "Epithelial"
+    ],
+    "target_types": [
+      "Connective"
+    ],
+    "radii": [
+      2.5,
+      5.0,
+      7.5,
+      15.0,
+      150.0
+    ],
+    "distance_units": "microns",
+    "quadrat_grid_size": 4,
+    "min_points_per_pattern": 3,
+    "min_probability": 0.0
+  },
+  "object_count": 102,
+  "analysed_area": 10000.0,
+  "by_class": {
+    "Epithelial": {
+      "point_count": 100,
+      "status": "computed",
+      "density_per_square_unit": 0.01,
+      "mean_nearest_neighbour_distance": 5.192992624061385,
+      "mean_nearest_neighbour_distance_source": "pointpats.PointPattern.mean_nnd",
+      "expected_csr_mean_nearest_neighbour_distance": 5.0,
+      "nearest_neighbour_index": 1.038598524812277,
+      "nearest_neighbour_interpretation": "approximately random",
+      "quadrat_grid_size": 4,
+      "quadrat_count_mean": 6.25,
+      "quadrat_count_variance": 7.666666666666667,
+      "quadrat_variance_to_mean_ratio": 1.2266666666666668,
+      "quadrat_interpretation": "approximately random",
+      "ripley_l_by_radius_no_edge_correction": [
+        {
+          "radius": 2.5,
+          "mean_neighbours_per_point": 0.12,
+          "ripley_k_no_edge_correction": 12.121212121212121,
+          "pointpats_l_no_edge_correction": 1.920280451743979,
+          "pointpats_l_minus_r_no_edge_correction": -0.5797195482560209,
+          "custom_l_no_edge_correction": 1.9642560043722952,
+          "custom_l_minus_r_no_edge_correction": -0.5357439956277048,
+          "ripley_l_minus_r_no_edge_correction": -0.5797195482560209,
+          "ripley_l_source": "pointpats.l",
+          "interpretation": "not clustered at this scale"
+        },
+        {
+          "radius": 5.0,
+          "mean_neighbours_per_point": 0.78,
+          "ripley_k_no_edge_correction": 78.78787878787878,
+          "pointpats_l_no_edge_correction": 4.8957737475066585,
+          "pointpats_l_minus_r_no_edge_correction": -0.1042262524933415,
+          "custom_l_no_edge_correction": 5.007889847993064,
+          "custom_l_minus_r_no_edge_correction": 0.007889847993063803,
+          "ripley_l_minus_r_no_edge_correction": -0.1042262524933415,
+          "ripley_l_source": "pointpats.l",
+          "interpretation": "not clustered at this scale"
+        },
+        {
+          "radius": 7.5,
+          "mean_neighbours_per_point": 1.74,
+          "ripley_k_no_edge_correction": 175.75757575757575,
+          "pointpats_l_no_edge_correction": 7.3122101100539965,
+          "pointpats_l_minus_r_no_edge_correction": -0.18778988994600354,
+          "custom_l_no_edge_correction": 7.479664025565112,
+          "custom_l_minus_r_no_edge_correction": -0.02033597443488766,
+          "ripley_l_minus_r_no_edge_correction": -0.18778988994600354,
+          "ripley_l_source": "pointpats.l",
+          "interpretation": "not clustered at this scale"
+        },
+        {
+          "radius": 15.0,
+          "mean_neighbours_per_point": 7.2,
+          "ripley_k_no_edge_correction": 727.2727272727273,
+          "pointpats_l_no_edge_correction": 14.874428419304172,
+          "pointpats_l_minus_r_no_edge_correction": -0.1255715806958282,
+          "custom_l_no_edge_correction": 15.215061585243644,
+          "custom_l_minus_r_no_edge_correction": 0.21506158524364416,
+          "ripley_l_minus_r_no_edge_correction": -0.1255715806958282,
+          "ripley_l_source": "pointpats.l",
+          "interpretation": "not clustered at this scale"
+        },
+        {
+          "radius": 150.0,
+          "mean_neighbours_per_point": 99.0,
+          "ripley_k_no_edge_correction": 10000.0,
+          "pointpats_l_no_edge_correction": 55.15585676982817,
+          "pointpats_l_minus_r_no_edge_correction": -94.84414323017182,
+          "custom_l_no_edge_correction": 56.41895835477563,
+          "custom_l_minus_r_no_edge_correction": -93.58104164522436,
+          "ripley_l_minus_r_no_edge_correction": -94.84414323017182,
+          "ripley_l_source": "pointpats.l",
+          "interpretation": "not clustered at this scale"
+        }
+      ],
+      "pointpats_standard_metrics": {
+        "available": true,
+        "computed": true,
+        "metrics": {
+          "point_count": 100,
+          "minimum_bounding_box": [
+            0.7071461985793448,
+            1.437554488025361,
+            99.49512604523886,
+            99.15989136716398
+          ],
+          "minimum_bounding_box_area": 9653.792246184817,
+          "lambda_mbb": 0.010358623580232942,
+          "mean_nearest_neighbour_distance": 5.192992624061385,
+          "minimum_nearest_neighbour_distance": 1.1888970367088103,
+          "maximum_nearest_neighbour_distance": 18.141029959229087,
+          "method": "pointpats.PointPattern",
+          "quadrat": {
+            "chi2": 18.4,
+            "chi2_pvalue": 0.2422204857520362,
+            "degrees_of_freedom": 15,
+            "grid_size": 4,
+            "method": "pointpats.QStatistic",
+            "interpretation": "low p-value suggests counts differ across quadrats more than expected under complete spatial randomness"
+          },
+          "l_function": [
+            {
+              "radius": 2.5,
+              "pointpats_l": 1.920280451743979,
+              "pointpats_l_minus_r": -0.5797195482560209,
+              "method": "pointpats.l",
+              "edge_correction": null
+            },
+            {
+              "radius": 5.0,
+              "pointpats_l": 4.8957737475066585,
+              "pointpats_l_minus_r": -0.1042262524933415,
+              "method": "pointpats.l",
+              "edge_correction": null
+            },
+            {
+              "radius": 7.5,
+              "pointpats_l": 7.3122101100539965,
+              "pointpats_l_minus_r": -0.18778988994600354,
+              "method": "pointpats.l",
+              "edge_correction": null
+            },
+            {
+              "radius": 15.0,
+              "pointpats_l": 14.874428419304172,
+              "pointpats_l_minus_r": -0.1255715806958282,
+              "method": "pointpats.l",
+              "edge_correction": null
+            },
+            {
+              "radius": 150.0,
+              "pointpats_l": 55.15585676982817,
+              "pointpats_l_minus_r": -94.84414323017182,
+              "method": "pointpats.l",
+              "edge_correction": null
+            }
+          ]
+        },
+        "version": "2.6.0"
+      },
+      "extent_width": 98.78797984665951,
+      "extent_height": 97.72233687913862
+    }
+  },
+  "cross_type_proximity": {
+    "source_types": [
+      "Epithelial"
+    ],
+    "target_types": [
+      "Connective"
+    ],
+    "statistics": {
+      "source_count": 100,
+      "target_count": 2,
+      "status": "computed",
+      "target_density_per_square_unit": 0.0002,
+      "by_radius": [
+        {
+          "radius": 2.5,
+          "observed_mean_target_neighbours_per_source": 0.0,
+          "expected_mean_under_csr": 0.003926990816987241,
+          "observed_to_expected_ratio": 0.0,
+          "interpretation": "less cross-type proximity than expected from density alone"
+        },
+        {
+          "radius": 5.0,
+          "observed_mean_target_neighbours_per_source": 0.0,
+          "expected_mean_under_csr": 0.015707963267948963,
+          "observed_to_expected_ratio": 0.0,
+          "interpretation": "less cross-type proximity than expected from density alone"
+        },
+        {
+          "radius": 7.5,
+          "observed_mean_target_neighbours_per_source": 0.0,
+          "expected_mean_under_csr": 0.035342917352885174,
+          "observed_to_expected_ratio": 0.0,
+          "interpretation": "less cross-type proximity than expected from density alone"
+        },
+        {
+          "radius": 15.0,
+          "observed_mean_target_neighbours_per_source": 0.01,
+          "expected_mean_under_csr": 0.1413716694115407,
+          "observed_to_expected_ratio": 0.07073553026306459,
+          "interpretation": "less cross-type proximity than expected from density alone"
+        },
+        {
+          "radius": 150.0,
+          "observed_mean_target_neighbours_per_source": 2.0,
+          "expected_mean_under_csr": 14.137166941154069,
+          "observed_to_expected_ratio": 0.1414710605261292,
+          "interpretation": "less cross-type proximity than expected from density alone"
+        }
+      ]
+    }
+  },
+  "warning": "Ripley-style values are reported without edge correction."
+}

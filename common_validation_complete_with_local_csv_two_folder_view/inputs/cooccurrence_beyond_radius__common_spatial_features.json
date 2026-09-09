@@ -1,0 +1,52 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\cooccurrence_beyond_radius_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "aggregation_mode": "centroid_count",
+  "region_size": 100.0,
+  "distance_units": "microns",
+  "scale": {
+    "units": "microns",
+    "x_scale": 0.5,
+    "y_scale": 0.5,
+    "source": "mpp"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 0.0,
+      "y_min": 0.0,
+      "x_max": 100.0,
+      "y_max": 100.0,
+      "area_square_units": 10000.0,
+      "cell_count": 2.0,
+      "cell_density_per_square_unit": 0.0002,
+      "class_counts": {
+        "Type_A": 1.0,
+        "Type_B": 1.0
+      },
+      "class_percentages": {
+        "Type_A": 50.0,
+        "Type_B": 50.0
+      },
+      "object_count": 2.0,
+      "object_density": 0.0002,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Type_A_count": 1.0,
+      "Type_A_percentage": 50.0,
+      "Type_A_mean_probability": 1.0,
+      "Type_B_count": 1.0,
+      "Type_B_percentage": 50.0,
+      "Type_B_mean_probability": 1.0
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\cooccurrence_beyond_radius\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\cooccurrence_beyond_radius\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\cooccurrence_beyond_radius\\spatial_capabilities.json"
+  }
+}

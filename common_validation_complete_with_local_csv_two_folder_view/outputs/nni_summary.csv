@@ -1,0 +1,12 @@
+case,status,synthetic_mpp,expected_nni,observed_nni,absolute_error,expected_mean_nn_um,observed_mean_nn_um,csr_mean_nn_um,observed_distance_method
+nni_square,passed,0.5,0.2,0.2,0.0,5.0,5.0,25.0,pointpats.PointPattern.mean_nnd
+nni_regular,passed,0.5,1.7777777777777775,1.7777777777777775,0.0,8.888888888888888,8.888888888888888,5.0,pointpats.PointPattern.mean_nnd
+nni_clustered,passed,0.5,0.11111111111111086,0.11111111111111086,0.0,0.5555555555555542,0.5555555555555542,5.0,pointpats.PointPattern.mean_nnd
+nni_random_seed_42,passed,0.5,1.0452439635072337,1.0452439635072335,2.220446049250313e-16,5.226219817536169,5.226219817536167,5.0,pointpats.PointPattern.mean_nnd
+nni_random_seed_43,passed,0.5,1.011484011045892,1.011484011045892,0.0,5.05742005522946,5.05742005522946,5.0,pointpats.PointPattern.mean_nnd
+nni_random_seed_44,passed,0.5,0.9614515994577448,0.9614515994577447,1.1102230246251565e-16,4.807257997288724,4.8072579972887235,5.0,pointpats.PointPattern.mean_nnd
+nni_random_seed_45,passed,0.5,1.0818523942216884,1.0818523942216884,0.0,5.409261971108442,5.409261971108442,5.0,pointpats.PointPattern.mean_nnd
+nni_random_seed_46,passed,0.5,1.038598524812277,1.038598524812277,0.0,5.192992624061385,5.192992624061385,5.0,pointpats.PointPattern.mean_nnd
+nni_regular_scaled,passed,1.0,1.7777777777777775,1.7777777777777775,0.0,17.777777777777775,17.777777777777775,10.0,pointpats.PointPattern.mean_nnd
+nni_duplicates,passed,0.5,0.0,0.0,0.0,0.0,0.0,25.0,pointpats.PointPattern.mean_nnd
+nni_single_point,passed,0.5,,,,,,,

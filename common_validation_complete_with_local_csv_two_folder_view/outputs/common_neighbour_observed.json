@@ -1,0 +1,22 @@
+{
+  "analysis": "common_object_neighbour_distances",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "source_types": [
+    "Source_A"
+  ],
+  "target_types": [
+    "Target_B"
+  ],
+  "distance_units": "microns",
+  "source_count": 2,
+  "target_count": 2,
+  "mean_nearest_distance": 3.5,
+  "median_nearest_distance": 3.5,
+  "minimum_nearest_distance": 3.0,
+  "maximum_nearest_distance": 4.0,
+  "radius": 5.0,
+  "sources_with_target_within_radius": 2,
+  "mean_targets_within_radius": 1.0,
+  "total_directed_links_within_radius": 2
+}

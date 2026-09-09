@@ -1,0 +1,11 @@
+region_id,model_family,model_name,grid_x,grid_y,x_min,y_min,x_max,y_max,area,feature_name,feature_value
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,object_count,4.0
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,object_density,0.0004
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,covered_area,0.0
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,covered_area_percentage,0.0
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,Source_A_count,2.0
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,Source_A_percentage,50.0
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,Source_A_mean_probability,1.0
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,Target_B_count,2.0
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,Target_B_percentage,50.0
+R1,annotation_objects,synthetic_reference,0,0,0.0,0.0,100.0,100.0,10000.0,Target_B_mean_probability,1.0

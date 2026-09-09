@@ -1,0 +1,341 @@
+{
+  "analysis": "kongnet_spatial_entropy",
+  "regions_json_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\common_entropy\\common_spatial_features.json",
+  "method": {
+    "metric": "Shannon entropy",
+    "formula": "H = -sum(p_i * log(p_i))",
+    "normalization": "H / log(number of present cell classes)",
+    "meaning": "Low entropy indicates that one predicted cell type dominates an ROI. High entropy indicates a compositionally mixed ROI, such as a potential tumour-immune-stromal microenvironment."
+  },
+  "parameters": {
+    "normalize": true,
+    "entropy_base": 2.718281828459045,
+    "low_threshold": 0.4,
+    "high_threshold": 0.7,
+    "cell_types": [
+      "Type_A",
+      "Type_B"
+    ]
+  },
+  "outputs": {
+    "json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_entropy_observed.json",
+    "txt": null,
+    "csv": null,
+    "annotationstore": null
+  },
+  "region_count": 4,
+  "computed_region_count": 4,
+  "summary": {
+    "mean_entropy": 0.5,
+    "median_entropy": 0.5,
+    "minimum_entropy": 0.0,
+    "maximum_entropy": 1.0,
+    "highest_entropy_regions": [
+      {
+        "region_id": "R2",
+        "region_label": null,
+        "grid_x": 1,
+        "grid_y": 0,
+        "x_min": 21.0,
+        "y_min": 1.0,
+        "x_max": 41.0,
+        "y_max": 21.0,
+        "cell_count": 2,
+        "dominant_class": "Type_A",
+        "dominant_percentage": 50.0,
+        "present_class_count": 2,
+        "shannon_entropy": 1.0,
+        "raw_shannon_entropy": 0.6931471805599453,
+        "entropy_label": "high diversity / mixed microenvironment",
+        "class_counts": {
+          "Type_A": 1.0,
+          "Type_B": 1.0
+        },
+        "class_percentages": {
+          "Type_A": 50.0,
+          "Type_B": 50.0
+        }
+      },
+      {
+        "region_id": "R4",
+        "region_label": null,
+        "grid_x": 3,
+        "grid_y": 0,
+        "x_min": 61.0,
+        "y_min": 1.0,
+        "x_max": 81.0,
+        "y_max": 21.0,
+        "cell_count": 2,
+        "dominant_class": "Type_A",
+        "dominant_percentage": 50.0,
+        "present_class_count": 2,
+        "shannon_entropy": 1.0,
+        "raw_shannon_entropy": 0.6931471805599453,
+        "entropy_label": "high diversity / mixed microenvironment",
+        "class_counts": {
+          "Type_A": 1.0,
+          "Type_B": 1.0
+        },
+        "class_percentages": {
+          "Type_A": 50.0,
+          "Type_B": 50.0
+        }
+      },
+      {
+        "region_id": "R1",
+        "region_label": null,
+        "grid_x": 0,
+        "grid_y": 0,
+        "x_min": 1.0,
+        "y_min": 1.0,
+        "x_max": 21.0,
+        "y_max": 21.0,
+        "cell_count": 2,
+        "dominant_class": "Type_A",
+        "dominant_percentage": 100.0,
+        "present_class_count": 1,
+        "shannon_entropy": 0.0,
+        "raw_shannon_entropy": -0.0,
+        "entropy_label": "low diversity / homogeneous",
+        "class_counts": {
+          "Type_A": 2.0,
+          "Type_B": 0.0
+        },
+        "class_percentages": {
+          "Type_A": 100.0,
+          "Type_B": 0.0
+        }
+      },
+      {
+        "region_id": "R3",
+        "region_label": null,
+        "grid_x": 2,
+        "grid_y": 0,
+        "x_min": 41.0,
+        "y_min": 1.0,
+        "x_max": 61.0,
+        "y_max": 21.0,
+        "cell_count": 2,
+        "dominant_class": "Type_B",
+        "dominant_percentage": 100.0,
+        "present_class_count": 1,
+        "shannon_entropy": 0.0,
+        "raw_shannon_entropy": -0.0,
+        "entropy_label": "low diversity / homogeneous",
+        "class_counts": {
+          "Type_A": 0.0,
+          "Type_B": 2.0
+        },
+        "class_percentages": {
+          "Type_A": 0.0,
+          "Type_B": 100.0
+        }
+      }
+    ],
+    "lowest_entropy_regions": [
+      {
+        "region_id": "R1",
+        "region_label": null,
+        "grid_x": 0,
+        "grid_y": 0,
+        "x_min": 1.0,
+        "y_min": 1.0,
+        "x_max": 21.0,
+        "y_max": 21.0,
+        "cell_count": 2,
+        "dominant_class": "Type_A",
+        "dominant_percentage": 100.0,
+        "present_class_count": 1,
+        "shannon_entropy": 0.0,
+        "raw_shannon_entropy": -0.0,
+        "entropy_label": "low diversity / homogeneous",
+        "class_counts": {
+          "Type_A": 2.0,
+          "Type_B": 0.0
+        },
+        "class_percentages": {
+          "Type_A": 100.0,
+          "Type_B": 0.0
+        }
+      },
+      {
+        "region_id": "R3",
+        "region_label": null,
+        "grid_x": 2,
+        "grid_y": 0,
+        "x_min": 41.0,
+        "y_min": 1.0,
+        "x_max": 61.0,
+        "y_max": 21.0,
+        "cell_count": 2,
+        "dominant_class": "Type_B",
+        "dominant_percentage": 100.0,
+        "present_class_count": 1,
+        "shannon_entropy": 0.0,
+        "raw_shannon_entropy": -0.0,
+        "entropy_label": "low diversity / homogeneous",
+        "class_counts": {
+          "Type_A": 0.0,
+          "Type_B": 2.0
+        },
+        "class_percentages": {
+          "Type_A": 0.0,
+          "Type_B": 100.0
+        }
+      },
+      {
+        "region_id": "R2",
+        "region_label": null,
+        "grid_x": 1,
+        "grid_y": 0,
+        "x_min": 21.0,
+        "y_min": 1.0,
+        "x_max": 41.0,
+        "y_max": 21.0,
+        "cell_count": 2,
+        "dominant_class": "Type_A",
+        "dominant_percentage": 50.0,
+        "present_class_count": 2,
+        "shannon_entropy": 1.0,
+        "raw_shannon_entropy": 0.6931471805599453,
+        "entropy_label": "high diversity / mixed microenvironment",
+        "class_counts": {
+          "Type_A": 1.0,
+          "Type_B": 1.0
+        },
+        "class_percentages": {
+          "Type_A": 50.0,
+          "Type_B": 50.0
+        }
+      },
+      {
+        "region_id": "R4",
+        "region_label": null,
+        "grid_x": 3,
+        "grid_y": 0,
+        "x_min": 61.0,
+        "y_min": 1.0,
+        "x_max": 81.0,
+        "y_max": 21.0,
+        "cell_count": 2,
+        "dominant_class": "Type_A",
+        "dominant_percentage": 50.0,
+        "present_class_count": 2,
+        "shannon_entropy": 1.0,
+        "raw_shannon_entropy": 0.6931471805599453,
+        "entropy_label": "high diversity / mixed microenvironment",
+        "class_counts": {
+          "Type_A": 1.0,
+          "Type_B": 1.0
+        },
+        "class_percentages": {
+          "Type_A": 50.0,
+          "Type_B": 50.0
+        }
+      }
+    ]
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "region_label": null,
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 1.0,
+      "y_min": 1.0,
+      "x_max": 21.0,
+      "y_max": 21.0,
+      "cell_count": 2,
+      "dominant_class": "Type_A",
+      "dominant_percentage": 100.0,
+      "present_class_count": 1,
+      "shannon_entropy": 0.0,
+      "raw_shannon_entropy": -0.0,
+      "entropy_label": "low diversity / homogeneous",
+      "class_counts": {
+        "Type_A": 2.0,
+        "Type_B": 0.0
+      },
+      "class_percentages": {
+        "Type_A": 100.0,
+        "Type_B": 0.0
+      }
+    },
+    {
+      "region_id": "R2",
+      "region_label": null,
+      "grid_x": 1,
+      "grid_y": 0,
+      "x_min": 21.0,
+      "y_min": 1.0,
+      "x_max": 41.0,
+      "y_max": 21.0,
+      "cell_count": 2,
+      "dominant_class": "Type_A",
+      "dominant_percentage": 50.0,
+      "present_class_count": 2,
+      "shannon_entropy": 1.0,
+      "raw_shannon_entropy": 0.6931471805599453,
+      "entropy_label": "high diversity / mixed microenvironment",
+      "class_counts": {
+        "Type_A": 1.0,
+        "Type_B": 1.0
+      },
+      "class_percentages": {
+        "Type_A": 50.0,
+        "Type_B": 50.0
+      }
+    },
+    {
+      "region_id": "R3",
+      "region_label": null,
+      "grid_x": 2,
+      "grid_y": 0,
+      "x_min": 41.0,
+      "y_min": 1.0,
+      "x_max": 61.0,
+      "y_max": 21.0,
+      "cell_count": 2,
+      "dominant_class": "Type_B",
+      "dominant_percentage": 100.0,
+      "present_class_count": 1,
+      "shannon_entropy": 0.0,
+      "raw_shannon_entropy": -0.0,
+      "entropy_label": "low diversity / homogeneous",
+      "class_counts": {
+        "Type_A": 0.0,
+        "Type_B": 2.0
+      },
+      "class_percentages": {
+        "Type_A": 0.0,
+        "Type_B": 100.0
+      }
+    },
+    {
+      "region_id": "R4",
+      "region_label": null,
+      "grid_x": 3,
+      "grid_y": 0,
+      "x_min": 61.0,
+      "y_min": 1.0,
+      "x_max": 81.0,
+      "y_max": 21.0,
+      "cell_count": 2,
+      "dominant_class": "Type_A",
+      "dominant_percentage": 50.0,
+      "present_class_count": 2,
+      "shannon_entropy": 1.0,
+      "raw_shannon_entropy": 0.6931471805599453,
+      "entropy_label": "high diversity / mixed microenvironment",
+      "class_counts": {
+        "Type_A": 1.0,
+        "Type_B": 1.0
+      },
+      "class_percentages": {
+        "Type_A": 50.0,
+        "Type_B": 50.0
+      }
+    }
+  ],
+  "interpretation_warning": "Spatial entropy describes ROI composition only. It does not prove cell-cell interaction, validate model predictions, or provide a clinical diagnosis."
+}

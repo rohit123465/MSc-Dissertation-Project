@@ -1,0 +1,67 @@
+{
+  "analysis": "common_tumour_immune_interaction",
+  "common_spatial_json_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_random_seed_43\\common_spatial_features.json",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "parameters": {
+    "tumour_types": [
+      "Neoplastic"
+    ],
+    "immune_types": [
+      "Inflammatory"
+    ],
+    "radius": 10.0,
+    "region_size": 100.0,
+    "distance_units": "microns",
+    "min_probability": 0.0,
+    "grid_origin": [
+      10.31690909788951,
+      10.326217998879095
+    ]
+  },
+  "method": {
+    "formula": "100 * distinct tumour-immune pairs within radius / all retained ROI nuclei",
+    "cross_roi_pairs": "excluded",
+    "units": "pairs per 100 cells; not a percentage",
+    "class_selection": "explicit disjoint sets; no model-specific fallback"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 10.31690909788951,
+      "y_min": 10.326217998879095,
+      "x_max": 110.3169090978895,
+      "y_max": 110.32621799887909,
+      "cell_count": 32,
+      "tumour_count": 8,
+      "immune_count": 8,
+      "tumour_immune_pair_count": 0,
+      "interaction_strength": 0.0,
+      "tumour_immune_pairs_per_100_cells": 0.0,
+      "contact_fraction": 0.0,
+      "population_status": "both_present"
+    }
+  ],
+  "rankings": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 10.31690909788951,
+      "y_min": 10.326217998879095,
+      "x_max": 110.3169090978895,
+      "y_max": 110.32621799887909,
+      "cell_count": 32,
+      "tumour_count": 8,
+      "immune_count": 8,
+      "tumour_immune_pair_count": 0,
+      "interaction_strength": 0.0,
+      "tumour_immune_pairs_per_100_cells": 0.0,
+      "contact_fraction": 0.0,
+      "population_status": "both_present"
+    }
+  ],
+  "interpretation_warning": "Spatial proximity only, not proven biological interaction or CSR-normalized enrichment."
+}

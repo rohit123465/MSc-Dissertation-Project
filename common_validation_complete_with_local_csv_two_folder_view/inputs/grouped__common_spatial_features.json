@@ -1,0 +1,142 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\grouped_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "aggregation_mode": "centroid_count",
+  "region_size": 100.0,
+  "distance_units": "pixels",
+  "scale": {
+    "units": "pixels",
+    "x_scale": 1.0,
+    "y_scale": 1.0,
+    "source": "pixels"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 20.0,
+      "y_min": 20.0,
+      "x_max": 120.0,
+      "y_max": 120.0,
+      "area_square_units": 10000.0,
+      "cell_count": 25.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 25.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 25.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 25.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R2",
+      "grid_x": 0,
+      "grid_y": 1,
+      "x_min": 20.0,
+      "y_min": 120.0,
+      "x_max": 120.0,
+      "y_max": 220.0,
+      "area_square_units": 10000.0,
+      "cell_count": 25.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 0.0,
+        "Epithelial": 25.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Epithelial": 100.0
+      },
+      "object_count": 25.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Epithelial_count": 25.0,
+      "Epithelial_percentage": 100.0,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R3",
+      "grid_x": 1,
+      "grid_y": 0,
+      "x_min": 120.0,
+      "y_min": 20.0,
+      "x_max": 220.0,
+      "y_max": 120.0,
+      "area_square_units": 10000.0,
+      "cell_count": 25.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 25.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 25.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 25.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    },
+    {
+      "region_id": "R4",
+      "grid_x": 1,
+      "grid_y": 1,
+      "x_min": 120.0,
+      "y_min": 120.0,
+      "x_max": 220.0,
+      "y_max": 220.0,
+      "area_square_units": 10000.0,
+      "cell_count": 25.0,
+      "cell_density_per_square_unit": 0.0025,
+      "class_counts": {
+        "Connective": 25.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 25.0,
+      "object_density": 0.0025,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 25.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\grouped\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\grouped\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\grouped\\spatial_capabilities.json"
+  }
+}

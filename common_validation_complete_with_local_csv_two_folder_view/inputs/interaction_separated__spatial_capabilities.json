@@ -1,0 +1,81 @@
+{
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\interaction_separated_input.db",
+  "representation": "object",
+  "has_individual_objects": true,
+  "has_object_coordinates": true,
+  "has_class_labels": true,
+  "has_roi_features": true,
+  "has_numeric_roi_features": true,
+  "has_physical_scale": true,
+  "distance_units": "microns",
+  "available_classes": [
+    "Inflammatory",
+    "Neoplastic"
+  ],
+  "available_roi_features": [
+    "Inflammatory_count",
+    "Inflammatory_mean_probability",
+    "Inflammatory_percentage",
+    "Neoplastic_count",
+    "Neoplastic_mean_probability",
+    "Neoplastic_percentage",
+    "covered_area",
+    "covered_area_percentage",
+    "object_count",
+    "object_density"
+  ],
+  "roi_count": 1,
+  "minimum_recommended_rois": 3,
+  "warnings": [
+    "Only 1 ROIs were generated; at least 3 are recommended for ROI-level spatial inference. Reduce region_size and rebuild."
+  ],
+  "data_compatible_statistics": [
+    "nni",
+    "ripley",
+    "quadrat_vmr",
+    "point_pattern_statistics",
+    "cross_g",
+    "nearest_neighbour",
+    "cooccurrence",
+    "radius_neighbourhood",
+    "nucleus_global_morans_i",
+    "nucleus_local_morans_i",
+    "tumour_immune_interaction",
+    "morans_i",
+    "spatial_entropy",
+    "hotspot_ranking"
+  ],
+  "implemented_statistics": [
+    "nni",
+    "ripley",
+    "quadrat_vmr",
+    "point_pattern_statistics",
+    "cross_g",
+    "nearest_neighbour",
+    "cooccurrence",
+    "radius_neighbourhood",
+    "nucleus_global_morans_i",
+    "nucleus_local_morans_i",
+    "tumour_immune_interaction",
+    "morans_i",
+    "spatial_entropy"
+  ],
+  "compatible_statistics": [
+    "nni",
+    "ripley",
+    "quadrat_vmr",
+    "point_pattern_statistics",
+    "cross_g",
+    "nearest_neighbour",
+    "cooccurrence",
+    "radius_neighbourhood",
+    "nucleus_global_morans_i",
+    "nucleus_local_morans_i",
+    "tumour_immune_interaction",
+    "morans_i",
+    "spatial_entropy",
+    "hotspot_ranking"
+  ]
+}

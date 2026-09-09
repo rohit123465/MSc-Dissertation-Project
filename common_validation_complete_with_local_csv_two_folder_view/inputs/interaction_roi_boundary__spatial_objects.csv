@@ -1,0 +1,4 @@
+object_id,model_family,model_name,class_name,probability,x,y,area,distance_units
+nucleus_000,annotation_objects,synthetic_reference,Connective,1.0,10.0,10.0,0.0,microns
+nucleus_001,annotation_objects,synthetic_reference,Inflammatory,1.0,19.0,10.0,0.0,microns
+nucleus_002,annotation_objects,synthetic_reference,Neoplastic,1.0,21.0,10.0,0.0,microns

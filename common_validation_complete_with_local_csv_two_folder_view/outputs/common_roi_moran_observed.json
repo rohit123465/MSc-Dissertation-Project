@@ -1,0 +1,28 @@
+{
+  "analysis": "common_roi_morans_i",
+  "common_spatial_json_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\common_roi_moran\\common_spatial_features.json",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "parameters": {
+    "metrics": [
+      "Epithelial_percentage"
+    ],
+    "weights_method": "exponential_distance_decay",
+    "distance_threshold": 21.0,
+    "distance_decay_sigma": 0.047619047619047616,
+    "permutations": 99,
+    "alpha": 0.05
+  },
+  "results": {
+    "Epithelial_percentage": {
+      "status": "computed",
+      "source": "transparent NumPy Moran's I fallback",
+      "roi_count": 100,
+      "moran_i": 0.8933333333333332,
+      "expected_i": -0.010101010101010102,
+      "permutation_p_value": 0.01,
+      "significant": true,
+      "interpretation": "Significant positive spatial autocorrelation: similar ROI values cluster together as hotspots/coldspots."
+    }
+  }
+}

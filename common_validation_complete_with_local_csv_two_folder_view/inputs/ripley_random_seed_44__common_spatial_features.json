@@ -1,0 +1,82 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\ripley_random_seed_44_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "aggregation_mode": "centroid_count",
+  "region_size": 100.0,
+  "distance_units": "microns",
+  "scale": {
+    "units": "microns",
+    "x_scale": 0.5,
+    "y_scale": 0.5,
+    "source": "mpp"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 0.0,
+      "y_min": 0.0,
+      "x_max": 100.0,
+      "y_max": 100.0,
+      "area_square_units": 10000.0,
+      "cell_count": 101.0,
+      "cell_density_per_square_unit": 0.0101,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 100.0
+      },
+      "class_percentages": {
+        "Connective": 0.9900990099009901,
+        "Epithelial": 99.00990099009901
+      },
+      "object_count": 101.0,
+      "object_density": 0.0101,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 0.9900990099009901,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 100.0,
+      "Epithelial_percentage": 99.00990099009901,
+      "Epithelial_mean_probability": 1.0
+    },
+    {
+      "region_id": "R2",
+      "grid_x": 1,
+      "grid_y": 1,
+      "x_min": 100.0,
+      "y_min": 100.0,
+      "x_max": 200.0,
+      "y_max": 200.0,
+      "area_square_units": 10000.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.0001,
+      "class_counts": {
+        "Connective": 1.0,
+        "Epithelial": 0.0
+      },
+      "class_percentages": {
+        "Connective": 100.0,
+        "Epithelial": 0.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.0001,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 100.0,
+      "Connective_mean_probability": 1.0,
+      "Epithelial_count": 0.0,
+      "Epithelial_percentage": 0.0,
+      "Epithelial_mean_probability": null
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\ripley_random_seed_44\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\ripley_random_seed_44\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\ripley_random_seed_44\\spatial_capabilities.json"
+  }
+}

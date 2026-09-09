@@ -1,0 +1,57 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\interaction_diluted_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "aggregation_mode": "centroid_count",
+  "region_size": 100.0,
+  "distance_units": "microns",
+  "scale": {
+    "units": "microns",
+    "x_scale": 0.5,
+    "y_scale": 0.5,
+    "source": "mpp"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 20.0,
+      "y_min": 20.0,
+      "x_max": 120.0,
+      "y_max": 120.0,
+      "area_square_units": 10000.0,
+      "cell_count": 8.0,
+      "cell_density_per_square_unit": 0.0008,
+      "class_counts": {
+        "Connective": 4.0,
+        "Inflammatory": 2.0,
+        "Neoplastic": 2.0
+      },
+      "class_percentages": {
+        "Connective": 50.0,
+        "Inflammatory": 25.0,
+        "Neoplastic": 25.0
+      },
+      "object_count": 8.0,
+      "object_density": 0.0008,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 4.0,
+      "Connective_percentage": 50.0,
+      "Connective_mean_probability": 1.0,
+      "Inflammatory_count": 2.0,
+      "Inflammatory_percentage": 25.0,
+      "Inflammatory_mean_probability": 1.0,
+      "Neoplastic_count": 2.0,
+      "Neoplastic_percentage": 25.0,
+      "Neoplastic_mean_probability": 1.0
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_diluted\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_diluted\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_diluted\\spatial_capabilities.json"
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "format": "common_spatial_features_v1",
+  "source_path": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\interaction_roi_boundary_input.db",
+  "model_family": "annotation_objects",
+  "model_name": "synthetic_reference",
+  "aggregation_mode": "centroid_count",
+  "region_size": 10.0,
+  "distance_units": "microns",
+  "scale": {
+    "units": "microns",
+    "x_scale": 0.5,
+    "y_scale": 0.5,
+    "source": "mpp"
+  },
+  "regions": [
+    {
+      "region_id": "R1",
+      "grid_x": 0,
+      "grid_y": 0,
+      "x_min": 10.0,
+      "y_min": 10.0,
+      "x_max": 20.0,
+      "y_max": 20.0,
+      "area_square_units": 100.0,
+      "cell_count": 2.0,
+      "cell_density_per_square_unit": 0.02,
+      "class_counts": {
+        "Connective": 1.0,
+        "Inflammatory": 1.0,
+        "Neoplastic": 0.0
+      },
+      "class_percentages": {
+        "Connective": 50.0,
+        "Inflammatory": 50.0,
+        "Neoplastic": 0.0
+      },
+      "object_count": 2.0,
+      "object_density": 0.02,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 1.0,
+      "Connective_percentage": 50.0,
+      "Connective_mean_probability": 1.0,
+      "Inflammatory_count": 1.0,
+      "Inflammatory_percentage": 50.0,
+      "Inflammatory_mean_probability": 1.0,
+      "Neoplastic_count": 0.0,
+      "Neoplastic_percentage": 0.0,
+      "Neoplastic_mean_probability": null
+    },
+    {
+      "region_id": "R2",
+      "grid_x": 1,
+      "grid_y": 0,
+      "x_min": 20.0,
+      "y_min": 10.0,
+      "x_max": 30.0,
+      "y_max": 20.0,
+      "area_square_units": 100.0,
+      "cell_count": 1.0,
+      "cell_density_per_square_unit": 0.01,
+      "class_counts": {
+        "Connective": 0.0,
+        "Inflammatory": 0.0,
+        "Neoplastic": 1.0
+      },
+      "class_percentages": {
+        "Connective": 0.0,
+        "Inflammatory": 0.0,
+        "Neoplastic": 100.0
+      },
+      "object_count": 1.0,
+      "object_density": 0.01,
+      "covered_area": 0.0,
+      "covered_area_percentage": 0.0,
+      "Connective_count": 0.0,
+      "Connective_percentage": 0.0,
+      "Connective_mean_probability": null,
+      "Inflammatory_count": 0.0,
+      "Inflammatory_percentage": 0.0,
+      "Inflammatory_mean_probability": null,
+      "Neoplastic_count": 1.0,
+      "Neoplastic_percentage": 100.0,
+      "Neoplastic_mean_probability": 1.0
+    }
+  ],
+  "outputs": {
+    "objects_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_roi_boundary\\spatial_objects.csv",
+    "roi_features_csv": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_roi_boundary\\spatial_roi_features.csv",
+    "capabilities_json": "C:\\Users\\Rohit Kumar\\Desktop\\MSc dissertation\\files_mock_claude_response\\evaluation\\out\\common_validation_complete_with_local_csv\\common_inputs\\interaction_roi_boundary\\spatial_capabilities.json"
+  }
+}

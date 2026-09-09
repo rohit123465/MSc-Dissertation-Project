@@ -1,0 +1,5 @@
+object_id,model_family,model_name,class_name,probability,x,y,area,distance_units
+nucleus_000,annotation_objects,synthetic_reference,Source_A,1.0,0.0,0.0,0.0,microns
+nucleus_001,annotation_objects,synthetic_reference,Source_A,1.0,10.0,0.0,0.0,microns
+nucleus_002,annotation_objects,synthetic_reference,Target_B,1.0,0.0,3.0,0.0,microns
+nucleus_003,annotation_objects,synthetic_reference,Target_B,1.0,14.0,0.0,0.0,microns
